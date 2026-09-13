@@ -4,6 +4,15 @@ import { getNPSPorProfissional } from '@/lib/belle/relatorio-nps'
 import { getUnidadeCredenciais } from '@/lib/belle/unidades-config'
 import { getNaoTerapeutasRH, normalizarNome } from '@/lib/rh/terapeutas-ativos'
 
+// Stopgap: desligadas que fazem atendimento no Belle mas nunca foram cadastradas no
+// RH (o RH é recente). Escondidas manualmente até o vínculo Belle↔RH (nomeBelle) ficar
+// pronto — aí o filtro allowlist esconde qualquer desligada automaticamente.
+const OCULTAR_MANUAL = new Set([
+  'Isabela Annunciação Campos de Mendonça',
+  'Bruna Bonifácio Silva',
+  'Cristiane Vieira dos Santos',
+].map(normalizarNome))
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
@@ -51,6 +60,7 @@ export async function GET(req: NextRequest) {
       .filter(t => {
         const n = normalizarNome(t.profissional)
         if (n.includes('banho')) return false
+        if (OCULTAR_MANUAL.has(n)) return false
         if (naoTerapeutas && naoTerapeutas.has(n)) return false
         return true
       })
