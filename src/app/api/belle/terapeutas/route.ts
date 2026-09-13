@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getTerapeutasFidelizacao } from '@/lib/belle/relatorio-fidelizacao'
 import { getNPSPorProfissional } from '@/lib/belle/relatorio-nps'
 import { getUnidadeCredenciais } from '@/lib/belle/unidades-config'
+import { getTerapeutasAtivosRH, normalizarNome } from '@/lib/rh/terapeutas-ativos'
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,20 +30,27 @@ export async function GET(req: NextRequest) {
     const senha = credenciais.password
     const estab = credenciais.estab
 
-    // Busca dados de fidelização e NPS em paralelo
-    const [terapeutasFidelizacao, npsData] = await Promise.all([
+    // Busca fidelização, NPS e a lista de terapeutas ativos do RH em paralelo
+    const [terapeutasFidelizacao, npsData, ativosRH] = await Promise.all([
       getTerapeutasFidelizacao(email, senha, dataIni, dataFim, estab),
-      getNPSPorProfissional(email, senha, dataIni, dataFim, estab)
+      getNPSPorProfissional(email, senha, dataIni, dataFim, estab),
+      getTerapeutasAtivosRH(),
     ])
 
-    // Mescla os dados de NPS com fidelização
-    const terapeutas = terapeutasFidelizacao.map(t => {
-      const npsProf = npsData.find(n => n.profissional === t.profissional)
-      return {
-        ...t,
-        nps: npsProf?.nps || 0
-      }
-    })
+    // Mescla o NPS por nome NORMALIZADO (corrige mismatch de espaço/acento entre
+    // Report 192 e Report 21, que zerava o NPS de alguns profissionais).
+    const npsPorNome = new Map(npsData.map(n => [normalizarNome(n.profissional), n.nps]))
+    let terapeutas = terapeutasFidelizacao.map(t => ({
+      ...t,
+      nps: npsPorNome.get(normalizarNome(t.profissional)) ?? 0,
+    }))
+
+    // Mantém APENAS terapeutas ativos conforme o RH (exclui coordenadoras, recepção,
+    // banho de imersão e inativos). Fail-open: se o RH estiver indisponível (null),
+    // não filtra — melhor mostrar tudo do que a tela vazia.
+    if (ativosRH) {
+      terapeutas = terapeutas.filter(t => ativosRH.has(normalizarNome(t.profissional)))
+    }
 
     return NextResponse.json(terapeutas)
   } catch (error) {

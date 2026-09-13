@@ -3,21 +3,33 @@
 import { useState, useEffect } from 'react'
 import { TerapeutaFidelizacao } from '@/lib/belle/relatorio-fidelizacao'
 
+const MESES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+]
+
+// Último mês FECHADO (o mês atual em curso não é considerado nos indicadores).
+function ultimoMesFechado(): { ano: number; mes: number } {
+  const hoje = new Date()
+  const d = new Date(hoje.getFullYear(), hoje.getMonth(), 0) // dia 0 do mês atual = último dia do mês anterior
+  return { ano: d.getFullYear(), mes: d.getMonth() + 1 }
+}
+
 export default function TerapeutasPage() {
   const [terapeutas, setTerapeutas] = useState<TerapeutaFidelizacao[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [mesSelecionado, setMesSelecionado] = useState('')
 
-  // Inicializa com o mês atual
-  useEffect(() => {
-    const hoje = new Date()
-    const ano = hoje.getFullYear()
-    const mes = (hoje.getMonth() + 1).toString().padStart(2, '0')
-    setMesSelecionado(`${ano}-${mes}`)
-  }, [])
+  const fechado = ultimoMesFechado()
+  const maxMes = `${fechado.ano}-${String(fechado.mes).padStart(2, '0')}`
+  const mesAtualNome = MESES[new Date().getMonth()]
 
-  // Busca dados quando o mês estiver definido
+  // Inicializa no último mês fechado (não no mês atual em curso).
+  useEffect(() => {
+    setMesSelecionado(maxMes)
+  }, [maxMes])
+
   useEffect(() => {
     if (!mesSelecionado) return
 
@@ -26,26 +38,21 @@ export default function TerapeutasPage() {
         setLoading(true)
         setError(null)
 
-        // Extrai ano e mês do valor selecionado (formato: YYYY-MM)
         const [ano, mes] = mesSelecionado.split('-').map(Number)
 
-        // Calcula o último dia do mês selecionado
-        const ultimoDia = new Date(ano, mes, 0).getDate()
-        const dataFim = `${ano}-${mes.toString().padStart(2, '0')}-${ultimoDia.toString().padStart(2, '0')}`
+        // Não considera o mês em curso: limita o fim ao último mês fechado.
+        const anoEfetivo = (ano > fechado.ano || (ano === fechado.ano && mes > fechado.mes)) ? fechado.ano : ano
+        const mesEfetivo = (ano > fechado.ano || (ano === fechado.ano && mes > fechado.mes)) ? fechado.mes : mes
 
-        // Ajusta dataIni para o início do semestre
-        // Se está no 1º semestre (jan-jun), acumula desde janeiro
-        // Se está no 2º semestre (jul-dez), acumula desde julho
-        const dataIniAjustada = mes <= 6
-          ? `${ano}-01-01`
-          : `${ano}-07-01`
+        const ultimoDia = new Date(anoEfetivo, mesEfetivo, 0).getDate()
+        const dataFim = `${anoEfetivo}-${String(mesEfetivo).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`
 
-        const res = await fetch(
-          `/api/belle/terapeutas?dataIni=${dataIniAjustada}&dataFim=${dataFim}`
-        )
+        // Acumula desde o início do semestre do mês efetivo.
+        const dataIni = mesEfetivo <= 6 ? `${anoEfetivo}-01-01` : `${anoEfetivo}-07-01`
+
+        const res = await fetch(`/api/belle/terapeutas?dataIni=${dataIni}&dataFim=${dataFim}`)
         if (!res.ok) throw new Error('Erro ao carregar dados')
-        const data = await res.json()
-        setTerapeutas(data)
+        setTerapeutas(await res.json())
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Erro desconhecido')
       } finally {
@@ -54,76 +61,29 @@ export default function TerapeutasPage() {
     }
 
     fetchTerapeutas()
-  }, [mesSelecionado])
+  }, [mesSelecionado, fechado.ano, fechado.mes])
 
-  // Calcula o período de visualização para exibir
-  const getPeriodoVisualizacao = () => {
+  // Período exibido (ex.: "Julho a Agosto 2026").
+  const periodo = (() => {
     if (!mesSelecionado) return ''
-
     const [ano, mes] = mesSelecionado.split('-').map(Number)
-    const meses = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-    ]
+    const anoEf = (ano > fechado.ano || (ano === fechado.ano && mes > fechado.mes)) ? fechado.ano : ano
+    const mesEf = (ano > fechado.ano || (ano === fechado.ano && mes > fechado.mes)) ? fechado.mes : mes
+    const mesInicio = mesEf <= 6 ? 0 : 6
+    return `${MESES[mesInicio]} a ${MESES[mesEf - 1]} ${anoEf}`
+  })()
 
-    const mesInicio = mes <= 6 ? 0 : 6 // Janeiro (0) ou Julho (6)
-    const mesFim = mes - 1 // Índice do mês selecionado
+  // Máximos para as notas (relativas ao maior do período).
+  const maxHoras = terapeutas.length ? Math.max(...terapeutas.map(t => t.horasAtendimento)) : 0
+  const maxPerc = terapeutas.length ? Math.max(...terapeutas.map(t => t.percServicosFidelizados)) : 0
+  const maxNps = terapeutas.length ? Math.max(...terapeutas.map(t => t.nps)) : 0
 
-    return `${meses[mesInicio]} a ${meses[mesFim]} ${ano}`
-  }
+  const nota = (valor: number, max: number) => (max > 0 ? (valor / max) * 10 : 0)
 
-  // Separa profissionais regulares de banho de imersão
-  const profissionaisRegulares = terapeutas.filter(
-    t => !t.profissional.toLowerCase().includes('banho')
-  )
-  const profissionaisBanho = terapeutas.filter(
-    t => t.profissional.toLowerCase().includes('banho')
-  )
-
-  // Encontra maiores valores para destaque - Regulares
-  const maxHorasRegulares = profissionaisRegulares.length > 0
-    ? Math.max(...profissionaisRegulares.map(t => t.horasAtendimento))
-    : 0
-  const maxPercRegulares = profissionaisRegulares.length > 0
-    ? Math.max(...profissionaisRegulares.map(t => t.percServicosFidelizados))
-    : 0
-  const maxNpsRegulares = profissionaisRegulares.length > 0
-    ? Math.max(...profissionaisRegulares.map(t => t.nps))
-    : 0
-
-  // Encontra maiores valores para destaque - Banho
-  const maxHorasBanho = profissionaisBanho.length > 0
-    ? Math.max(...profissionaisBanho.map(t => t.horasAtendimento))
-    : 0
-  const maxPercBanho = profissionaisBanho.length > 0
-    ? Math.max(...profissionaisBanho.map(t => t.percServicosFidelizados))
-    : 0
-
-  // Calcula subtotais
-  const subtotalHorasRegulares = profissionaisRegulares.reduce((sum, t) => sum + t.horasAtendimento, 0)
-  const subtotalMediaPercRegulares = profissionaisRegulares.length > 0
-    ? profissionaisRegulares.reduce((sum, t) => sum + t.percServicosFidelizados, 0) / profissionaisRegulares.length
-    : 0
-  const subtotalMediaNpsRegulares = profissionaisRegulares.length > 0
-    ? profissionaisRegulares.reduce((sum, t) => sum + t.nps, 0) / profissionaisRegulares.length
-    : 0
-
-  const subtotalHorasBanho = profissionaisBanho.reduce((sum, t) => sum + t.horasAtendimento, 0)
-  const subtotalMediaPercBanho = profissionaisBanho.length > 0
-    ? profissionaisBanho.reduce((sum, t) => sum + t.percServicosFidelizados, 0) / profissionaisBanho.length
-    : 0
-  const subtotalMediaNpsBanho = profissionaisBanho.length > 0
-    ? profissionaisBanho.reduce((sum, t) => sum + t.nps, 0) / profissionaisBanho.length
-    : 0
-
-  // Total geral
-  const totalHoras = subtotalHorasRegulares + subtotalHorasBanho
-  const totalMediaPerc = terapeutas.length > 0
-    ? terapeutas.reduce((sum, t) => sum + t.percServicosFidelizados, 0) / terapeutas.length
-    : 0
-  const totalMediaNps = terapeutas.length > 0
-    ? terapeutas.reduce((sum, t) => sum + t.nps, 0) / terapeutas.length
-    : 0
+  // Agregados (calc discreto no rodapé).
+  const totalHoras = terapeutas.reduce((s, t) => s + t.horasAtendimento, 0)
+  const mediaPerc = terapeutas.length ? terapeutas.reduce((s, t) => s + t.percServicosFidelizados, 0) / terapeutas.length : 0
+  const mediaNps = terapeutas.length ? terapeutas.reduce((s, t) => s + t.nps, 0) / terapeutas.length : 0
 
   return (
     <div className="min-h-screen bg-[#E4E5E2] p-6">
@@ -132,30 +92,34 @@ export default function TerapeutasPage() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-[#7E0000] mb-2">Terapeutas</h1>
           <p className="text-[#392617]/70">
-            Performance dos profissionais por período
+            Performance dos terapeutas ativos — Produtividade, Fidelização e NPS
           </p>
         </div>
 
-        {/* Filtros de Período */}
+        {/* Filtro de Período */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex gap-6 items-end">
+          <div className="flex flex-wrap gap-6 items-end">
             <div>
               <label className="block text-sm font-medium text-[#392617] mb-2">
-                Selecione o Mês
+                Mês (fim do período)
               </label>
               <input
                 type="month"
                 value={mesSelecionado}
+                max={maxMes}
                 onChange={(e) => setMesSelecionado(e.target.value)}
                 className="px-4 py-2 border border-[#DDC7A4] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#D78B18]"
               />
             </div>
             {mesSelecionado && (
-              <div className="pb-2">
-                <span className="text-sm text-[#392617]/70">Período: </span>
-                <span className="text-base font-semibold text-[#7E0000]">
-                  {getPeriodoVisualizacao()}
-                </span>
+              <div className="pb-1">
+                <div>
+                  <span className="text-sm text-[#392617]/70">Período: </span>
+                  <span className="text-base font-semibold text-[#7E0000]">{periodo}</span>
+                </div>
+                <p className="text-xs text-[#392617]/60 mt-1">
+                  O mês atual ({mesAtualNome}) está em curso e <strong>não é considerado</strong> — acumula apenas meses fechados do semestre.
+                </p>
               </div>
             )}
           </div>
@@ -164,241 +128,93 @@ export default function TerapeutasPage() {
         {/* Tabela */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-[#392617]/70">
-              Carregando dados...
-            </div>
+            <div className="p-8 text-center text-[#392617]/70">Carregando dados...</div>
           ) : error ? (
-            <div className="p-8 text-center text-[#7E0000]">
-              {error}
+            <div className="p-8 text-center text-[#7E0000]">{error}</div>
+          ) : terapeutas.length === 0 ? (
+            <div className="p-8 text-center text-[#392617]/70">
+              Nenhum terapeuta ativo encontrado para o período.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-[#7E0000] text-white">
                   <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold">
-                      Profissional
-                    </th>
-                    <th className="px-6 py-3 text-right text-sm font-semibold">
-                      Horas de Atendimento
-                    </th>
-                    <th className="px-6 py-3 text-right text-sm font-semibold">
-                      Nota de Produtividade
-                    </th>
-                    <th className="px-6 py-3 text-right text-sm font-semibold">
-                      % Serviços Clientes Fidelizados
-                    </th>
-                    <th className="px-6 py-3 text-right text-sm font-semibold">
-                      Nota de Fidelização
-                    </th>
-                    <th className="px-6 py-3 text-right text-sm font-semibold">
-                      NPS
-                    </th>
-                    <th className="px-6 py-3 text-right text-sm font-semibold">
-                      Nota de NPS
-                    </th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold">Terapeuta</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">Produtividade</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">Fidelização</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">NPS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#DDC7A4]/30">
-                  {/* Profissionais Regulares */}
-                  {profissionaisRegulares.map((terapeuta, index) => {
-                    const isMaxHoras = terapeuta.horasAtendimento === maxHorasRegulares
-                    const isMaxPerc = terapeuta.percServicosFidelizados === maxPercRegulares
-                    const isMaxNps = terapeuta.nps === maxNpsRegulares
-                    const percMetaHoras = maxHorasRegulares > 0
-                      ? (terapeuta.horasAtendimento / maxHorasRegulares) * 10
-                      : 0
-                    const percMetaFidelizacao = maxPercRegulares > 0
-                      ? (terapeuta.percServicosFidelizados / maxPercRegulares) * 10
-                      : 0
-                    const percMetaNps = maxNpsRegulares > 0
-                      ? (terapeuta.nps / maxNpsRegulares) * 10
-                      : 0
-
-                    return (
-                      <tr
-                        key={`regular-${index}`}
-                        className="hover:bg-[#DDC7A4]/10 transition-colors"
-                      >
-                        <td className="px-6 py-4 text-sm text-[#392617]">
-                          {terapeuta.profissional}
-                        </td>
-                        <td className={`px-6 py-4 text-sm text-right font-semibold ${
-                          isMaxHoras
-                            ? 'bg-[#D78B18] text-white'
-                            : 'text-[#392617]'
-                        }`}>
-                          {terapeuta.horasAtendimento.toFixed(2)}h
-                        </td>
-                        <td className={`px-6 py-4 text-sm text-right font-bold ${
-                          percMetaHoras === 10
-                            ? 'bg-[#425F1D] text-white'
-                            : percMetaHoras >= 8
-                            ? 'text-[#425F1D]'
-                            : percMetaHoras >= 6
-                            ? 'text-[#D78B18]'
-                            : 'text-[#7E0000]'
-                        }`}>
-                          {percMetaHoras.toFixed(1)}
-                        </td>
-                        <td className={`px-6 py-4 text-sm text-right font-semibold ${
-                          isMaxPerc
-                            ? 'bg-[#D78B18] text-white'
-                            : 'text-[#392617]'
-                        }`}>
-                          {terapeuta.percServicosFidelizados.toFixed(2)}%
-                        </td>
-                        <td className={`px-6 py-4 text-sm text-right font-bold ${
-                          percMetaFidelizacao === 10
-                            ? 'bg-[#425F1D] text-white'
-                            : percMetaFidelizacao >= 8
-                            ? 'text-[#425F1D]'
-                            : percMetaFidelizacao >= 6
-                            ? 'text-[#D78B18]'
-                            : 'text-[#7E0000]'
-                        }`}>
-                          {percMetaFidelizacao.toFixed(1)}
-                        </td>
-                        <td className={`px-6 py-4 text-sm text-right font-semibold ${
-                          isMaxNps
-                            ? 'bg-[#D78B18] text-white'
-                            : 'text-[#392617]'
-                        }`}>
-                          {terapeuta.nps.toFixed(2)}%
-                        </td>
-                        <td className={`px-6 py-4 text-sm text-right font-bold ${
-                          percMetaNps === 10
-                            ? 'bg-[#425F1D] text-white'
-                            : percMetaNps >= 8
-                            ? 'text-[#425F1D]'
-                            : percMetaNps >= 6
-                            ? 'text-[#D78B18]'
-                            : 'text-[#7E0000]'
-                        }`}>
-                          {percMetaNps.toFixed(1)}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                  {/* Subtotal Profissionais Regulares */}
-                  {profissionaisRegulares.length > 0 && (
-                    <tr className="bg-[#DDC7A4]/20 font-semibold">
-                      <td className="px-6 py-4 text-sm text-[#7E0000]">
-                        SUBTOTAL TERAPEUTAS
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#7E0000] text-right">
-                        {subtotalHorasRegulares.toFixed(2)}h
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#7E0000] text-right">
-                        -
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#7E0000] text-right">
-                        {subtotalMediaPercRegulares.toFixed(2)}% (média)
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#7E0000] text-right">
-                        -
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#7E0000] text-right">
-                        {subtotalMediaNpsRegulares.toFixed(2)}% (média)
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#7E0000] text-right">
-                        -
-                      </td>
-                    </tr>
-                  )}
-
-                  {/* Profissionais Banho de Imersão */}
-                  {profissionaisBanho.map((terapeuta, index) => (
-                    <tr
-                      key={`banho-${index}`}
-                      className="hover:bg-[#DDC7A4]/10 transition-colors"
-                    >
-                      <td className="px-6 py-4 text-sm text-[#392617]">
-                        {terapeuta.profissional}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#392617] text-right">
-                        {terapeuta.horasAtendimento.toFixed(2)}h
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#392617]/40 text-right">
-                        -
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#392617] text-right">
-                        {terapeuta.percServicosFidelizados.toFixed(2)}%
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#392617]/40 text-right">
-                        -
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#392617] text-right">
-                        {terapeuta.nps.toFixed(2)}%
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#392617]/40 text-right">
-                        -
-                      </td>
+                  {terapeutas.map((t, i) => (
+                    <tr key={`${t.profissional}-${i}`} className="hover:bg-[#DDC7A4]/10 transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-[#392617]">{t.profissional}</td>
+                      <IndicadorCell
+                        nota={nota(t.horasAtendimento, maxHoras)}
+                        bruto={`${t.horasAtendimento.toFixed(2)}h`}
+                      />
+                      <IndicadorCell
+                        nota={nota(t.percServicosFidelizados, maxPerc)}
+                        bruto={`${t.percServicosFidelizados.toFixed(2)}% fidelizados`}
+                      />
+                      <IndicadorCell
+                        nota={nota(t.nps, maxNps)}
+                        bruto={`${t.nps.toFixed(0)}% NPS`}
+                      />
                     </tr>
                   ))}
-                  {/* Subtotal Banho de Imersão */}
-                  {profissionaisBanho.length > 0 && (
-                    <tr className="bg-[#DDC7A4]/20 font-semibold">
-                      <td className="px-6 py-4 text-sm text-[#7E0000]">
-                        SUBTOTAL BANHO DE IMERSÃO
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#7E0000] text-right">
-                        {subtotalHorasBanho.toFixed(2)}h
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#7E0000] text-right">
-                        -
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#7E0000] text-right">
-                        {subtotalMediaPercBanho.toFixed(2)}% (média)
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#7E0000] text-right">
-                        -
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#7E0000] text-right">
-                        {subtotalMediaNpsBanho.toFixed(2)}% (média)
-                      </td>
-                      <td className="px-6 py-4 text-sm text-[#7E0000] text-right">
-                        -
-                      </td>
-                    </tr>
-                  )}
 
-                  {/* Total Geral */}
-                  <tr className="bg-[#7E0000] text-white font-bold">
-                    <td className="px-6 py-4 text-sm">
-                      TOTAL GERAL
+                  {/* Rodapé agregado (cálculo discreto) */}
+                  <tr className="bg-[#DDC7A4]/20">
+                    <td className="px-6 py-3 text-sm font-semibold text-[#7E0000]">
+                      {terapeutas.length} terapeutas
                     </td>
-                    <td className="px-6 py-4 text-sm text-right">
-                      {totalHoras.toFixed(2)}h
+                    <td className="px-4 py-3 text-center text-xs text-[#392617]/60">
+                      {totalHoras.toFixed(0)}h no total
                     </td>
-                    <td className="px-6 py-4 text-sm text-right">
-                      -
+                    <td className="px-4 py-3 text-center text-xs text-[#392617]/60">
+                      {mediaPerc.toFixed(1)}% média
                     </td>
-                    <td className="px-6 py-4 text-sm text-right">
-                      {totalMediaPerc.toFixed(2)}% (média)
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right">
-                      -
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right">
-                      {totalMediaNps.toFixed(2)}% (média)
-                    </td>
-                    <td className="px-6 py-4 text-sm text-right">
-                      -
+                    <td className="px-4 py-3 text-center text-xs text-[#392617]/60">
+                      {mediaNps.toFixed(0)}% média
                     </td>
                   </tr>
                 </tbody>
               </table>
-
-              {terapeutas.length === 0 && (
-                <div className="p-8 text-center text-[#392617]/70">
-                  Nenhum terapeuta encontrado para o período selecionado.
-                </div>
-              )}
             </div>
           )}
         </div>
+
+        {/* Legenda */}
+        <p className="text-xs text-[#392617]/50 mt-3">
+          Notas de 0 a 10, relativas ao melhor terapeuta do período em cada indicador. O valor de cálculo (horas, % fidelizados, % NPS) aparece em cinza abaixo de cada nota.
+        </p>
       </div>
     </div>
+  )
+}
+
+// Célula de indicador: nota em destaque + valor de cálculo discreto embaixo.
+function IndicadorCell({ nota, bruto }: { nota: number; bruto: string }) {
+  const top = nota >= 9.95
+  const corTexto =
+    nota >= 8 ? 'text-[#425F1D]' :
+    nota >= 6 ? 'text-[#D78B18]' :
+    'text-[#7E0000]'
+
+  return (
+    <td className="px-4 py-4 text-center">
+      <div
+        className={
+          top
+            ? 'inline-block min-w-[3.25rem] rounded-md bg-[#425F1D] px-2 py-1 text-xl font-bold text-white'
+            : `text-xl font-bold ${corTexto}`
+        }
+      >
+        {nota.toFixed(1)}
+      </div>
+      <div className="mt-0.5 text-[11px] text-[#392617]/45">{bruto}</div>
+    </td>
   )
 }

@@ -67,7 +67,7 @@ export async function getTerapeutasFidelizacao(
   for (const record of records) {
     if (!Array.isArray(record)) continue
 
-    const profissional = String(record[0] || '')
+    const profissional = String(record[0] || '').trim()
 
     // Exclui "Recepção" e "Administrador" da lista de profissionais
     if (profissional.toLowerCase().includes('recepção') ||
