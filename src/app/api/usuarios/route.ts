@@ -5,8 +5,8 @@ import { hashSenha } from '@/lib/auth/password'
 
 export const dynamic = 'force-dynamic'
 
-type Perfil = 'DONA' | 'COORDENACAO' | 'RECEPCAO'
-const PERFIS: Perfil[] = ['DONA', 'COORDENACAO', 'RECEPCAO']
+type Perfil = 'DONA' | 'COORDENACAO' | 'RECEPCAO' | 'FINANCEIRO' | 'RH'
+const PERFIS: Perfil[] = ['DONA', 'COORDENACAO', 'RECEPCAO', 'FINANCEIRO', 'RH']
 
 // GET /api/usuarios — lista usuários (+ unidades) e as unidades disponíveis
 export async function GET() {

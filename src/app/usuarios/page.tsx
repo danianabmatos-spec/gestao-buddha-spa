@@ -10,6 +10,8 @@ const PERFIS = [
   { v: 'DONA', l: 'Dona (acesso total)' },
   { v: 'COORDENACAO', l: 'Coordenação' },
   { v: 'RECEPCAO', l: 'Recepção' },
+  { v: 'FINANCEIRO', l: 'Financeiro' },
+  { v: 'RH', l: 'RH' },
 ]
 const perfilLabel = (v: string) => PERFIS.find((p) => p.v === v)?.l ?? v
 
