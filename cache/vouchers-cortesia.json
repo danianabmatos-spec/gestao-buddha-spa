@@ -1,0 +1,128 @@
+{
+  "2026-03-01_2026-03-31": {
+    "dataIni": "2026-03-01",
+    "dataFim": "2026-03-31",
+    "totalReembolso": 0,
+    "totalValor": 466,
+    "totalValidados": 2,
+    "pendentesValidacao": 0,
+    "validacaoManual": 0,
+    "validacaoAutomatica": 0,
+    "vouchers": [
+      {
+        "codigo": "S64F8KH",
+        "produto": "Relaxante Corporal 60' - Cortesia rede",
+        "dataCriacao": "11/03/2026 15:48:26",
+        "dataTerapia": "24/03/2026 18:39:45",
+        "valorReembolso": 0,
+        "valor": 233,
+        "unidade": "Shopping Metrópole",
+        "status": "Utilizado"
+      },
+      {
+        "codigo": "PX61P1X",
+        "produto": "Relaxante Corporal 60' - Cortesia rede",
+        "dataCriacao": "11/03/2026 15:48:23",
+        "dataTerapia": "24/03/2026 17:16:08",
+        "valorReembolso": 0,
+        "valor": 233,
+        "unidade": "Shopping Metrópole",
+        "status": "Utilizado"
+      }
+    ],
+    "savedAt": "2026-06-06T16:56:17.743Z"
+  },
+  "2026-02-01_2026-02-28": {
+    "dataIni": "2026-02-01",
+    "dataFim": "2026-02-28",
+    "totalReembolso": 0,
+    "totalValor": 233,
+    "totalValidados": 1,
+    "pendentesValidacao": 0,
+    "validacaoManual": 0,
+    "validacaoAutomatica": 0,
+    "vouchers": [
+      {
+        "codigo": "D5HJK8P",
+        "produto": "Massagem Relaxante 60' - Cortesia rede",
+        "dataCriacao": "05/02/2026 14:22:15",
+        "dataTerapia": "18/02/2026 16:30:00",
+        "valorReembolso": 0,
+        "valor": 233,
+        "unidade": "Shopping Metrópole",
+        "status": "Utilizado"
+      }
+    ],
+    "savedAt": "2026-06-06T16:55:33.729Z"
+  },
+  "2026-04-01_2026-04-30": {
+    "dataIni": "2026-04-01",
+    "dataFim": "2026-04-30",
+    "totalReembolso": 0,
+    "totalValor": 0,
+    "totalValidados": 0,
+    "pendentesValidacao": 0,
+    "validacaoManual": 0,
+    "validacaoAutomatica": 0,
+    "vouchers": [],
+    "savedAt": "2026-06-06T16:56:22.315Z"
+  },
+  "2026-05-01_2026-05-31": {
+    "dataIni": "2026-05-01",
+    "dataFim": "2026-05-31",
+    "totalReembolso": 0,
+    "totalValor": 0,
+    "totalValidados": 0,
+    "pendentesValidacao": 0,
+    "validacaoManual": 0,
+    "validacaoAutomatica": 0,
+    "vouchers": [],
+    "savedAt": "2026-06-06T16:56:27.976Z"
+  },
+  "2026-06-01_2026-06-05": {
+    "dataIni": "2026-06-01",
+    "dataFim": "2026-06-05",
+    "totalReembolso": 154,
+    "totalValidados": 0,
+    "pendentesValidacao": 0,
+    "validacaoManual": 0,
+    "validacaoAutomatica": 0,
+    "vouchers": [],
+    "savedAt": "2026-06-06T22:16:13.179Z"
+  },
+  "2026-06-01_2026-06-30": {
+    "dataIni": "2026-06-01",
+    "dataFim": "2026-06-30",
+    "totalReembolso": 0,
+    "totalValor": 0,
+    "totalValidados": 0,
+    "pendentesValidacao": 0,
+    "validacaoManual": 0,
+    "validacaoAutomatica": 0,
+    "vouchers": [],
+    "savedAt": "2026-06-15T19:07:37.937Z"
+  },
+  "2026-07-01_2026-07-12": {
+    "dataIni": "2026-07-01",
+    "dataFim": "2026-07-12",
+    "totalReembolso": 0,
+    "totalValidados": 1,
+    "pendentesValidacao": 0,
+    "validacaoManual": 0,
+    "validacaoAutomatica": 1,
+    "vouchers": [
+      {
+        "codigo": "BSIRPQL",
+        "produto": "Yin-Yang 60 - Cortesia rede",
+        "dataVenda": "19/06/2026 09:34",
+        "dataTerapia": "06/07/2026 17:35",
+        "unidade": "Higienópolis",
+        "statusVoucher": "Utilizado",
+        "status": "Utilizado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 0
+      }
+    ],
+    "savedAt": "2026-07-12T03:11:14.335Z"
+  }
+}

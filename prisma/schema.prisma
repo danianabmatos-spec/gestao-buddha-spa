@@ -1,0 +1,588 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Unidade {
+  id            Int      @id @default(autoincrement())
+  nome          String
+  slug          String   @unique
+  belleEmail    String
+  bellePassword String
+  belleEstabId  Int      @default(1)
+  ativa         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  usuarios      Usuario[]
+  metas         MetaDiaria[]
+  metasMensais  MetaMensal[]
+  usuariosCoord UsuarioUnidade[]
+  rotinaTemplates RotinaTemplate[]
+  tarefas       TarefaRotina[]
+  reembolsos    ReembolsoUnidade[]
+  permutaConfig PermutaConfig?
+  pexPremiacoes PexPremiacao[]
+}
+
+// Cadastro das empresas (razão social / CNPJ / dados fiscais) por unidade.
+model Empresa {
+  id                 Int      @id @default(autoincrement())
+  razaoSocial        String
+  cnpj               String   @unique
+  nomeFantasia       String   @default("")
+  inscricaoEstadual  String   @default("")
+  inscricaoMunicipal String   @default("") // CCM / IM
+  logradouro         String   @default("")
+  numero             String   @default("")
+  complemento        String   @default("")
+  bairro             String   @default("")
+  cidade             String   @default("")
+  uf                 String   @default("SP")
+  cep                String   @default("")
+  telefone           String   @default("")
+  emailFiscal        String   @default("")
+  unidadeSlug        String   @default("") // vínculo opcional com a unidade
+  ativa              Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model MetaMensal {
+  id               Int      @id @default(autoincrement())
+  unidadeId        Int
+  unidade          Unidade  @relation(fields: [unidadeId], references: [id])
+  ano              Int
+  mes              Int      // 1=Jan ... 12=Dez
+  metaFaturamento  Float    @default(0)   // Total caixa + parcerias
+  metaHoras        Float    @default(0)   // Horas de atendimento
+  metaVendas       Float    @default(0)   // Vendas da recepção
+  premioFaturamento Float   @default(0)   // R$ prêmio se bater meta faturamento
+  premioHoras      Float    @default(0)
+  premioVendas     Float    @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([unidadeId, ano, mes])
+}
+
+model Usuario {
+  id         String   @id @default(cuid())
+  nome       String
+  email      String   @unique
+  senha      String
+  perfil     String   @default("ATENDIMENTO")
+  unidadeId  Int?
+  unidade    Unidade? @relation(fields: [unidadeId], references: [id])
+  ativo      Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  logs       LogAuditoria[]
+  unidadesCoord UsuarioUnidade[]
+}
+
+model MetaDiaria {
+  id          Int      @id @default(autoincrement())
+  unidadeId   Int
+  unidade     Unidade  @relation(fields: [unidadeId], references: [id])
+  diaSemana   Int      // 0=Dom, 1=Seg, ..., 6=Sab
+  metaReceita Float    @default(0)
+  metaAtend   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model LogAuditoria {
+  id        Int      @id @default(autoincrement())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id])
+  acao      String
+  entidade  String
+  dados     String?
+  createdAt DateTime @default(now())
+}
+
+model ClienteScore {
+  id                   Int       @id @default(autoincrement())
+  unidadeSlug          String
+  clienteId            Int?
+  nomeCliente          String
+  telefone             String?
+  email                String?
+
+  // Frequência — de Report 194
+  dataCadastro         DateTime?
+  primeiraSessao       DateTime?
+  ultimaSessao         DateTime?
+  totalSessoes         Int       @default(0)
+
+  // Segmento de frequência: NOVO | ATIVO | EM_RISCO | PERDIDO
+  statusFrequencia     String    @default("ATIVO")
+
+  // Pacote — de Report 184
+  temPacote            Boolean   @default(false)
+  statusPacote         String?   // ATIVO | A_VENCER | VENCIDO | FINALIZADO
+  nomePlano            String?
+  dataVencimentoPacote DateTime?
+  sessoesRestantes     Int       @default(0)
+
+  // Tem ao menos 1 pacote ativo de verdade (sessão sobrando + validade futura).
+  // Usado para BLOQUEAR mensagens de renovação a quem já está coberto.
+  temPacoteAtivo       Boolean   @default(false)
+
+  // Tem ao menos 1 pacote SUSPENSO no Belle (não utilizável — caso delicado).
+  // Sinaliza ⚠️ na fila; envio continua permitido (recepção decide).
+  temPacoteSuspenso    Boolean   @default(false)
+
+  // Flag especial
+  isFrequenteSemPacote Boolean   @default(false)  // 3+ sessões avulsas sem pacote
+
+  // Agendamento futuro (atualizado no sync)
+  temAgendamentoFuturo Boolean   @default(false)
+
+  // Rastreamento de contato — não sobrescrito pelo sync
+  ultimoContato        DateTime?  // quando a recepção enviou mensagem
+  motivoContato        String?    // grupo ativo no momento: "PACOTE_A_VENCER", "EM_RISCO", etc.
+
+  ultimoCalculo        DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([unidadeSlug, nomeCliente])
+  @@index([unidadeSlug, statusFrequencia])
+  @@index([unidadeSlug, statusPacote])
+  @@index([unidadeSlug, isFrequenteSemPacote])
+}
+
+model HistoricoContato {
+  id                   Int       @id @default(autoincrement())
+  unidadeSlug          String
+  clienteScoreId       Int?      // referência estável ao ClienteScore
+  nomeCliente          String
+  telefone             String?
+  motivoContato        String    // "PACOTE_A_VENCER" | "EM_RISCO" | etc.
+
+  // Snapshot do momento do contato (para detectar conversão depois)
+  statusPacoteSnap     String?
+  statusFreqSnap       String
+  sessoesRestSnap      Int       @default(0)
+  ultimaSessaoSnap     DateTime?
+
+  criadoEm             DateTime  @default(now())
+
+  // Resultado (preenchido automaticamente no próximo sync)
+  converteu            Boolean   @default(false)
+  tipoConversao        String?   // "nova_sessao" | "renovacao_pacote" | "novo_pacote"
+  dataConversao        DateTime?
+
+  @@index([unidadeSlug, criadoEm])
+  @@index([clienteScoreId, converteu])
+}
+
+model TemplateMensagem {
+  cluster   String   @id      // ex.: PACOTE_A_VENCER, EM_RISCO, NOVO...
+  texto     String
+  updatedAt DateTime @updatedAt
+}
+
+// Base de clientes que pagam com TotalPass (2 sessões/mês). Atualizada pelo sync
+// a partir do Report 103 (Movimentação) + agenda do mês. Campos manuais (planoCancelado,
+// ultimoContato) NÃO são sobrescritos pelo sync.
+model ClienteTotalPass {
+  id             Int       @id @default(autoincrement())
+  unidadeSlug    String
+  clienteId      Int?
+  nomeCliente    String
+  telefone       String?
+  usosAno        Int       @default(0)   // qtd de usos TotalPass no ano
+  ultimoUso      DateTime?                // última confirmação TotalPass
+  mesRef         String                   // "2026-08" — mês de referência da contagem
+  sessoesMes     Int       @default(0)    // sessões na agenda do mês (0/1/2+)
+
+  planoCancelado Boolean   @default(false) // MANUAL: cliente avisou que cancelou o TotalPass
+  ultimoContato  DateTime?                 // MANUAL/rastreio: última msg enviada pelo ERP
+  motivoContato  String?
+
+  atualizadoEm   DateTime  @updatedAt
+  criadoEm       DateTime  @default(now())
+
+  @@unique([unidadeSlug, nomeCliente])
+  @@index([unidadeSlug])
+}
+
+// Fila de sincronização (outbox) das mensagens do ERP para o LeadFlow.
+// Cada contato registrado vira uma linha aqui; o processador (quando LIGADO)
+// espelha no LeadFlow. Espelhar NÃO envia nada ao cliente — só registra histórico.
+model LeadFlowOutbox {
+  id          Int       @id @default(autoincrement())
+  unidadeSlug String
+  nomeCliente String
+  telefone    String?
+  texto       String
+  motivo      String
+  status      String    @default("PENDENTE") // PENDENTE | ENVIADO | ERRO
+  tentativas  Int       @default(0)
+  erro        String?
+  criadoEm    DateTime  @default(now())
+  enviadoEm   DateTime?
+
+  @@index([status])
+}
+
+// Bloqueio manual de contato (cancelamento / opt-out) por TELEFONE. Alimentado pela
+// Central via POST /api/tarefas-do-dia/:id/cancelar. Remove o cliente de TODOS os
+// clusters da fila. unidadeSlug="*" = bloqueio global (todas as unidades — opt-out).
+model ContatoBloqueado {
+  id           Int      @id @default(autoincrement())
+  unidadeSlug  String   // slug da unidade; "*" = todas (opt-out global)
+  telefone     String   // apenas dígitos
+  nomeCliente  String?
+  motivo       String   // SEM_PLANO | OPT_OUT | OUTRO (ou texto livre)
+  obs          String?
+  criadoEm     DateTime @default(now())
+
+  @@unique([unidadeSlug, telefone])
+  @@index([telefone])
+}
+
+model VoucherCache {
+  id               Int      @id @default(autoincrement())
+  dataIni          String
+  dataFim          String
+  totalReembolso   Float    @default(0)
+  totalValidados   Int      @default(0)
+  pendentesValidacao Int    @default(0)
+  validacaoManual  Int      @default(0)
+  validacaoAutomatica Int   @default(0)
+  vouchers         String   // JSON array de vouchers
+  savedAt          DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([dataIni, dataFim])
+  @@index([dataIni, dataFim])
+}
+
+// ─── Cockpit de Rotinas (Coordenação / Recepção) ────────────────────────────────
+// Vínculo N:N entre usuário e unidades — usado pela COORDENACAO, que pode cuidar
+// de 1, 2 ou mais unidades. RECEPCAO continua usando Usuario.unidadeId (1 unidade).
+model UsuarioUnidade {
+  id        Int      @id @default(autoincrement())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id])
+  unidadeId Int
+  unidade   Unidade  @relation(fields: [unidadeId], references: [id])
+  criadoEm  DateTime @default(now())
+
+  @@unique([usuarioId, unidadeId])
+  @@index([usuarioId])
+}
+
+// Catálogo de rotinas: a definição reutilizável de cada rotina/checklist.
+// A partir daqui o motor gera as TarefaRotina do dia para cada unidade.
+model RotinaTemplate {
+  id           Int      @id @default(autoincrement())
+  chave        String   @unique               // slug estável (ex.: "agenda-preenchimento")
+  titulo       String
+  descricao    String?
+  area         String                         // COORDENACAO | RECEPCAO
+  frente       String?                        // agrupamento (Agenda, Estoque, NPS...)
+  frequencia   String                         // DIARIA | SEMANAL | MENSAL | SOB_DEMANDA
+  ordem        Int      @default(100)         // ordenação (1 = primeira do dia)
+  diaSemana    Int?                           // 0=Dom..6=Sab (SEMANAL)
+  diaDoMes     Int?                           // 1..28 (MENSAL) — dia que a tarefa nasce
+  diaLimite    Int?                           // 1..28 (MENSAL) — dia limite p/ concluir (janela)
+  horaPrevista String?                        // "10:00"
+  alertaDias   Int?                           // prazo p/ alerta de pendência (ex.: 3 = Financeiro)
+  acaoApp      String?                        // liga a tarefa a um mini-app (ex.: "caixa")
+  unidadeId    Int?                           // null = vale p/ todas as unidades
+  unidade      Unidade? @relation(fields: [unidadeId], references: [id])
+  ativa        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([area, frequencia])
+}
+
+// Instância de tarefa: nasce do sistema (a partir de um template, por cadência) ou
+// é DELEGADA por alguém de cima (Dona→Coord, Coord→Recepção). Carrega status,
+// acúmulo (dataOriginal vs dataRef) e rastro de delegação/conclusão.
+model TarefaRotina {
+  id             Int       @id @default(autoincrement())
+  unidadeId      Int
+  unidade        Unidade   @relation(fields: [unidadeId], references: [id])
+  templateId     Int?                          // null = tarefa delegada/avulsa
+  area           String                        // COORDENACAO | RECEPCAO
+  titulo         String
+  descricao      String?
+  frequencia     String?
+  ordem          Int       @default(100)
+  dataRef        String                        // "2026-09-01" — dia a que pertence hoje
+  dataOriginal   String                        // dia em que nasceu (mede atraso/acúmulo)
+  horaPrevista   String?
+  status         String    @default("PENDENTE") // PENDENTE | EM_ANDAMENTO | CONCLUIDA
+  origem         String    @default("SISTEMA")  // SISTEMA | DELEGADA
+  criadoPorId    String?                        // quem delegou
+  criadoPorNome  String?
+  atribuidoArea  String?                        // alvo da delegação: COORDENACAO | RECEPCAO
+  prazo          String?                        // data limite (delegada) ou p/ alerta
+  alertaDias     Int?
+  acaoApp        String?                        // mini-app ligado (ex.: "caixa")
+  concluidaEm    DateTime?
+  concluidaPorId String?
+  concluidaPorNome String?
+  observacao     String?
+  criadoEm       DateTime  @default(now())
+  atualizadoEm   DateTime  @updatedAt
+
+  @@unique([unidadeId, templateId, dataRef])
+  @@index([unidadeId, dataRef])
+  @@index([unidadeId, status])
+}
+
+// Controle de caixa da recepção: 1 registro por unidade/dia. Abertura (fundo de
+// troco) e fechamento (valor contado), com quem/quando e observações. Fase 2 trará
+// recebimentos do Belle + saídas com foto e diferença automática.
+model ContagemCaixa {
+  id              Int       @id @default(autoincrement())
+  unidadeId       Int
+  data            String    // YYYY-MM-DD
+  fundoAbertura     Float?
+  abertoPorNome     String?   // quem registrou no sistema (logado)
+  abertoContadoPor  String?   // quem fez a contagem física
+  abertoEm          DateTime?
+  obsAbertura       String?
+  valorFechamento   Float?
+  fechadoPorNome    String?   // quem registrou no sistema (logado)
+  fechadoContadoPor String?   // quem fez a contagem física
+  fechadoEm         DateTime?
+  obsFechamento     String?
+  criadoEm        DateTime  @default(now())
+  atualizadoEm    DateTime  @updatedAt
+
+  @@unique([unidadeId, data])
+  @@index([unidadeId, data])
+}
+
+// Saída de caixa (sangria/despesa) do dia, com foto opcional da notinha (fotoPath).
+model SaidaCaixa {
+  id            Int      @id @default(autoincrement())
+  unidadeId     Int
+  data          String   // YYYY-MM-DD
+  valor         Float
+  descricao     String
+  fotoPath      String?
+  criadoPorId   String?
+  criadoPorNome String?
+  criadoEm      DateTime @default(now())
+
+  @@index([unidadeId, data])
+}
+
+// Tratativa de um caso de NPS (detrator/neutro). O caso vem do Belle (Report 21);
+// aqui a coordenadora registra a AÇÃO TOMADA. chaveCaso = idAtendimento (ou hash).
+model TratativaNps {
+  id             Int      @id @default(autoincrement())
+  unidadeId      Int
+  origem         String   @default("NPS") // NPS | GOOGLE
+  chaveCaso      String
+  cliente        String
+  classificacao  String
+  nota           Int?
+  comentario     String?
+  acaoTomada     String
+  tipoProblema   String?  // tipologia (para métricas): Atendimento, Profissional...
+  cortesiaConcedida Boolean?
+  clienteSatisfeito String? // Sim | Não | Sem retorno
+  tratadoPorId   String?
+  tratadoPorNome String?
+  criadoEm       DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
+
+  @@unique([unidadeId, chaveCaso])
+  @@index([unidadeId])
+  @@index([unidadeId, tipoProblema])
+}
+
+// ─── Conferência Mensal de Reembolso de Vouchers ────────────────────────────────
+// Substitui a planilha "Reembolso vouchers <mês>". Um ReembolsoMes por (ano,mes);
+// uma ReembolsoUnidade por unidade (colunas C..K da planilha). Vouchers/Omni/
+// Cortesias vêm do WordPress (relay da sessão real); Compras/Treinamento são
+// manuais; Royalties/Mkt = 8% do caixa (só Higienópolis). PEX (prêmio com vigência)
+// dá 20% de desconto em compras + treinamento gratuito às unidades ganhadoras.
+model ReembolsoMes {
+  id           Int      @id @default(autoincrement())
+  ano          Int
+  mes          Int                              // 1..12
+  status       String   @default("ABERTO")      // ABERTO | FECHADO
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  unidades     ReembolsoUnidade[]
+
+  @@unique([ano, mes])
+}
+
+model ReembolsoUnidade {
+  id             Int          @id @default(autoincrement())
+  reembolsoMesId Int
+  mesRef         ReembolsoMes @relation(fields: [reembolsoMesId], references: [id], onDelete: Cascade)
+  unidadeId      Int
+  unidade        Unidade      @relation(fields: [unidadeId], references: [id])
+
+  // Vindos do WordPress (relay)
+  vouchers          Float @default(0)           // C — total reembolso (filtro utilização)
+  omnichannel       Float @default(0)           // E — total reembolso (filtro venda + omni)
+  cortesiaUsada     Float @default(0)           // soma das cortesias (R$0) usadas no mês
+  cortesiaReembolso Float @default(0)           // F — excedente sobre o crédito (motor de permuta)
+  creditoInicial    Float @default(0)           // crédito de permuta disponível no mês
+  saldoAcumulado    Float @default(0)           // saldo p/ o mês seguinte
+
+  // Manuais
+  compras     Float @default(0)                 // G — bruto (antes do ×80% do PEX)
+  treinamento Float @default(0)                 // I — bruto
+
+  // Calculado / integração
+  faturamentoCaixa Float @default(0)            // base do royalties (Belle)
+  royaltiesMkt     Float @default(0)            // J — 8% do caixa (só Higienópolis)
+
+  // PEX — snapshot do mês (20% desc. compras + treinamento gratuito)
+  pex Boolean @default(false)
+
+  // Conciliação bancária (o que caiu na conta vs o valor a reembolsar)
+  valorRecebido Float   @default(0)
+  conciliado    Boolean @default(false)
+
+  fetchedAt    DateTime?                         // quando o WP foi puxado
+  atualizadoEm DateTime  @updatedAt
+  cortesias    ReembolsoCortesia[]
+  compraItens  ReembolsoCompra[]
+  treinamentoItens ReembolsoTreinamento[]
+
+  @@unique([reembolsoMesId, unidadeId])
+  @@index([unidadeId])
+}
+
+model ReembolsoCortesia {
+  id                 Int              @id @default(autoincrement())
+  reembolsoUnidadeId Int
+  reembolsoUnidade   ReembolsoUnidade @relation(fields: [reembolsoUnidadeId], references: [id], onDelete: Cascade)
+  codigo             String
+  nome               String
+  valor              Float            @default(0)
+  dataUtilizacao     String?
+
+  @@index([reembolsoUnidadeId])
+}
+
+// Itens de compra lançados manualmente (memória de cálculo do total de Compras).
+// A coluna Compras da unidade é a SOMA destes itens.
+model ReembolsoCompra {
+  id                 Int              @id @default(autoincrement())
+  reembolsoUnidadeId Int
+  reembolsoUnidade   ReembolsoUnidade @relation(fields: [reembolsoUnidadeId], references: [id], onDelete: Cascade)
+  descricao          String
+  valor              Float            @default(0)
+  criadoEm           DateTime         @default(now())
+
+  @@index([reembolsoUnidadeId])
+}
+
+// Treinamentos de terapeutas (rastreabilidade). Cada terapeuta = R$1.000 de
+// abatimento. A coluna Treinamento = nº de itens × 1000 (mas PEX ⇒ efetivo 0).
+model ReembolsoTreinamento {
+  id                 Int              @id @default(autoincrement())
+  reembolsoUnidadeId Int
+  reembolsoUnidade   ReembolsoUnidade @relation(fields: [reembolsoUnidadeId], references: [id], onDelete: Cascade)
+  terapeuta          String
+  criadoEm           DateTime         @default(now())
+
+  @@index([reembolsoUnidadeId])
+}
+
+// Crédito mensal permutável e teto de acúmulo por unidade (das abas Cortesias).
+model PermutaConfig {
+  unidadeId             Int      @id
+  unidade               Unidade  @relation(fields: [unidadeId], references: [id])
+  valorMensalPermutavel Float    @default(0)
+  limiteAcumulo         Float    @default(0)
+  saldoInicial          Float    @default(0) // saldo acumulado que já vinha antes do 1º mês no ERP
+  atualizadoEm          DateTime @updatedAt
+}
+
+// Cache do Radar Geral por período (JSON pronto). Serve instantâneo; atualizado
+// pelo botão "Atualizar agora" e pelo cron diário da manhã.
+model RadarCache {
+  periodo      String   @id  // "2026-08-01_2026-08-31"
+  dados        String        // JSON de RadarGeralData
+  atualizadoEm DateTime @updatedAt
+}
+
+// Cache mensal de faturamento por unidade (histórico do dashboard). Meses fechados
+// são puxados do Belle uma vez e guardados aqui; o mês atual é sempre ao vivo.
+model FaturamentoHistorico {
+  id           Int      @id @default(autoincrement())
+  unidadeSlug  String
+  ano          Int
+  mes          Int      // 1..12
+  caixa        Float    @default(0)
+  horas        Float    @default(0)
+  atualizadoEm DateTime @updatedAt
+
+  @@unique([unidadeSlug, ano, mes])
+}
+
+// Cache consolidado do dashboard de UMA unidade num período (faturamento + vendas +
+// nps + caixa diário + voucher). Servido instantâneo; refresh diário 7h + botão.
+model DashboardCache {
+  chave        String   @id  // "higienopolis_2026-09-01_2026-09-06"
+  dados        String        // JSON do bundle
+  atualizadoEm DateTime @updatedAt
+}
+
+// Cache do REALIZADO mensal (caixa/horas/recepção) por unidade — usado pelo menu Meta.
+// Meses fechados nunca mudam → puxados do Belle uma vez e guardados; o mês atual
+// vem do DashboardCache (já aquecido) e não é persistido aqui.
+model RealizadoMensalCache {
+  id           Int      @id @default(autoincrement())
+  unidadeSlug  String
+  ano          Int
+  mes          Int      // 1..12
+  caixa        Float    @default(0)
+  horas        Float    @default(0)
+  recepcao     Float    @default(0)
+  atualizadoEm DateTime @updatedAt
+
+  @@unique([unidadeSlug, ano, mes])
+}
+
+// Cache das METAS/PREMIAÇÕES oficiais vindas do app Folha (fonte da verdade).
+// Atualizado a cada leitura bem-sucedida; serve de fallback se o Folha estiver fora.
+model MetasFolhaCache {
+  ano          Int      @id
+  dados        String        // JSON com metas + premiação por unidade
+  atualizadoEm DateTime @updatedAt
+}
+
+// Cache do caixa DIÁRIO por unidade (evolução diária do dashboard). Dias fechados
+// nunca mudam → puxados do Belle uma vez e guardados; o dia de hoje é sempre ao vivo.
+model CaixaDiarioCache {
+  id           Int      @id @default(autoincrement())
+  unidadeSlug  String
+  dia          String   // "YYYY-MM-DD"
+  valor        Float    @default(0)
+  atualizadoEm DateTime @updatedAt
+
+  @@unique([unidadeSlug, dia])
+}
+
+// Prêmio PEX com vigência: unidade ganhadora num intervalo de meses de um ano.
+model PexPremiacao {
+  id        Int      @id @default(autoincrement())
+  unidadeId Int
+  unidade   Unidade  @relation(fields: [unidadeId], references: [id])
+  ano       Int
+  mesInicio Int                                  // 1..12
+  mesFim    Int                                  // 1..12
+  criadoEm  DateTime @default(now())
+
+  @@index([unidadeId, ano])
+}

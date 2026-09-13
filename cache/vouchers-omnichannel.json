@@ -1,0 +1,337 @@
+{
+  "2026-06-01_2026-06-30": {
+    "dataIni": "2026-06-01",
+    "dataFim": "2026-06-30",
+    "totalReembolso": 0,
+    "totalValidados": 39,
+    "pendentesValidacao": 0,
+    "validacaoManual": 0,
+    "validacaoAutomatica": 39,
+    "vouchers": [
+      {
+        "codigo": "JBG56I6",
+        "produto": "70509633 - Yin - Yang 60",
+        "dataTerapia": "01/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 150
+      },
+      {
+        "codigo": "METRO0390",
+        "produto": "70497326 - Relaxante 60",
+        "dataTerapia": "01/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 228
+      },
+      {
+        "codigo": "METRO0277",
+        "produto": "70528342 - Relaxante 60",
+        "dataTerapia": "01/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 228
+      },
+      {
+        "codigo": "MG8M6JS",
+        "produto": "70266676 - Relaxante 30",
+        "dataTerapia": "01/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 150
+      },
+      {
+        "codigo": "F4JBK3F",
+        "produto": "70465705 - Reflexologia 30",
+        "dataTerapia": "02/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 152
+      },
+      {
+        "codigo": "METRO0455",
+        "produto": "70536084 - Relaxante 60",
+        "dataTerapia": "02/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 668
+      },
+      {
+        "codigo": "MHZG5J3",
+        "produto": "70548945 - Banho de Imersao Ind. 30",
+        "dataTerapia": "02/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 398
+      },
+      {
+        "codigo": "VF322379",
+        "produto": "70158588 - Relaxante 60",
+        "dataTerapia": "03/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 380
+      },
+      {
+        "codigo": "8F7K1QF",
+        "produto": "70526460 - Reflexologia 45",
+        "dataTerapia": "03/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 197
+      },
+      {
+        "codigo": "HHJIKB7",
+        "produto": "70589910 - Banho de Imersao Casal",
+        "dataTerapia": "03/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 228
+      },
+      {
+        "codigo": "METRO0440",
+        "produto": "70463629 - Ayurvedica 60",
+        "dataTerapia": "03/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 237
+      },
+      {
+        "codigo": "68D83FG",
+        "produto": "70507604 - Relaxante Buddha Spa 50",
+        "dataTerapia": "03/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 228
+      },
+      {
+        "codigo": "METRO0432",
+        "produto": "70610521 - Relaxante 60",
+        "dataTerapia": "03/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 400
+      },
+      {
+        "codigo": "METRO449",
+        "produto": "70496609 - Relaxante 90 Dom",
+        "dataTerapia": "04/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 1211
+      },
+      {
+        "codigo": "M1D6JQR",
+        "produto": "70511271 - Yin - Yang 90 Dom",
+        "dataTerapia": "04/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 341
+      },
+      {
+        "codigo": "VX7RRM4",
+        "produto": "70584128 - Shiatsu 30 Dom",
+        "dataTerapia": "04/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 150
+      },
+      {
+        "codigo": "D9FLX5K",
+        "produto": "70618283 - Yin - Yang 60 Dom",
+        "dataTerapia": "04/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 237
+      },
+      {
+        "codigo": "METRO0450",
+        "produto": "70497342 - Relaxante 60",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 228
+      },
+      {
+        "codigo": "X8PXP18",
+        "produto": "70508877 - Drenagem 50",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 150
+      },
+      {
+        "codigo": "87ZIFB1",
+        "produto": "70618309 - Shiatsu 60",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 150
+      },
+      {
+        "codigo": "VF322317",
+        "produto": "70594504 - Relaxante 60",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 576
+      },
+      {
+        "codigo": "METRO0453",
+        "produto": "70623055 - Brazilian Massage 60",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 377
+      },
+      {
+        "codigo": "53X5JX6",
+        "produto": "70628976 - Relaxante Buddha Spa 50",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 250
+      },
+      {
+        "codigo": "METRO0199",
+        "produto": "70484859 - Relaxante 30",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 140
+      },
+      {
+        "codigo": "METRO0445",
+        "produto": "70489213 - Relaxante 30",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 140
+      },
+      {
+        "codigo": "METRO0386",
+        "produto": "70619576 - Relaxante 30",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 668
+      },
+      {
+        "codigo": "QFFI8GR",
+        "produto": "70630731 - Relaxante Mencare 50",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 233
+      },
+      {
+        "codigo": "VF322152",
+        "produto": "70558046 - Yin - Yang 90",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 327
+      },
+      {
+        "codigo": "KPM4FZK",
+        "produto": "70449301 - Relaxante 30",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 150
+      },
+      {
+        "codigo": "9G98IVL",
+        "produto": "69972352 - Relaxante 60",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 694
+      },
+      {
+        "codigo": "RJ5BLF6",
+        "produto": "70599401 - Yin - Yang 90",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 350
+      },
+      {
+        "codigo": "METRO0321",
+        "produto": "70614794 - Relaxante 60",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 368
+      },
+      {
+        "codigo": "K3DRV80",
+        "produto": "70576911 - Yin - Yang 60",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 250
+      },
+      {
+        "codigo": "G085LBQ",
+        "produto": "70635838 - Relaxante Buddha Spa 50",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 228
+      },
+      {
+        "codigo": "6PH4F9M",
+        "produto": "70377702 - Candle Massage 60",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 250
+      },
+      {
+        "codigo": "LBFK1G6",
+        "produto": "70203772 - Relaxante 60",
+        "dataTerapia": "05/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 398
+      },
+      {
+        "codigo": "M3B17P8",
+        "produto": "70613895 - Esfoliacao Corporal 60",
+        "dataTerapia": "06/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 998
+      },
+      {
+        "codigo": "FL0P640",
+        "produto": "70480932 - Shiatsu 45",
+        "dataTerapia": "06/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 185
+      },
+      {
+        "codigo": "VILRZZR",
+        "produto": "70618955 - Relaxante 30",
+        "dataTerapia": "06/06/2026",
+        "status": "Validado",
+        "formaValidacao": "Automatico",
+        "valorReembolso": 150
+      }
+    ],
+    "savedAt": "2026-06-15T19:06:54.094Z"
+  },
+  "2026-07-01_2026-07-12": {
+    "dataIni": "2026-07-01",
+    "dataFim": "2026-07-12",
+    "totalReembolso": 0,
+    "totalValidados": 0,
+    "pendentesValidacao": 0,
+    "validacaoManual": 0,
+    "validacaoAutomatica": 0,
+    "vouchers": [],
+    "savedAt": "2026-07-12T03:11:07.444Z"
+  }
+}

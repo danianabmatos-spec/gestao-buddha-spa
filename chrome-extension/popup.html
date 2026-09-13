@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, Segoe UI, Roboto, sans-serif; }
+    body { width: 360px; margin: 0; background: #F5F0EB; color: #392617; }
+    header { background: #7E0000; color: #DDC7A4; padding: 12px 14px; }
+    header h1 { margin: 0; font-size: 15px; }
+    header p { margin: 2px 0 0; font-size: 11px; opacity: .8; }
+    .box { padding: 12px 14px; }
+    label { font-size: 11px; font-weight: 600; display: block; margin: 8px 0 3px; }
+    select, input { width: 100%; padding: 7px 8px; border: 1px solid #DDC7A4; border-radius: 7px; font-size: 13px; background: #fff; }
+    .row2 { display: flex; gap: 8px; }
+    .row2 > * { flex: 1; }
+    button { width: 100%; padding: 10px; border: 0; border-radius: 8px; background: #7E0000; color: #DDC7A4; font-weight: 600; font-size: 14px; cursor: pointer; margin-top: 10px; }
+    button:hover { background: #5c0000; }
+    button.sec { background: #fff; color: #7E0000; border: 1px solid #D78B18; }
+    #log { margin-top: 10px; font-size: 12px; max-height: 180px; overflow-y: auto; }
+    .item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #EadFce; }
+    .ok { color: #425F1D; } .err { color: #b00; } .run { color: #D78B18; }
+    details { margin-top: 8px; border-top: 1px solid #DDC7A4; padding-top: 6px; }
+    summary { font-size: 12px; font-weight: 600; cursor: pointer; color: #7E0000; }
+    .cfg-row { display: flex; gap: 6px; align-items: center; margin: 5px 0; }
+    .cfg-row span { width: 70px; font-size: 10px; font-weight: 600; }
+    .cfg-row input { font-size: 12px; padding: 5px 6px; }
+    .hint { font-size: 10px; color: #392617; opacity: .6; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🧘 Reembolso Auto</h1>
+    <p>Puxa as 7 unidades do WordPress para o ERP</p>
+  </header>
+
+  <div class="box">
+    <div class="row2">
+      <div>
+        <label>Mês</label>
+        <select id="mes"></select>
+      </div>
+      <div>
+        <label>Ano</label>
+        <select id="ano"></select>
+      </div>
+    </div>
+
+    <button id="sync">▶ Sincronizar agora (7 unidades)</button>
+    <div id="log"></div>
+
+    <details id="cfg">
+      <summary>⚙️ Configurações (senhas ficam só no seu navegador)</summary>
+      <label>URL do ERP</label>
+      <input id="erpUrl" placeholder="https://gestao.solcentral.com.br" />
+      <div id="cfgUnidades"></div>
+      <p class="hint">Preencha a senha de cada unidade uma vez. Elas ficam no seu Chrome (chrome.storage), nunca saem do seu navegador.</p>
+      <button id="salvar" class="sec">Salvar configurações</button>
+    </details>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+/src/generated/prisma
+
+# Banco local (contém dados reais de clientes — nunca versionar)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Logs e artefatos de debug soltos na raiz
+*.log
+*-debug.png
+login-debug.png
+navvii-*.png
+wp-step*.png
+google-maps-debug.png
+report-*-result.json
+
+# Sessões/credenciais e dumps de scraping — podem conter dados de clientes/tokens
+.wordpress-cookies.json
+*-cookies.json
+puppeteer-profile/
+navvii-backend-inspection.json
+wordpress-analise*.json
+wordpress-*.html
+auditoria-resultado.txt
+
+# Uploads em runtime (fotos de notinhas do caixa) — não versionar
+uploads/

@@ -1,0 +1,15 @@
+BOOKMARKLET PARA SINCRONIZAR VOUCHERS
+======================================
+
+INSTRUÇÕES:
+1. Copie o código abaixo (começando com "javascript:")
+2. Crie um novo favorito/bookmark no Chrome
+3. No campo URL, cole o código
+4. Dê o nome "Sync Vouchers"
+5. Acesse a página de vouchers do WordPress
+6. Clique no favorito "Sync Vouchers"
+
+CÓDIGO DO BOOKMARKLET:
+----------------------
+
+javascript:(async()=>{const p=[{n:'Fev',i:'2026-02-01',f:'2026-02-28'},{n:'Mar',i:'2026-03-01',f:'2026-03-31'},{n:'Abr',i:'2026-04-01',f:'2026-04-30'},{n:'Mai',i:'2026-05-01',f:'2026-05-31'},{n:'Jun',i:'2026-06-01',f:'2026-06-05'}];const a='894555';const u='http://localhost:3000';for(let m of p){console.log(`📅 ${m.n}...`);const s=`https://buddhaspa.com.br/wp-admin/admin.php?page=vouchers&status=&product_id=0&category_id=0&date_sell_start=&date_sell_end=&date_used_start=${m.i}&date_used_end=${m.f}&affilliation_id=${a}`;const r=await fetch(s,{credentials:'include'});const h=await r.text();await fetch(`${u}/api/vouchers/sync`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dataIni:m.i,dataFim:m.f,html:h,tipo:'site'})});const o=`https://buddhaspa.com.br/wp-admin/admin.php?page=vouchers&status=&product_id=0&category_id=0&date_sell_start=${m.i}&date_sell_end=${m.f}&date_used_start=&date_used_end=&affilliation_id=${a}`;const r2=await fetch(o,{credentials:'include'});const h2=await r2.text();await fetch(`${u}/api/vouchers/sync`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dataIni:m.i,dataFim:m.f,html:h2,tipo:'omnichannel'})});console.log(`  ✓ ${m.n}`);}alert('✅ Sincronização concluída!');})();

@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Buddha Spa — Reembolso Auto",
+  "version": "2.7.0",
+  "description": "Puxa Vouchers, Omnichannel e Cortesias das 7 unidades do WordPress para o ERP (módulo Reembolso), em 1 clique — logando em cada unidade automaticamente no seu navegador.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "scripting",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://buddhaspa.com.br/*",
+    "https://gestao.solcentral.com.br/*",
+    "http://localhost:3002/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
