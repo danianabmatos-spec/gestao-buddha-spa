@@ -1,11 +1,13 @@
 import { Pool } from 'pg'
 
 // ─── Integração (somente leitura) com o app de RH (buddha-rh, Postgres) ──────────
-// Fonte da verdade de QUEM é terapeuta ATIVO. Usado para filtrar a tela de
-// Terapeutas: só entra quem está ativo E tem cargo "Terapeuta" no RH — assim
-// coordenadoras (ex.: cargo "Coordenador"), recepção e inativos ficam de fora.
-// Conexão via RH_DATABASE_URL (usuário read-only gestao_ro). Fail-open: se o RH
-// não estiver configurado/acessível, retorna null e o chamador NÃO filtra.
+// Estratégia DENYLIST (à prova de falha): em vez de "só mostrar quem casa" (que
+// escondia terapeuta real por divergência de nome), a tela mostra TODO mundo do
+// Belle e só ESCONDE quem o RH confirma que NÃO é terapeuta (coordenador, recepção
+// etc.). Assim nenhum terapeuta some por diferença de grafia; o pior caso é um
+// não-terapeuta com nome bem diferente escapar (leve). Fonte: colaboradores ativos
+// com cargo != "Terapeuta". Conexão via RH_DATABASE_URL (user read-only gestao_ro).
+// Fail-open: se o RH não estiver configurado/acessível, retorna null (não filtra).
 
 let pool: Pool | null = null
 function getPool(): Pool | null {
@@ -38,10 +40,12 @@ let cache: { at: number; nomes: Set<string> } | null = null
 const TTL_MS = 10 * 60 * 1000
 
 /**
- * Conjunto de nomes NORMALIZADOS dos terapeutas ATIVOS (cargo "Terapeuta") no RH.
- * Retorna null quando o RH não está configurado ou indisponível (fail-open).
+ * DENYLIST: nomes NORMALIZADOS de colaboradores ATIVOS que NÃO são terapeutas
+ * (cargo != "Terapeuta") — ex.: coordenadores, recepção. A tela de Terapeutas
+ * esconde quem está neste conjunto. Retorna null se o RH estiver indisponível
+ * (fail-open: não esconde ninguém por conta do RH).
  */
-export async function getTerapeutasAtivosRH(): Promise<Set<string> | null> {
+export async function getNaoTerapeutasRH(): Promise<Set<string> | null> {
   const agora = Date.now()
   if (cache && agora - cache.at < TTL_MS) return cache.nomes
 
@@ -49,19 +53,19 @@ export async function getTerapeutasAtivosRH(): Promise<Set<string> | null> {
   if (!p) return null
 
   try {
+    // INNER JOIN: quem não tem cargo definido fica FORA da denylist (fail-safe → aparece).
     const { rows } = await p.query<{ nome: string }>(
       `SELECT c.nome
          FROM colaboradores c
          JOIN cargos cg ON cg.id = c."cargoId"
         WHERE c.ativo = true
-          AND cg.nome = 'Terapeuta'`,
+          AND cg.nome <> 'Terapeuta'`,
     )
     const nomes = new Set(rows.map((r) => normalizarNome(r.nome)))
     cache = { at: agora, nomes }
     return nomes
   } catch (err) {
-    console.error('[rh] falha ao ler terapeutas ativos:', err instanceof Error ? err.message : err)
-    // Se houver cache antigo, usa; senão null (fail-open: não filtra).
+    console.error('[rh] falha ao ler não-terapeutas (denylist):', err instanceof Error ? err.message : err)
     return cache?.nomes ?? null
   }
 }
