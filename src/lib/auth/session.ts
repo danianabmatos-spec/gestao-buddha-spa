@@ -6,7 +6,9 @@ import { SignJWT, jwtVerify } from 'jose'
 
 // FINANCEIRO = consulta todo o sistema (escopo de todas as unidades) e edita
 // SOMENTE o Controle de Caixa. A restrição de escrita é central no proxy.
-export type Perfil = 'DONA' | 'RECEPCAO' | 'COORDENACAO' | 'FINANCEIRO'
+// TERAPEUTA = escopo da própria unidade, mas RESTRITO à área "Meus Atendimentos"
+// (validar atendimento + registrar recomendação). Bloqueado de todo o resto no proxy.
+export type Perfil = 'DONA' | 'RECEPCAO' | 'COORDENACAO' | 'FINANCEIRO' | 'RH' | 'TERAPEUTA'
 
 export interface SessionUser {
   sub: string          // id do usuário
@@ -22,7 +24,7 @@ export interface SessionUser {
 export const COOKIE_NAME = 'bs_sess'
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 30 // 30 dias
 
-const PERFIS: Perfil[] = ['DONA', 'RECEPCAO', 'COORDENACAO', 'FINANCEIRO']
+const PERFIS: Perfil[] = ['DONA', 'RECEPCAO', 'COORDENACAO', 'FINANCEIRO', 'RH', 'TERAPEUTA']
 function normalizarPerfil(v: unknown): Perfil {
   return PERFIS.includes(v as Perfil) ? (v as Perfil) : 'RECEPCAO'
 }

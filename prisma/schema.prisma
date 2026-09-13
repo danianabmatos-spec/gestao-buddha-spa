@@ -82,6 +82,48 @@ model Usuario {
   unidadesCoord UsuarioUnidade[]
 }
 
+// ─── Avaliação de Terapeutas (indicadores manuais/integrados + nota do gestor) ────
+// Uma linha por terapeuta, unidade e semestre. Indicadores 4/5/6 chegam por
+// integração futura; avaliacaoGestor é lançada manualmente (−1 a +1).
+model TerapeutaAvaliacao {
+  id                  Int      @id @default(autoincrement())
+  unidadeSlug         String
+  terapeutaChave      String   // nome normalizado (casa com o nome do Belle)
+  terapeutaNome       String   // nome de exibição (como veio do Belle)
+  periodo             String   // semestre, ex.: "2026-S2"
+  recomendacaoCliente Float?
+  horasTreinamento    Float?
+  avaliacaoColegas    Float?
+  avaliacaoGestor     Float?   // −1 a +1
+  criadoEm            DateTime @default(now())
+  atualizadoEm        DateTime @default(now())
+
+  @@unique([unidadeSlug, terapeutaChave, periodo])
+}
+
+// Pesos dos 6 indicadores POR UNIDADE (soma deve dar 100). Default = último semestre.
+model TerapeutaPesos {
+  id                Int      @id @default(autoincrement())
+  unidadeSlug       String   @unique
+  pesoProdutividade Float    @default(25)
+  pesoFidelizacao   Float    @default(35)
+  pesoNps           Float    @default(20)
+  pesoRecomendacao  Float    @default(10)
+  pesoTreinamento   Float    @default(0)
+  pesoColegas       Float    @default(10)
+  atualizadoEm      DateTime @default(now())
+}
+
+// Faixas de categoria GLOBAIS pela Nota Final (Diamante/Ouro/Prata/Bronze).
+model TerapeutaCategoriaFaixa {
+  id           Int      @id @default(autoincrement())
+  chave        String   @unique @default("global")
+  minDiamante  Float    @default(9.5)
+  minOuro      Float    @default(8.5)
+  minPrata     Float    @default(7.5)
+  atualizadoEm DateTime @default(now())
+}
+
 model MetaDiaria {
   id          Int      @id @default(autoincrement())
   unidadeId   Int
@@ -585,4 +627,120 @@ model PexPremiacao {
   criadoEm  DateTime @default(now())
 
   @@index([unidadeId, ano])
+}
+
+// ─── Programa de Recomendação das Terapeutas (F1) ───────────────────────────────
+// No gestao a terapeuta, por atendimento, VALIDA (a validação vai pro Folha calcular
+// a comissão — não fica aqui) E registra a RECOMENDAÇÃO que fez ao cliente (o
+// "bloquinho" digital). Uma Recomendacao por atendimento (belleId, chave estável
+// entre apps). Os itens são o que ela recomendou (óleos, chás, retorno). A VENDA/
+// conversão (recepção) e a PONTUAÇÃO entram nas fases F2/F3.
+model Recomendacao {
+  id              Int      @id @default(autoincrement())
+  belleId         String   @unique            // atendimento no Belle/Folha (casa entre apps)
+  unidadeSlug     String
+  usuarioId       String                      // Usuario (perfil TERAPEUTA) que registrou
+  terapeutaNome   String
+  clienteNome     String
+  clienteTelefone String?
+  dataAtendimento String                      // "YYYY-MM-DD"
+  servico         String?
+  // Avaliação do bloquinho (escala 1..5)
+  notaSono        Int?
+  notaEnergia     Int?
+  notaEstresse    Int?
+  pontosTensao    String?                     // texto livre (pontos de tensão identificados)
+  retorno         String?                     // recomendação de retorno/frequência (texto)
+  fotoPath        String?                     // foto do bloquinho preenchido
+  observacao      String?
+  // Ciclo de vida (usado na F2 pela recepção)
+  status          String   @default("PENDENTE_VENDA") // PENDENTE_VENDA | VENDIDA | SEM_VENDA
+  criadoEm        DateTime @default(now())
+  atualizadoEm    DateTime @updatedAt
+  itens           RecomendacaoItem[]
+
+  @@index([unidadeSlug, status])
+  @@index([usuarioId])
+  @@index([unidadeSlug, dataAtendimento])
+}
+
+// O que a terapeuta recomendou naquele atendimento. Mapeia os checkboxes do
+// bloquinho (óleos/chás) + retorno; e categorias que a recepção converte em venda.
+model RecomendacaoItem {
+  id             Int          @id @default(autoincrement())
+  recomendacaoId Int
+  recomendacao   Recomendacao @relation(fields: [recomendacaoId], references: [id], onDelete: Cascade)
+  // OLEO_CALMA|OLEO_ENERGIA|OLEO_SONO|CHA_INDIANO|CHA_DETOX|CHA_ENERGIA|CHA_RELAX|
+  // PACOTE|VOUCHER|NOVO_AGENDAMENTO|PRODUTO_OUTRO|RETORNO
+  tipo           String
+  descricao      String?
+  criadoEm       DateTime     @default(now())
+
+  @@index([recomendacaoId])
+}
+
+// ─── Terapeutas & Atendimentos (F1) ─────────────────────────────────────────────
+// O gestao passa a sincronizar os atendimentos do Belle SOZINHO (réplica da folha),
+// pra ser autossuficiente no dia a dia. Terapeuta = registro p/ casar o nome do Belle
+// e ligar ao login (Usuario perfil TERAPEUTA). Atendimento = cada serviço realizado,
+// com o status de validação (confirma/contesta). No fechamento, o que estiver
+// confirmado/corrigido é enviado em LOTE pro folha calcular a comissão.
+model Terapeuta {
+  id          Int      @id @default(autoincrement())
+  nome        String
+  nomeBelle   String?                    // override p/ casar o nome como vem do Belle
+  unidadeSlug String
+  usuarioId   String?  @unique           // Usuario (perfil TERAPEUTA) do login, se provisionado
+  colaboradorId String?                  // referência ao rh (opcional)
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  atendimentos Atendimento[]
+
+  @@index([unidadeSlug, ativo])
+}
+
+model Atendimento {
+  id                   Int        @id @default(autoincrement())
+  belleId              String     @unique   // MESMA geração da folha (casa no lote do fechamento)
+  unidadeSlug          String
+  terapeutaId          Int?
+  terapeuta            Terapeuta? @relation(fields: [terapeutaId], references: [id])
+  terapeutaNome        String                // nome como veio do Belle (antes/além do matching)
+  clienteNome          String
+  servico              String?
+  data                 String                // "YYYY-MM-DD"
+  hora                 String?
+  valorComissao        Float      @default(0)
+  // PENDENTE | CONFIRMADO | CONTESTADO | AJUSTADO | REJEITADO
+  statusValidacao      String     @default("PENDENTE")
+  observacaoContestacao String?
+  respostaCoord        String?               // resolução da coordenadora
+  fechamentoRef        String?               // período do fechamento, ex.: "2026-09"
+  enviadoFolhaEm       DateTime?             // quando entrou no lote enviado ao folha
+  criadoEm             DateTime   @default(now())
+  atualizadoEm         DateTime   @updatedAt
+
+  @@index([unidadeSlug, data])
+  @@index([terapeutaId, statusValidacao])
+  @@index([unidadeSlug, statusValidacao, fechamentoRef])
+}
+
+// Estado da validação do mês por unidade. A coordenadora resolve as contestações e
+// "libera" o fechamento (liberado=true) — a partir daí o lote confirmado é enviado
+// ao Folha (F2/task 6). Um registro por (unidade, mês "YYYY-MM").
+model FechamentoValidacao {
+  id              Int      @id @default(autoincrement())
+  unidadeSlug     String
+  ref             String                     // "YYYY-MM"
+  liberado        Boolean  @default(false)
+  liberadoEm      DateTime?
+  liberadoPorNome String?
+  forcado         Boolean  @default(false)    // liberado à força (terapeuta não validou a tempo)
+  forcadoInfo     String?                     // JSON: [{terapeuta, pendentes}] — o RH vê na folha
+  enviadoFolhaEm  DateTime?                   // quando o lote foi enviado ao Folha
+  criadoEm        DateTime @default(now())
+  atualizadoEm    DateTime @updatedAt
+
+  @@unique([unidadeSlug, ref])
 }

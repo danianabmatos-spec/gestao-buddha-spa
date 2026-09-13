@@ -69,3 +69,34 @@ export async function getNaoTerapeutasRH(): Promise<Set<string> | null> {
     return cache?.nomes ?? null
   }
 }
+
+// Categoria atual (Bronze/Prata/Ouro/Diamante) por terapeuta ativo, do RH.
+// Map: nome normalizado → categoria (string do enum CategoriaTerapeuta). null se RH off.
+let cacheCat: { at: number; map: Map<string, string> } | null = null
+
+export async function getCategoriasTerapeutasRH(): Promise<Map<string, string> | null> {
+  const agora = Date.now()
+  if (cacheCat && agora - cacheCat.at < TTL_MS) return cacheCat.map
+
+  const p = getPool()
+  if (!p) return null
+
+  try {
+    const { rows } = await p.query<{ nome: string; categoria: string | null }>(
+      `SELECT c.nome, c.categoria
+         FROM colaboradores c
+         JOIN cargos cg ON cg.id = c."cargoId"
+        WHERE c.ativo = true
+          AND cg.nome = 'Terapeuta'`,
+    )
+    const map = new Map<string, string>()
+    for (const r of rows) {
+      if (r.categoria) map.set(normalizarNome(r.nome), String(r.categoria))
+    }
+    cacheCat = { at: agora, map }
+    return map
+  } catch (err) {
+    console.error('[rh] falha ao ler categorias dos terapeutas:', err instanceof Error ? err.message : err)
+    return cacheCat?.map ?? null
+  }
+}
