@@ -89,13 +89,18 @@ export async function GET(req: NextRequest) {
         }
       })
 
-    return NextResponse.json({
-      periodo,
-      podeVerRestrito,
-      pesos: pesosRow ?? PESOS_DEFAULT,
-      faixas: faixasRow ?? FAIXAS_DEFAULT,
-      terapeutas,
-    })
+    // Devolve SÓ os campos numéricos (sem id/unidadeSlug/atualizadoEm, que
+    // poluíam a soma dos pesos no cliente).
+    const pesos = pesosRow ? {
+      pesoProdutividade: pesosRow.pesoProdutividade, pesoFidelizacao: pesosRow.pesoFidelizacao,
+      pesoNps: pesosRow.pesoNps, pesoRecomendacao: pesosRow.pesoRecomendacao,
+      pesoTreinamento: pesosRow.pesoTreinamento, pesoColegas: pesosRow.pesoColegas,
+    } : PESOS_DEFAULT
+    const faixas = faixasRow ? {
+      minDiamante: faixasRow.minDiamante, minOuro: faixasRow.minOuro, minPrata: faixasRow.minPrata,
+    } : FAIXAS_DEFAULT
+
+    return NextResponse.json({ periodo, podeVerRestrito, pesos, faixas, terapeutas })
   } catch (error) {
     console.error('Erro ao buscar terapeutas:', error)
     return NextResponse.json({ error: 'Erro ao buscar dados dos terapeutas' }, { status: 500 })

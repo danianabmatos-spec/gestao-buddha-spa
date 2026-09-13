@@ -26,6 +26,12 @@ interface Resposta {
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 type SortCol = 'nome'|'prod'|'fid'|'nps'|'rec'|'trein'|'col'|'total'|'gestor'|'final'
 
+// Os 6 pesos, na mesma ordem das colunas de indicador.
+const PESO_ITENS: [keyof Pesos, string][] = [
+  ['pesoProdutividade','Produtividade'], ['pesoFidelizacao','Fidelização'], ['pesoNps','NPS'],
+  ['pesoRecomendacao','Recomendação'], ['pesoTreinamento','Horas Treino'], ['pesoColegas','Aval. Colegas'],
+]
+
 function ultimoMesFechado() {
   const hoje = new Date()
   const d = new Date(hoje.getFullYear(), hoje.getMonth(), 0)
@@ -58,7 +64,6 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
   const [error, setError] = useState<string | null>(null)
   const [mesSelecionado, setMesSelecionado] = useState('')
   const [salvandoPesos, setSalvandoPesos] = useState(false)
-  const [mostrarPesos, setMostrarPesos] = useState(false)
   const [sortCol, setSortCol] = useState<SortCol | null>(null)
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc')
 
@@ -162,8 +167,8 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
     }).catch(() => alert('Falha ao salvar a nota do gestor'))
   }
 
-  // Salvar pesos
-  const somaPesos = pesosEdit ? Object.values(pesosEdit).reduce((s, v) => s + (Number(v) || 0), 0) : 0
+  // Salvar pesos (soma SÓ os 6 campos)
+  const somaPesos = pesosEdit ? PESO_ITENS.reduce((s, [k]) => s + (Number(pesosEdit[k]) || 0), 0) : 0
   const salvarPesos = async () => {
     if (!pesosEdit) return
     if (Math.abs(somaPesos - 100) > 0.01) { alert(`A soma dos pesos deve ser 100 (atual: ${somaPesos})`); return }
@@ -173,7 +178,7 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
       body: JSON.stringify({ unidade: unidadeSlug, ...pesosEdit }),
     })
     setSalvandoPesos(false)
-    if (r.ok) { setResp(x => x ? { ...x, pesos: pesosEdit } : x); setMostrarPesos(false) }
+    if (r.ok) { setResp(x => x ? { ...x, pesos: pesosEdit } : x) }
     else { const e = await r.json().catch(() => ({})); alert(e.error || 'Falha ao salvar pesos') }
   }
 
@@ -198,40 +203,18 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
               </p>
             </div>
           )}
-          {podeRestrito && (
-            <button onClick={() => setMostrarPesos(m => !m)}
-              className="ml-auto text-sm px-4 py-2 rounded-lg border border-[#DDC7A4] text-[#7E0000] hover:bg-[#DDC7A4]/20">
-              {mostrarPesos ? 'Fechar pesos' : 'Ajustar pesos'}
-            </button>
-          )}
-        </div>
-
-        {podeRestrito && mostrarPesos && pesosEdit && (
-          <div className="mt-4 border-t border-[#DDC7A4]/40 pt-4">
-            <p className="text-sm font-semibold text-[#392617] mb-2">Pesos dos indicadores (soma deve ser 100%)</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {([
-                ['pesoProdutividade','Produtividade'],['pesoFidelizacao','Fidelização'],['pesoNps','NPS'],
-                ['pesoRecomendacao','Recomendação'],['pesoTreinamento','Horas Treino'],['pesoColegas','Aval. Colegas'],
-              ] as [keyof Pesos, string][]).map(([k, label]) => (
-                <label key={k} className="text-xs text-[#392617]">
-                  {label}
-                  <input type="number" min={0} max={100} value={pesosEdit[k]}
-                    onChange={e => setPesosEdit(p => p ? { ...p, [k]: Number(e.target.value) } : p)}
-                    className="mt-1 w-full px-2 py-1 border border-[#DDC7A4] rounded" />
-                </label>
-              ))}
-            </div>
-            <div className="flex items-center gap-4 mt-3">
-              <span className={`text-sm font-semibold ${Math.abs(somaPesos-100)<0.01 ? 'text-[#425F1D]' : 'text-[#7E0000]'}`}>Soma: {somaPesos}%</span>
+          {podeRestrito && pesosEdit && (
+            <div className="ml-auto flex items-center gap-3">
+              <span className={`text-sm font-semibold ${Math.abs(somaPesos-100)<0.01 ? 'text-[#425F1D]' : 'text-[#7E0000]'}`}>
+                Soma pesos: {somaPesos}%
+              </span>
               <button onClick={salvarPesos} disabled={salvandoPesos || Math.abs(somaPesos-100)>0.01}
-                className="text-sm px-4 py-1.5 rounded-lg bg-[#7E0000] text-white disabled:opacity-40">
+                className="text-sm px-4 py-2 rounded-lg bg-[#7E0000] text-white disabled:opacity-40">
                 {salvandoPesos ? 'Salvando…' : 'Salvar pesos'}
               </button>
-              <span className="text-xs text-[#392617]/50">Pesos por unidade.</span>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Tabela */}
@@ -246,6 +229,20 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-[#7E0000] text-white">
+                {podeRestrito && pesosEdit && (
+                  <tr className="bg-[#5E0000]">
+                    <th className="px-4 py-1.5 text-left text-[10px] font-normal text-white/70">Peso →</th>
+                    {PESO_ITENS.map(([k]) => (
+                      <th key={k} className="px-2 py-1.5 text-center">
+                        <input type="number" min={0} max={100} value={pesosEdit[k]}
+                          onChange={e => setPesosEdit(p => p ? { ...p, [k]: Number(e.target.value) } : p)}
+                          className="w-14 px-1 py-0.5 text-center text-xs text-[#392617] rounded" title="peso %" />
+                        <span className="text-[10px] text-white/70">%</span>
+                      </th>
+                    ))}
+                    <th colSpan={4}></th>
+                  </tr>
+                )}
                 <tr>
                   <th onClick={() => toggleSort('nome')} className="px-4 py-3 text-left text-xs font-semibold cursor-pointer select-none hover:bg-[#920000]">Terapeuta{seta('nome')}</th>
                   <th onClick={() => toggleSort('prod')} className={thBase}>Produtividade{seta('prod')}</th>
