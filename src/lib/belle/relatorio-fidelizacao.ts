@@ -1,4 +1,4 @@
-import { getToken, HEADERS, BASE_URL } from './client-auth'
+import { getToken, invalidarToken, HEADERS, BASE_URL } from './client-auth'
 
 export interface TerapeutaFidelizacao {
   profissional: string
@@ -18,7 +18,7 @@ export async function getTerapeutasFidelizacao(
   dataFim: string, // "2026-06-30"
   estab: number
 ): Promise<TerapeutaFidelizacao[]> {
-  const token = await getToken(email, senha)
+  let token = await getToken(email, senha)
 
   // Converte datas para ISO format
   const dataIniISO = new Date(dataIni + 'T03:00:00.000Z').toISOString()
@@ -38,15 +38,19 @@ export async function getTerapeutasFidelizacao(
     ignoreRecords: false
   }
 
-  const resp = await fetch(
+  const chamar = (tk: string) => fetch(
     `${BASE_URL}/BI/v1.0/report/build?estabGeral=${estab}`,
-    {
-      method: 'POST',
-      headers: { ...HEADERS, Authorization: token },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(90_000)
-    }
+    { method: 'POST', headers: { ...HEADERS, Authorization: tk }, body: JSON.stringify(payload), signal: AbortSignal.timeout(90_000) }
   )
+
+  // Belle às vezes invalida o token no meio (ex.: conta compartilhada da Higienópolis) →
+  // no 401, re-autentica forçado e tenta de novo uma vez.
+  let resp = await chamar(token)
+  if (resp.status === 401) {
+    invalidarToken(email)
+    token = await getToken(email, senha, true)
+    resp = await chamar(token)
+  }
 
   if (!resp.ok) {
     throw new Error(`Belle relatório fidelização failed: ${resp.status}`)

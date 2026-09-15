@@ -12,9 +12,15 @@ const HEADERS = {
 // Cache por email — válido 50 min
 const tokenCache = new Map<string, { token: string; expiresAt: number }>()
 
-export async function getToken(email: string, senha: string): Promise<string> {
+// Invalida o token em cache (usar quando o Belle devolve 401 no meio de uma consulta,
+// para forçar re-autenticação no retry).
+export function invalidarToken(email: string): void {
+  tokenCache.delete(email)
+}
+
+export async function getToken(email: string, senha: string, forcar = false): Promise<string> {
   const cached = tokenCache.get(email)
-  if (cached && Date.now() < cached.expiresAt) return cached.token
+  if (!forcar && cached && Date.now() < cached.expiresAt) return cached.token
 
   const resp = await fetch(`${BASE_URL}/Login/v1.0/autenticar`, {
     method: 'POST',

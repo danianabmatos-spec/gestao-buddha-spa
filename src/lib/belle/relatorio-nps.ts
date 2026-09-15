@@ -1,4 +1,20 @@
-import { getToken, HEADERS, BASE_URL } from './client-auth'
+import { getToken, invalidarToken, HEADERS, BASE_URL } from './client-auth'
+
+// POST /report/build com re-autenticação no 401 (Belle às vezes invalida o token no
+// meio — ex.: conta compartilhada da Higienópolis). Tenta 1x com token novo.
+async function postReport(email: string, senha: string, estab: number, body: unknown, timeoutMs: number): Promise<Response> {
+  const chamar = (tk: string) => fetch(`${BASE_URL}/BI/v1.0/report/build?estabGeral=${estab}`, {
+    method: 'POST', headers: { ...HEADERS, Authorization: tk }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs),
+  })
+  let token = await getToken(email, senha)
+  let resp = await chamar(token)
+  if (resp.status === 401) {
+    invalidarToken(email)
+    token = await getToken(email, senha, true)
+    resp = await chamar(token)
+  }
+  return resp
+}
 
 export interface NPSData {
   promotores: number
@@ -33,16 +49,26 @@ export interface NPSPorProfissional {
 // Cacheado por email para não repetir a chamada a cada consulta.
 const filtroDataCache = new Map<string, number>()
 
-async function getFiltroDataId(token: string, estab: number, email: string): Promise<number | null> {
+// IDs de filtro de data do Report 21 CONHECIDOS por conta Belle. Para contas onde o
+// meta call (report/build ignoreRecords) é lento/instável — ex.: Higienópolis, cuja
+// conta compartilhada faz o meta demorar ~60s (batia o timeout a cada consulta) —
+// usamos o id direto, sem meta call.
+const FILTRO_DATA_CONHECIDO: Record<string, number> = {
+  'adm.shoppingmetropole@buddhaspa.com.br': 338306625,
+  'administracao@buddhaspa.com.br': 338340992, // Higienópolis
+}
+
+async function getFiltroDataId(email: string, senha: string, estab: number): Promise<number | null> {
   const cached = filtroDataCache.get(email)
   if (cached !== undefined) return cached
+
+  const conhecido = FILTRO_DATA_CONHECIDO[email]
+  if (conhecido) { filtroDataCache.set(email, conhecido); return conhecido }
+
   try {
-    const resp = await fetch(`${BASE_URL}/BI/v1.0/report/build?estabGeral=${estab}`, {
-      method: 'POST',
-      headers: { ...HEADERS, Authorization: token },
-      body: JSON.stringify({ reportId: 21, sortColumn: null, sortOrder: 1, estab: String(estab), ignoreRecords: true, filters: [] }),
-      signal: AbortSignal.timeout(60_000),
-    })
+    // Timeout curto: se o meta demorar, é melhor cair no fallback do que travar a tela.
+    const resp = await postReport(email, senha, estab,
+      { reportId: 21, sortColumn: null, sortOrder: 1, estab: String(estab), ignoreRecords: true, filters: [] }, 20_000)
     const j = await resp.json()
     const filtros: any[] = j?.filters || []
     const f = filtros.find((x) => x?.field_id === 'satisfacao_cliente.data'
@@ -56,7 +82,7 @@ async function getFiltroDataId(token: string, estab: number, email: string): Pro
 }
 
 async function buscarPaginaNPS(
-  token: string, estab: number, filtroDataId: number,
+  email: string, senha: string, estab: number, filtroDataId: number,
   dataIni: string, dataFim: string, offsetRecords: number,
 ): Promise<{ data: any[]; record_count: number }> {
   const payload: any = {
@@ -69,12 +95,7 @@ async function buscarPaginaNPS(
   }
   if (offsetRecords > 0) payload.offsetRecords = offsetRecords
 
-  const resp = await fetch(`${BASE_URL}/BI/v1.0/report/build?estabGeral=${estab}`, {
-    method: 'POST',
-    headers: { ...HEADERS, Authorization: token },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(90_000),
-  })
+  const resp = await postReport(email, senha, estab, payload, 90_000)
   if (!resp.ok) throw new Error(`Belle relatório NPS failed: ${resp.status}`)
   const j = await resp.json()
   return { data: j.data || [], record_count: j.record_count || 0 }
@@ -87,23 +108,25 @@ export async function buscarRelatorioNPS(
   dataFim: string,
   estab: number
 ): Promise<any[]> {
-  const token = await getToken(email, senha)
   // ID do filtro de data descoberto por unidade (varia por unidade no Belle).
-  const filtroDataId = (await getFiltroDataId(token, estab, email)) ?? 338306625
+  const filtroDataId = (await getFiltroDataId(email, senha, estab)) ?? 338306625
 
-  // 1ª página + paginação por offsetRecords até coletar todos (Report 21 limita ~65/pág).
-  const primeira = await buscarPaginaNPS(token, estab, filtroDataId, dataIni, dataFim, 0)
+  // 1ª página para saber o total e o tamanho de página; depois pagina em PARALELO
+  // (lotes de 5) — unidades grandes como a Higienópolis têm muitas respostas de NPS e
+  // a paginação sequencial levava ~60s.
+  const primeira = await buscarPaginaNPS(email, senha, estab, filtroDataId, dataIni, dataFim, 0)
   let todos: any[] = primeira.data
   const total = primeira.record_count
-  if (total > todos.length) {
-    let offset = todos.length
-    let guarda = 0
-    while (offset < total && guarda < 100) {
-      const pag = await buscarPaginaNPS(token, estab, filtroDataId, dataIni, dataFim, offset)
-      if (pag.data.length === 0) break
-      todos = todos.concat(pag.data)
-      offset += pag.data.length
-      guarda++
+  const pageSize = primeira.data.length
+  if (pageSize > 0 && total > pageSize) {
+    const offsets: number[] = []
+    for (let o = pageSize; o < total; o += pageSize) offsets.push(o)
+    const BATCH = 5
+    for (let i = 0; i < offsets.length; i += BATCH) {
+      const results = await Promise.all(
+        offsets.slice(i, i + BATCH).map(o => buscarPaginaNPS(email, senha, estab, filtroDataId, dataIni, dataFim, o)),
+      )
+      for (const r of results) todos = todos.concat(r.data)
     }
   }
   return todos
