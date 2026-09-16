@@ -15,6 +15,7 @@ interface LogItem {
   id: number; quando: string; quem: string; acao: string; entidade: string
   dados: Record<string, unknown>
 }
+interface CargoMapa { cargo: string; ativos: number; perfilChave: string }
 
 const NIVEL_OPCOES: { v: Nivel; l: string; cor: string }[] = [
   { v: 'NENHUM', l: 'Nenhum', cor: 'bg-[#7E0000] text-white' },
@@ -35,6 +36,10 @@ export default function AcessosPage() {
   const [marcando, setMarcando] = useState(false)
   const [auditoria, setAuditoria] = useState<LogItem[] | null>(null)
   const [auditAberto, setAuditAberto] = useState(false)
+  const [cargos, setCargos] = useState<CargoMapa[] | null>(null)
+  const [cargosRhOff, setCargosRhOff] = useState(false)
+  const [cargosAberto, setCargosAberto] = useState(false)
+  const [cargoBusy, setCargoBusy] = useState<string | null>(null)
 
   const carregar = useCallback(async (selecionar?: string) => {
     setErro(null)
@@ -126,6 +131,32 @@ export default function AcessosPage() {
     }
   }
 
+  const toggleCargos = async () => {
+    const abrir = !cargosAberto
+    setCargosAberto(abrir)
+    if (abrir && cargos === null) {
+      const r = await fetch('/api/permissoes/cargos')
+      if (r.ok) { const j = await r.json(); setCargos(j.cargos || []); setCargosRhOff(!!j.rhIndisponivel) }
+      else { setCargos([]); setCargosRhOff(false) }
+    }
+  }
+
+  const recarregarCargos = async () => {
+    const r = await fetch('/api/permissoes/cargos')
+    if (r.ok) { const j = await r.json(); setCargos(j.cargos || []); setCargosRhOff(!!j.rhIndisponivel) }
+  }
+
+  const salvarCargo = async (cargo: string, perfilChave: string) => {
+    setCargos((cs) => cs?.map((c) => (c.cargo === cargo ? { ...c, perfilChave } : c)) ?? cs) // otimista
+    setCargoBusy(cargo)
+    const r = await fetch('/api/permissoes/cargos', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cargo, perfilChave }),
+    })
+    setCargoBusy(null)
+    if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.error || 'Falha ao salvar'); await recarregarCargos() }
+  }
+
   const resumoLog = (l: LogItem): string => {
     const d = l.dados || {}
     if (l.acao === 'PERMISSAO_EDITAR') {
@@ -158,6 +189,9 @@ export default function AcessosPage() {
             <p className="text-[#392617]/70">Defina o que cada perfil pode ver e editar em cada funcionalidade.</p>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={toggleCargos} className="text-sm px-4 py-2 rounded-lg border border-[#DDC7A4] text-[#7E0000] hover:bg-white">
+              {cargosAberto ? 'Ocultar mapeamento RH' : 'Mapeamento RH'}
+            </button>
             <button onClick={toggleAuditoria} className="text-sm px-4 py-2 rounded-lg border border-[#DDC7A4] text-[#7E0000] hover:bg-white">
               {auditAberto ? 'Ocultar histórico' : 'Histórico de mudanças'}
             </button>
@@ -189,6 +223,47 @@ export default function AcessosPage() {
                 {marcando ? 'Confirmando…' : 'Marcar como revisadas'}
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Painel: mapeamento cargo (RH) → perfil */}
+        {cargosAberto && (
+          <div className="mb-5 bg-white rounded-lg shadow p-4">
+            <div className="flex items-baseline justify-between gap-2 mb-1">
+              <div className="text-xs font-semibold text-[#392617]/60 uppercase">Mapeamento RH → Perfil</div>
+              <div className="text-[11px] text-[#392617]/50">usado ao criar acessos de novos colaboradores</div>
+            </div>
+            <p className="text-xs text-[#392617]/70 mb-3">
+              Defina qual perfil cada cargo do RH recebe ao ser admitido. Cargo em <b>Sem acesso</b> não gera login (fail-closed).
+            </p>
+            {cargos === null ? (
+              <div className="text-sm text-[#392617]/60">Carregando…</div>
+            ) : cargosRhOff ? (
+              <div className="text-sm text-[#7E0000]">RH indisponível no momento — tente novamente em instantes.</div>
+            ) : cargos.length === 0 ? (
+              <div className="text-sm text-[#392617]/60">Nenhum cargo encontrado no RH.</div>
+            ) : (
+              <div className="divide-y divide-[#DDC7A4]/30">
+                {cargos.map((c) => (
+                  <div key={c.cargo} className="py-2 flex items-center justify-between gap-3">
+                    <span className="text-sm text-[#392617]">
+                      {c.cargo}
+                      <span className="text-xs text-[#392617]/50 ml-2">{c.ativos} ativo{c.ativos === 1 ? '' : 's'}</span>
+                    </span>
+                    <select
+                      value={c.perfilChave}
+                      disabled={cargoBusy === c.cargo}
+                      onChange={(e) => salvarCargo(c.cargo, e.target.value)}
+                      className={`text-xs px-2 py-1.5 rounded-lg border bg-white shrink-0 ${c.perfilChave ? 'border-[#DDC7A4] text-[#392617]' : 'border-[#D78B18] text-[#392617]/60'}`}>
+                      <option value="">Sem acesso</option>
+                      {(matriz?.perfis ?? []).filter((p) => !p.superadmin).map((p) => (
+                        <option key={p.chave} value={p.chave}>{p.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

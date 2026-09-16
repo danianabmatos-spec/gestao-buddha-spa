@@ -27,6 +27,26 @@ export interface StatusEmailsRH {
   desligados: Set<string> // e-mails que existem no RH mas sem nenhum vínculo ativo
 }
 
+// Cargos do RH com a contagem de colaboradores ATIVOS por cargo. Usado na tela de
+// mapeamento cargo→perfil. Fail-open: null se o RH estiver indisponível.
+export async function getCargosRH(): Promise<{ cargo: string; ativos: number }[] | null> {
+  const p = getPool()
+  if (!p) return null
+  try {
+    const { rows } = await p.query<{ cargo: string; ativos: string }>(
+      `SELECT cg.nome AS cargo, COUNT(*) FILTER (WHERE c.ativo) AS ativos
+         FROM cargos cg
+         LEFT JOIN colaboradores c ON c."cargoId" = cg.id
+        GROUP BY cg.nome
+        ORDER BY COUNT(*) FILTER (WHERE c.ativo) DESC, cg.nome`,
+    )
+    return rows.map((r) => ({ cargo: r.cargo, ativos: Number(r.ativos) || 0 }))
+  } catch (err) {
+    console.error('[rh] falha ao ler cargos:', err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
 // Status de acesso por e-mail, agregando por pessoa: um e-mail conta como ATIVO se
 // tiver qualquer colaborador ativo (cobre readmissão — o vínculo ativo prevalece).
 export async function getStatusEmailsRH(): Promise<StatusEmailsRH | null> {
