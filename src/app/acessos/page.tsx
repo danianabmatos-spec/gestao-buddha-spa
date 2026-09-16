@@ -9,6 +9,11 @@ interface Perfil { chave: string; nome: string; descricao: string; sistema: bool
 interface Matriz {
   grupos: string[]; funcionalidades: Func[]; perfis: Perfil[]
   niveis: Record<string, Record<string, Nivel>>
+  pendentes: string[]
+}
+interface LogItem {
+  id: number; quando: string; quem: string; acao: string; entidade: string
+  dados: Record<string, unknown>
 }
 
 const NIVEL_OPCOES: { v: Nivel; l: string; cor: string }[] = [
@@ -27,6 +32,9 @@ export default function AcessosPage() {
   const [novoAberto, setNovoAberto] = useState(false)
   const [novoNome, setNovoNome] = useState('')
   const [novoCopiar, setNovoCopiar] = useState('')
+  const [marcando, setMarcando] = useState(false)
+  const [auditoria, setAuditoria] = useState<LogItem[] | null>(null)
+  const [auditAberto, setAuditAberto] = useState(false)
 
   const carregar = useCallback(async (selecionar?: string) => {
     setErro(null)
@@ -93,6 +101,54 @@ export default function AcessosPage() {
     else alert(j.error || 'Falha ao remover')
   }
 
+  const labelFunc = (c: string) => matriz?.funcionalidades.find(f => f.chave === c)?.label || c
+  const nomePerfil = (c: string) => matriz?.perfis.find(p => p.chave === c)?.nome || c
+
+  const marcarPendentesRevisadas = async () => {
+    if (!matriz?.pendentes?.length) return
+    setMarcando(true)
+    const r = await fetch('/api/permissoes', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chaves: matriz.pendentes }),
+    })
+    setMarcando(false)
+    if (r.ok) await carregar(perfilSel)
+    else { const e = await r.json().catch(() => ({})); alert(e.error || 'Falha ao marcar') }
+  }
+
+  const toggleAuditoria = async () => {
+    const abrir = !auditAberto
+    setAuditAberto(abrir)
+    if (abrir && auditoria === null) {
+      const r = await fetch('/api/permissoes/auditoria')
+      if (r.ok) { const j = await r.json(); setAuditoria(j.itens || []) }
+      else setAuditoria([])
+    }
+  }
+
+  const resumoLog = (l: LogItem): string => {
+    const d = l.dados || {}
+    if (l.acao === 'PERMISSAO_EDITAR') {
+      const nome = nomePerfil(String(d.perfilChave || ''))
+      const niveis = (d.niveis && typeof d.niveis === 'object') ? d.niveis as Record<string, string> : {}
+      const n = Object.keys(niveis).length
+      return `Ajustou o perfil "${nome}" (${n} funcionalidade${n === 1 ? '' : 's'})`
+    }
+    if (l.acao === 'PERMISSAO_REVISAR') {
+      const chaves = Array.isArray(d.chaves) ? (d.chaves as string[]) : []
+      return `Revisou: ${chaves.map(labelFunc).join(', ')}`
+    }
+    if (l.acao === 'PERFIL_CRIAR') return `Criou o perfil "${String(d.nome || d.chave || '')}"`
+    if (l.acao === 'PERFIL_EDITAR') return `Renomeou um perfil para "${String(d.nome || '')}"`
+    if (l.acao === 'PERFIL_REMOVER') return `Removeu o perfil "${nomePerfil(String(d.chave || ''))}"`
+    return l.acao
+  }
+
+  const fmtData = (s: string) => {
+    try { return new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) }
+    catch { return s }
+  }
+
   return (
     <div className="min-h-screen bg-[#E4E5E2] p-6">
       <div className="max-w-6xl mx-auto">
@@ -101,10 +157,61 @@ export default function AcessosPage() {
             <h1 className="text-3xl font-bold text-[#7E0000] mb-1">Acessos & Permissões</h1>
             <p className="text-[#392617]/70">Defina o que cada perfil pode ver e editar em cada funcionalidade.</p>
           </div>
-          <Link href="/usuarios" className="text-sm px-4 py-2 rounded-lg border border-[#DDC7A4] text-[#7E0000] hover:bg-white">
-            Gerenciar usuários →
-          </Link>
+          <div className="flex items-center gap-2">
+            <button onClick={toggleAuditoria} className="text-sm px-4 py-2 rounded-lg border border-[#DDC7A4] text-[#7E0000] hover:bg-white">
+              {auditAberto ? 'Ocultar histórico' : 'Histórico de mudanças'}
+            </button>
+            <Link href="/usuarios" className="text-sm px-4 py-2 rounded-lg border border-[#DDC7A4] text-[#7E0000] hover:bg-white">
+              Gerenciar usuários →
+            </Link>
+          </div>
         </div>
+
+        {/* Banner: funcionalidades novas ainda não configuradas */}
+        {matriz && matriz.pendentes.length > 0 && (
+          <div className="mb-5 rounded-lg border border-[#D78B18] bg-[#D78B18]/10 p-4">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <div className="font-semibold text-[#7E0000]">
+                  {matriz.pendentes.length} nova{matriz.pendentes.length === 1 ? '' : 's'} funcionalidade{matriz.pendentes.length === 1 ? '' : 's'} sem acesso definido
+                </div>
+                <div className="text-sm text-[#392617]/80 mt-1">
+                  Por segurança, {matriz.pendentes.length === 1 ? 'ela começa' : 'elas começam'} bloqueada{matriz.pendentes.length === 1 ? '' : 's'} para todos (exceto você). Defina os níveis em cada perfil e depois confirme:
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {matriz.pendentes.map(c => (
+                    <span key={c} className="text-xs px-2 py-1 rounded bg-white border border-[#D78B18]/40 text-[#7E0000]">{labelFunc(c)}</span>
+                  ))}
+                </div>
+              </div>
+              <button onClick={marcarPendentesRevisadas} disabled={marcando}
+                className="text-sm px-4 py-2 rounded-lg bg-[#7E0000] text-white disabled:opacity-40 shrink-0">
+                {marcando ? 'Confirmando…' : 'Marcar como revisadas'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Painel: histórico de mudanças (auditoria) */}
+        {auditAberto && (
+          <div className="mb-5 bg-white rounded-lg shadow p-4">
+            <div className="text-xs font-semibold text-[#392617]/60 uppercase mb-3">Histórico de mudanças (últimas 100)</div>
+            {auditoria === null ? (
+              <div className="text-sm text-[#392617]/60">Carregando…</div>
+            ) : auditoria.length === 0 ? (
+              <div className="text-sm text-[#392617]/60">Nenhuma mudança registrada ainda.</div>
+            ) : (
+              <div className="divide-y divide-[#DDC7A4]/30">
+                {auditoria.map(l => (
+                  <div key={l.id} className="py-2 flex items-baseline justify-between gap-3">
+                    <span className="text-sm text-[#392617]">{resumoLog(l)}</span>
+                    <span className="text-xs text-[#392617]/50 shrink-0">{l.quem} · {fmtData(l.quando)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {erro ? (
           <div className="bg-white rounded-lg shadow p-8 text-center text-[#7E0000]">{erro}</div>

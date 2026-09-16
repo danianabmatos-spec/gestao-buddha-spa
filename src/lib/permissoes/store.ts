@@ -27,6 +27,55 @@ export async function garantirSeed(): Promise<void> {
   }
 }
 
+// ─── Governança: funcionalidades novas pendentes de revisão pela DONA ────────────
+// Ao adicionar uma funcionalidade ao catálogo, ela nasce "pendente" (revisada=0) e
+// aparece num banner em /acessos até a DONA definir/confirmar os acessos. Na 1ª
+// migração (tabela vazia) tudo que já existe é tratado como baseline (revisada=1).
+async function garantirRevisao(): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "FuncionalidadeRevisao" (
+       "chave" TEXT NOT NULL PRIMARY KEY,
+       "revisada" INTEGER NOT NULL DEFAULT 0,
+       "criadaEm" DATETIME NOT NULL DEFAULT (datetime('now'))
+     )`,
+  )
+  const rows = await prisma.$queryRawUnsafe<{ chave: string }[]>(`SELECT "chave" FROM "FuncionalidadeRevisao"`)
+  const existentes = new Set(rows.map(r => r.chave))
+  const primeiraVez = existentes.size === 0
+  for (const f of FUNCIONALIDADES) {
+    if (!existentes.has(f.chave)) {
+      await prisma.$executeRawUnsafe(
+        `INSERT OR IGNORE INTO "FuncionalidadeRevisao" ("chave","revisada") VALUES (?,?)`,
+        f.chave, primeiraVez ? 1 : 0,
+      )
+    }
+  }
+}
+
+// Chaves de funcionalidades ainda não revisadas (pendentes de configuração).
+export async function getFuncionalidadesPendentes(): Promise<string[]> {
+  await garantirRevisao()
+  const rows = await prisma.$queryRawUnsafe<{ chave: string }[]>(
+    `SELECT "chave" FROM "FuncionalidadeRevisao" WHERE "revisada"=0`,
+  )
+  return rows.map(r => r.chave).filter(c => FUNC_VALIDAS.has(c))
+}
+
+// Marca funcionalidades como revisadas (some do banner). Idempotente.
+export async function marcarRevisadas(chaves: string[]): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "FuncionalidadeRevisao" ("chave" TEXT NOT NULL PRIMARY KEY, "revisada" INTEGER NOT NULL DEFAULT 0, "criadaEm" DATETIME NOT NULL DEFAULT (datetime('now')))`,
+  )
+  for (const c of chaves) {
+    if (!FUNC_VALIDAS.has(c)) continue
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "FuncionalidadeRevisao" ("chave","revisada") VALUES (?,1)
+       ON CONFLICT("chave") DO UPDATE SET "revisada"=1`,
+      c,
+    )
+  }
+}
+
 export interface PerfilRow { chave: string; nome: string; descricao: string; sistema: number; superadmin: number; ativo: number }
 
 // Matriz completa para a tela de gestão: perfis, funcionalidades (agrupadas) e níveis atuais.
@@ -48,11 +97,13 @@ export async function getMatriz() {
       for (const f of FUNCIONALIDADES) niveis[perfil.chave][f.chave] = 'EDITAR'
     }
   }
+  const pendentes = await getFuncionalidadesPendentes()
   return {
     grupos: GRUPOS,
     funcionalidades: FUNCIONALIDADES.map(f => ({ chave: f.chave, label: f.label, grupo: f.grupo })),
     perfis: perfis.map(pr => ({ chave: pr.chave, nome: pr.nome, descricao: pr.descricao, sistema: !!pr.sistema, superadmin: !!pr.superadmin })),
     niveis,
+    pendentes,
   }
 }
 
@@ -103,6 +154,8 @@ export async function salvarNiveis(perfilChave: string, niveis: Record<string, s
       perfilChave, func, nivel,
     )
   }
+  // Definir níveis de uma funcionalidade conta como revisá-la (some do banner).
+  await marcarRevisadas(Object.keys(niveis))
 }
 
 // Cria um perfil customizado, copiando os níveis de um perfil-base (opcional).

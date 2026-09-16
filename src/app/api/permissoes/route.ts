@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession, unauthorized } from '@/lib/auth/guard'
-import { getMatriz, salvarNiveis } from '@/lib/permissoes/store'
+import { getMatriz, salvarNiveis, marcarRevisadas } from '@/lib/permissoes/store'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -43,5 +43,26 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Falha ao salvar' }, { status: 400 })
+  }
+}
+
+// Marca funcionalidades novas como revisadas (tira do banner de pendências).
+// Body: { chaves: string[] }
+export async function POST(req: NextRequest) {
+  const { erro, session } = await exigirDona()
+  if (erro) return erro
+  const body = await req.json().catch(() => ({}))
+  const chaves = Array.isArray(body.chaves) ? body.chaves.map((c: unknown) => String(c)) : null
+  if (!chaves || !chaves.length) {
+    return NextResponse.json({ error: 'chaves é obrigatório' }, { status: 400 })
+  }
+  try {
+    await marcarRevisadas(chaves)
+    await prisma.logAuditoria.create({
+      data: { usuarioId: session!.sub, acao: 'PERMISSAO_REVISAR', entidade: 'Funcionalidade', dados: JSON.stringify({ chaves }).slice(0, 2000) },
+    }).catch(() => {})
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Falha' }, { status: 400 })
   }
 }
