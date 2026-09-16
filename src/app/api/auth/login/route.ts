@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verificarSenha } from '@/lib/auth/password'
 import { signSession, COOKIE_NAME, COOKIE_MAX_AGE, type Perfil } from '@/lib/auth/session'
-import { getPermissoesDoPerfil } from '@/lib/permissoes/store'
+import { getPermissoesDoPerfil, getEscopoDoPerfil } from '@/lib/permissoes/store'
 
 export async function POST(req: NextRequest) {
   const { email, senha } = await req.json().catch(() => ({}))
@@ -32,23 +32,20 @@ export async function POST(req: NextRequest) {
     : usuario.perfil === 'TERAPEUTA' ? 'TERAPEUTA'
     : 'RECEPCAO'
 
-  // FINANCEIRO e RH consultam todas as unidades (como a DONA); o que podem
-  // editar é controlado pela matriz de permissões, não pelo escopo.
-  const escopoTotal = perfil === 'DONA' || perfil === 'FINANCEIRO' || perfil === 'RH'
+  // Escopo de unidades vem do PERFIL (usa a chave REAL — cobre perfis personalizados
+  // marcados como total, ex.: Marketing/CEO). total=todas; coord=vinculadas (N:N);
+  // unidade=a própria (Usuario.unidadeId). O que pode EDITAR é a matriz, não o escopo.
+  const escopo = await getEscopoDoPerfil(usuario.perfil)
+  const escopoTotal = escopo === 'total'
 
-  // Escopo de unidades:
-  // - DONA: null (todas)
-  // - COORDENACAO: unidades vinculadas via UsuarioUnidade (1, 2 ou mais)
-  // - RECEPCAO: a própria unidade (Usuario.unidadeId)
   let unidadeSlugs: string[] | null = null
-  if (perfil === 'COORDENACAO') {
+  if (escopo === 'coord') {
     const vinculos = await prisma.usuarioUnidade.findMany({
       where: { usuarioId: usuario.id },
       include: { unidade: true },
     })
     unidadeSlugs = vinculos.map((v) => v.unidade.slug).filter(Boolean)
-  } else if (perfil === 'RECEPCAO' || perfil === 'TERAPEUTA') {
-    // TERAPEUTA tem escopo de 1 unidade (como a recepção); vê só a própria unidade.
+  } else if (escopo === 'unidade') {
     unidadeSlugs = usuario.unidade?.slug ? [usuario.unidade.slug] : []
   }
 
@@ -78,6 +75,7 @@ export async function POST(req: NextRequest) {
     unidadeSlug,
     unidadeSlugs,
     primeirAcesso: usuario.primeirAcesso ?? false,
+    escopoTotal,
     permissoes,
   })
 

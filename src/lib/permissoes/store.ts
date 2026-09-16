@@ -10,7 +10,45 @@ const NIVEL_VALIDO = new Set<string>(NIVEIS)
 // Garante os perfis de sistema e a matriz-PADRÃO no banco. Idempotente:
 // - não sobrescreve edições já feitas (INSERT OR IGNORE);
 // - funcionalidades NOVAS (adicionadas ao catálogo) ganham o padrão na próxima chamada.
+// Garante a coluna "escopo" na tabela Perfil (adicionada depois da criação original).
+let escopoColOk = false
+async function garantirColunaEscopo(): Promise<void> {
+  if (escopoColOk) return
+  const cols = await prisma.$queryRawUnsafe<{ name: string }[]>(`SELECT name FROM pragma_table_info('Perfil')`)
+  if (!cols.some((c) => c.name === 'escopo')) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Perfil" ADD COLUMN "escopo" TEXT`)
+  }
+  escopoColOk = true
+}
+
+// Escopo de unidades EFETIVO de um perfil: o valor salvo (se houver) ou o padrão
+// derivado do nome (escopoDoPerfil puro). Usado no login, no cadastro e no provisionamento.
+export async function getEscopoDoPerfil(chave: string): Promise<'total' | 'coord' | 'unidade'> {
+  try {
+    await garantirColunaEscopo()
+    const rows = await prisma.$queryRawUnsafe<{ escopo: string | null }[]>(
+      `SELECT "escopo" FROM "Perfil" WHERE "chave"=? LIMIT 1`, chave,
+    )
+    const v = rows?.[0]?.escopo
+    if (v === 'total' || v === 'coord' || v === 'unidade') return v
+  } catch { /* coluna/linha ausente → cai no padrão */ }
+  return escopoDoPerfil(chave)
+}
+
+// Define o escopo de um perfil. DONA (superadmin) é sempre total e não editável.
+export async function salvarEscopoPerfil(chave: string, escopo: string): Promise<void> {
+  if (!['total', 'coord', 'unidade'].includes(escopo)) throw new Error('Escopo inválido')
+  await garantirColunaEscopo()
+  const perfil = await existePerfil(chave)
+  if (!perfil) throw new Error('Perfil não encontrado')
+  if (perfil.superadmin) throw new Error('O perfil DONA tem escopo total e não é editável')
+  await prisma.$executeRawUnsafe(
+    `UPDATE "Perfil" SET "escopo"=?, "atualizadoEm"=datetime('now') WHERE "chave"=?`, escopo, chave,
+  )
+}
+
 export async function garantirSeed(): Promise<void> {
+  await garantirColunaEscopo()
   for (const perfil of PERFIS_SISTEMA) {
     await prisma.$executeRawUnsafe(
       `INSERT OR IGNORE INTO "Perfil" ("chave","nome","descricao","sistema","superadmin") VALUES (?,?,?,1,?)`,
@@ -82,8 +120,8 @@ export interface PerfilRow { chave: string; nome: string; descricao: string; sis
 // Matriz completa para a tela de gestão: perfis, funcionalidades (agrupadas) e níveis atuais.
 export async function getMatriz() {
   await garantirSeed()
-  const perfis = await prisma.$queryRawUnsafe<PerfilRow[]>(
-    `SELECT "chave","nome","descricao","sistema","superadmin","ativo" FROM "Perfil" WHERE "ativo"=1 ORDER BY "sistema" DESC, "nome"`,
+  const perfis = await prisma.$queryRawUnsafe<(PerfilRow & { escopo: string | null })[]>(
+    `SELECT "chave","nome","descricao","sistema","superadmin","ativo","escopo" FROM "Perfil" WHERE "ativo"=1 ORDER BY "sistema" DESC, "nome"`,
   )
   const perms = await prisma.$queryRawUnsafe<{ perfilChave: string; funcionalidadeChave: string; nivel: string }[]>(
     `SELECT "perfilChave","funcionalidadeChave","nivel" FROM "PerfilPermissao"`,
@@ -102,7 +140,10 @@ export async function getMatriz() {
   return {
     grupos: GRUPOS,
     funcionalidades: FUNCIONALIDADES.map(f => ({ chave: f.chave, label: f.label, grupo: f.grupo })),
-    perfis: perfis.map(pr => ({ chave: pr.chave, nome: pr.nome, descricao: pr.descricao, sistema: !!pr.sistema, superadmin: !!pr.superadmin })),
+    perfis: perfis.map(pr => ({
+      chave: pr.chave, nome: pr.nome, descricao: pr.descricao, sistema: !!pr.sistema, superadmin: !!pr.superadmin,
+      escopo: (pr.escopo === 'total' || pr.escopo === 'coord' || pr.escopo === 'unidade') ? pr.escopo : escopoDoPerfil(pr.chave),
+    })),
     niveis,
     pendentes,
   }
@@ -141,10 +182,13 @@ export async function getPerfisAtribuiveis(): Promise<
   { chave: string; nome: string; sistema: boolean; superadmin: boolean; escopo: 'total' | 'coord' | 'unidade' }[]
 > {
   await garantirSeed()
-  const rows = await prisma.$queryRawUnsafe<PerfilRow[]>(
-    `SELECT "chave","nome","descricao","sistema","superadmin","ativo" FROM "Perfil" WHERE "ativo"=1 ORDER BY "sistema" DESC, "nome"`,
+  const rows = await prisma.$queryRawUnsafe<(PerfilRow & { escopo: string | null })[]>(
+    `SELECT "chave","nome","descricao","sistema","superadmin","ativo","escopo" FROM "Perfil" WHERE "ativo"=1 ORDER BY "sistema" DESC, "nome"`,
   )
-  return rows.map(r => ({ chave: r.chave, nome: r.nome, sistema: !!r.sistema, superadmin: !!r.superadmin, escopo: escopoDoPerfil(r.chave) }))
+  return rows.map(r => ({
+    chave: r.chave, nome: r.nome, sistema: !!r.sistema, superadmin: !!r.superadmin,
+    escopo: (r.escopo === 'total' || r.escopo === 'coord' || r.escopo === 'unidade') ? r.escopo : escopoDoPerfil(r.chave),
+  }))
 }
 
 async function existePerfil(chave: string): Promise<PerfilRow | null> {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession, unauthorized } from '@/lib/auth/guard'
-import { criarPerfil, editarPerfil, desativarPerfil } from '@/lib/permissoes/store'
+import { criarPerfil, editarPerfil, desativarPerfil, salvarEscopoPerfil } from '@/lib/permissoes/store'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -30,16 +30,24 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Renomeia/descreve. Body: { chave, nome, descricao? }
+// Renomeia/descreve e/ou define escopo. Body: { chave, nome?, descricao?, escopo? }
 export async function PATCH(req: NextRequest) {
   const { erro, session } = await exigirDona()
   if (erro) return erro
   const b = await req.json().catch(() => ({}))
-  const chave = String(b.chave || '').trim(), nome = String(b.nome || '').trim()
-  if (!chave || !nome) return NextResponse.json({ error: 'chave e nome obrigatórios' }, { status: 400 })
+  const chave = String(b.chave || '').trim()
+  const nome = String(b.nome || '').trim()
+  const escopo = b.escopo !== undefined ? String(b.escopo).trim() : null
+  if (!chave || (!nome && !escopo)) return NextResponse.json({ error: 'chave e (nome ou escopo) obrigatórios' }, { status: 400 })
   try {
-    await editarPerfil(chave, nome, String(b.descricao || ''))
-    await log(session!.sub, 'PERFIL_EDITAR', { chave, nome })
+    if (nome) {
+      await editarPerfil(chave, nome, String(b.descricao || ''))
+      await log(session!.sub, 'PERFIL_EDITAR', { chave, nome })
+    }
+    if (escopo) {
+      await salvarEscopoPerfil(chave, escopo)
+      await log(session!.sub, 'PERFIL_ESCOPO', { chave, escopo })
+    }
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Falha' }, { status: 400 })

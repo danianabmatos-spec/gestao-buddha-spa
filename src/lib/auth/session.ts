@@ -25,6 +25,9 @@ export interface SessionUser {
   unidadeSlugs: string[] | null
   // true = precisa trocar a senha (1º acesso) antes de usar o sistema.
   primeirAcesso?: boolean
+  // true = enxerga TODAS as unidades (escopo do perfil = total). Definido no login
+  // a partir do escopo do perfil (inclui perfis personalizados marcados como total).
+  escopoTotal?: boolean
   // Mapa { funcionalidade: nível } assado no token no login e re-emitido a cada
   // page-load (via /api/auth/permissoes). Ausente = sessão antiga → proxy usa as
   // regras herdadas como fallback. Usado no enforcement por rota (proxy, edge).
@@ -54,6 +57,7 @@ export async function signSession(user: SessionUser): Promise<string> {
     unidadeSlug: user.unidadeSlug,
     unidadeSlugs: user.unidadeSlugs,
     primeirAcesso: user.primeirAcesso === true,
+    escopoTotal: user.escopoTotal === true,
     ...(user.permissoes ? { permissoes: user.permissoes } : {}),
   })
     .setProtectedHeader({ alg: 'HS256' })
@@ -88,6 +92,7 @@ export async function verifySession(token: string): Promise<SessionUser | null> 
       unidadeSlug: payload.unidadeSlug ? String(payload.unidadeSlug) : null,
       unidadeSlugs,
       primeirAcesso: payload.primeirAcesso === true,
+      escopoTotal: payload.escopoTotal === true,
       permissoes,
     }
   } catch {

@@ -5,7 +5,9 @@ import Link from 'next/link'
 
 type Nivel = 'NENHUM' | 'VISUALIZAR' | 'EDITAR'
 interface Func { chave: string; label: string; grupo: string }
-interface Perfil { chave: string; nome: string; descricao: string; sistema: boolean; superadmin: boolean }
+type Escopo = 'total' | 'coord' | 'unidade'
+interface Perfil { chave: string; nome: string; descricao: string; sistema: boolean; superadmin: boolean; escopo: Escopo }
+const ESCOPO_LABEL: Record<Escopo, string> = { total: 'Todas as unidades', coord: 'Unidades vinculadas (coordenação)', unidade: 'Uma unidade' }
 interface Matriz {
   grupos: string[]; funcionalidades: Func[]; perfis: Perfil[]
   niveis: Record<string, Record<string, Nivel>>
@@ -69,6 +71,16 @@ export default function AcessosPage() {
     if (!editavel) return
     setNiveisEdit(n => ({ ...n, [func]: nivel }))
     setDirty(true)
+  }
+
+  const salvarEscopo = async (escopo: Escopo) => {
+    if (!perfil || perfil.superadmin) return
+    const r = await fetch('/api/permissoes/perfil', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chave: perfil.chave, escopo }),
+    })
+    if (r.ok) await carregar(perfil.chave)
+    else { const e = await r.json().catch(() => ({})); alert(e.error || 'Falha ao salvar escopo') }
   }
 
   const salvar = async () => {
@@ -328,6 +340,17 @@ export default function AcessosPage() {
                   <div className="text-lg font-semibold text-[#7E0000]">{perfil?.nome}</div>
                   {perfil?.descricao && <div className="text-xs text-[#392617]/60">{perfil.descricao}</div>}
                   {perfil?.superadmin && <div className="text-xs text-[#425F1D] mt-0.5">Super-admin — acesso total (não editável).</div>}
+                  {perfil && !perfil.superadmin && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs text-[#392617]/60">Enxerga:</span>
+                      <select value={perfil.escopo} onChange={(e) => salvarEscopo(e.target.value as Escopo)}
+                        className="text-xs px-2 py-1 rounded-lg border border-[#DDC7A4] bg-white text-[#392617]">
+                        {(['total', 'coord', 'unidade'] as Escopo[]).map((es) => (
+                          <option key={es} value={es}>{ESCOPO_LABEL[es]}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {perfil && !perfil.sistema && (

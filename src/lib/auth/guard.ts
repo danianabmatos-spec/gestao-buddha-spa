@@ -37,7 +37,8 @@ export function escopoDoPerfil(perfil: string): 'total' | 'coord' | 'unidade' {
 }
 
 export function unidadesPermitidas(session: SessionUser): string[] | null {
-  if (session.perfil === 'DONA' || session.perfil === 'FINANCEIRO' || session.perfil === 'RH') return null // veem todas
+  // Escopo total (do perfil, inclui personalizados) OU perfis de sistema com escopo total.
+  if (session.escopoTotal || session.perfil === 'DONA' || session.perfil === 'FINANCEIRO' || session.perfil === 'RH') return null
   if (session.unidadeSlugs && session.unidadeSlugs.length) return session.unidadeSlugs
   return session.unidadeSlug ? [session.unidadeSlug] : []
 }

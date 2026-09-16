@@ -1,8 +1,7 @@
 import crypto from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { hashSenha } from '@/lib/auth/password'
-import { escopoDoPerfil } from '@/lib/auth/guard'
-import { PERFIS_SISTEMA } from '@/lib/permissoes/catalogo'
+import { getEscopoDoPerfil, getPerfisAtribuiveis } from '@/lib/permissoes/store'
 import { getColaboradoresRHParaAcesso, normalizarEmail } from './acessos'
 import { getMapaCargoPerfil } from './cargo-perfil'
 
@@ -10,12 +9,8 @@ import { getMapaCargoPerfil } from './cargo-perfil'
 // Para cada colaborador ATIVO do RH SEM conta no ERP, cria o Usuario com o perfil
 // mapeado do cargo (cargo "sem acesso" → ignora), a unidade do RH e uma SENHA
 // TEMPORÁRIA (primeirAcesso=true força a troca no 1º login). Modo seguro: dryRun
-// mostra o plano sem gravar. Só perfis de SISTEMA são criados automaticamente —
-// perfis personalizados (ex.: Marketing/CEO) precisam do escopo por perfil (ainda
-// não suportado no login) e são sinalizados p/ criação manual.
-
-const SISTEMA = new Set(PERFIS_SISTEMA.map((p) => p.chave))
-const PERFIL_NOME = Object.fromEntries(PERFIS_SISTEMA.map((p) => [p.chave, p.nome]))
+// mostra o plano sem gravar. O escopo (total/coord/unidade) vem do PERFIL — inclui
+// perfis personalizados marcados como total (ex.: Marketing/CEO veem todas).
 
 function normNome(s: string): string {
   return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
@@ -48,14 +43,17 @@ export async function sincronizarProvisionamento(
   const colaboradores = await getColaboradoresRHParaAcesso()
   if (!colaboradores) return { rhIndisponivel: true, dryRun, criar: [], ignorados: [], criados: 0 }
 
-  const [usuarios, unidades, mapa] = await Promise.all([
+  const [usuarios, unidades, mapa, perfis] = await Promise.all([
     prisma.usuario.findMany({ select: { email: true } }),
     prisma.unidade.findMany({ where: { ativa: true }, select: { id: true, slug: true, nome: true } }),
     getMapaCargoPerfil(),
+    getPerfisAtribuiveis(),
   ])
   const existentes = new Set(usuarios.map((u) => normalizarEmail(u.email)))
   const nomeParaUnidade = new Map(unidades.map((u) => [normNome(u.nome), u]))
   const slugParaId = new Map(unidades.map((u) => [u.slug, u.id]))
+  const perfilNome = new Map(perfis.map((p) => [p.chave, p.nome]))
+  const perfilValido = new Set(perfis.map((p) => p.chave))
 
   const criar: PlanoAcesso[] = []
   const ignorados: IgnoradoAcesso[] = []
@@ -66,8 +64,8 @@ export async function sincronizarProvisionamento(
     vistos.add(c.email)
     const perfilChave = mapa[c.cargo]
     if (!perfilChave) { ignorados.push({ email: c.email, nome: c.nome, cargo: c.cargo, motivo: 'cargo sem perfil (sem acesso)' }); continue }
-    if (!SISTEMA.has(perfilChave)) { ignorados.push({ email: c.email, nome: c.nome, cargo: c.cargo, motivo: 'perfil personalizado — criar manualmente' }); continue }
-    const escopo = escopoDoPerfil(perfilChave)
+    if (!perfilValido.has(perfilChave)) { ignorados.push({ email: c.email, nome: c.nome, cargo: c.cargo, motivo: 'perfil não existe mais' }); continue }
+    const escopo = await getEscopoDoPerfil(perfilChave)
     let unidadeSlugs: string[] = []
     if (escopo !== 'total') {
       const resolvidas = c.unidades
@@ -76,7 +74,7 @@ export async function sincronizarProvisionamento(
       if (!resolvidas.length) { ignorados.push({ email: c.email, nome: c.nome, cargo: c.cargo, motivo: 'sem unidade compatível no RH' }); continue }
       unidadeSlugs = escopo === 'unidade' ? [resolvidas[0].slug] : resolvidas.map((r) => r.slug)
     }
-    criar.push({ email: c.email, nome: c.nome, cargo: c.cargo, perfilChave, perfilNome: PERFIL_NOME[perfilChave] || perfilChave, escopo, unidadeSlugs })
+    criar.push({ email: c.email, nome: c.nome, cargo: c.cargo, perfilChave, perfilNome: perfilNome.get(perfilChave) || perfilChave, escopo, unidadeSlugs })
   }
 
   if (dryRun) return { rhIndisponivel: false, dryRun: true, criar, ignorados, criados: 0 }
