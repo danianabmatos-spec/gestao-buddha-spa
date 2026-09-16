@@ -11,6 +11,10 @@ const HEADERS = {
 
 // Cache por email — válido 50 min
 const tokenCache = new Map<string, { token: string; expiresAt: number }>()
+// Autenticações EM ANDAMENTO por email (single-flight): evita que várias chamadas
+// concorrentes (ex.: fidelização + páginas de NPS em paralelo) disparem N re-logins
+// ao mesmo tempo — o que estourava o rate limit (429) do Belle.
+const inflight = new Map<string, Promise<string>>()
 
 // Invalida o token em cache (usar quando o Belle devolve 401 no meio de uma consulta,
 // para forçar re-autenticação no retry).
@@ -18,10 +22,7 @@ export function invalidarToken(email: string): void {
   tokenCache.delete(email)
 }
 
-export async function getToken(email: string, senha: string, forcar = false): Promise<string> {
-  const cached = tokenCache.get(email)
-  if (!forcar && cached && Date.now() < cached.expiresAt) return cached.token
-
+async function autenticar(email: string, senha: string): Promise<string> {
   const resp = await fetch(`${BASE_URL}/Login/v1.0/autenticar`, {
     method: 'POST',
     headers: HEADERS,
@@ -43,6 +44,21 @@ export async function getToken(email: string, senha: string, forcar = false): Pr
 
   tokenCache.set(email, { token, expiresAt: Date.now() + 50 * 60 * 1000 })
   return token
+}
+
+export async function getToken(email: string, senha: string, forcar = false): Promise<string> {
+  if (!forcar) {
+    const cached = tokenCache.get(email)
+    if (cached && Date.now() < cached.expiresAt) return cached.token
+  }
+  // Single-flight: se já há uma autenticação em andamento para este email, aguarda-a
+  // em vez de iniciar outra (evita tempestade de logins → 429).
+  let p = inflight.get(email)
+  if (!p) {
+    p = autenticar(email, senha).finally(() => inflight.delete(email))
+    inflight.set(email, p)
+  }
+  return p
 }
 
 export { HEADERS, BASE_URL }

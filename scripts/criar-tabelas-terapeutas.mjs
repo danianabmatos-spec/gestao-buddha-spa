@@ -53,7 +53,21 @@ await db.execute(`
   )
 `)
 
-for (const t of ['TerapeutaAvaliacao', 'TerapeutaPesos', 'TerapeutaCategoriaFaixa']) {
+// Cache dos dados do Belle por unidade+semestre (JSON) + quando foi atualizado.
+// A tela serve DESTE cache (instantâneo); o Belle só é consultado no "Atualizar agora".
+await db.execute(`
+  CREATE TABLE IF NOT EXISTS "TerapeutaBelleCache" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "unidadeSlug" TEXT NOT NULL,
+    "periodo" TEXT NOT NULL,
+    "dados" TEXT NOT NULL,
+    "atualizadoEm" DATETIME NOT NULL DEFAULT (datetime('now')),
+    "atualizadoPor" TEXT
+  )
+`)
+await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS "TerapeutaBelleCache_unidadeSlug_periodo_key" ON "TerapeutaBelleCache"("unidadeSlug","periodo")`)
+
+for (const t of ['TerapeutaAvaliacao', 'TerapeutaPesos', 'TerapeutaCategoriaFaixa', 'TerapeutaBelleCache']) {
   const check = await db.execute({ sql: `SELECT name FROM sqlite_master WHERE type='table' AND name=?`, args: [t] })
   console.log(check.rows.length ? `✔ Tabela ${t} pronta.` : `✖ Falhou ao criar ${t}.`)
 }

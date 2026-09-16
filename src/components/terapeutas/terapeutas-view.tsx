@@ -21,6 +21,7 @@ interface Pesos {
 interface Faixas { minDiamante: number; minOuro: number; minPrata: number }
 interface Resposta {
   periodo: string; podeVerRestrito: boolean; pesos: Pesos; faixas: Faixas; terapeutas: Terapeuta[]
+  atualizadoEm?: string | null; atualizadoPor?: string | null
 }
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -66,6 +67,8 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
   const [salvandoPesos, setSalvandoPesos] = useState(false)
   const [sortCol, setSortCol] = useState<SortCol | null>(null)
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc')
+  const [atualizando, setAtualizando] = useState(false)
+  const [erroAtualizar, setErroAtualizar] = useState<string | null>(null)
 
   const fechado = ultimoMesFechado()
   const maxMes = `${fechado.ano}-${String(fechado.mes).padStart(2,'0')}`
@@ -73,17 +76,25 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
 
   useEffect(() => { setMesSelecionado(maxMes) }, [maxMes])
 
+  // Datas do período efetivo (semestre → último mês fechado selecionado).
+  const datasPeriodo = useCallback(() => {
+    const [ano, mes] = mesSelecionado.split('-').map(Number)
+    const fut = ano > fechado.ano || (ano === fechado.ano && mes > fechado.mes)
+    const anoEf = fut ? fechado.ano : ano
+    const mesEf = fut ? fechado.mes : mes
+    const ultimoDia = new Date(anoEf, mesEf, 0).getDate()
+    return {
+      dataIni: mesEf <= 6 ? `${anoEf}-01-01` : `${anoEf}-07-01`,
+      dataFim: `${anoEf}-${String(mesEf).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`,
+    }
+  }, [mesSelecionado, fechado.ano, fechado.mes])
+
+  // Leitura da tela = SEMPRE do cache (instantâneo, não bate no Belle).
   const carregar = useCallback(async () => {
     if (!mesSelecionado) return
     try {
       setLoading(true); setError(null)
-      const [ano, mes] = mesSelecionado.split('-').map(Number)
-      const fut = ano > fechado.ano || (ano === fechado.ano && mes > fechado.mes)
-      const anoEf = fut ? fechado.ano : ano
-      const mesEf = fut ? fechado.mes : mes
-      const ultimoDia = new Date(anoEf, mesEf, 0).getDate()
-      const dataFim = `${anoEf}-${String(mesEf).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`
-      const dataIni = mesEf <= 6 ? `${anoEf}-01-01` : `${anoEf}-07-01`
+      const { dataIni, dataFim } = datasPeriodo()
       const r = await fetch(`/api/belle/terapeutas?unidade=${unidadeSlug}&dataIni=${dataIni}&dataFim=${dataFim}`)
       if (!r.ok) throw new Error('Erro ao carregar dados')
       const j: Resposta = await r.json()
@@ -91,9 +102,29 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro desconhecido')
     } finally { setLoading(false) }
-  }, [mesSelecionado, unidadeSlug, fechado.ano, fechado.mes])
+  }, [mesSelecionado, unidadeSlug, datasPeriodo])
 
   useEffect(() => { carregar() }, [carregar])
+
+  // "Atualizar agora" = ÚNICA ação que consulta o Belle (e regrava o cache).
+  const atualizarAgora = async () => {
+    if (!mesSelecionado || atualizando) return
+    setAtualizando(true); setErroAtualizar(null)
+    try {
+      const { dataIni, dataFim } = datasPeriodo()
+      const r = await fetch('/api/terapeutas/atualizar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unidade: unidadeSlug, dataIni, dataFim }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || !j.ok) { setErroAtualizar(j.error || 'Falha ao atualizar.'); return }
+      await carregar() // recarrega do cache já atualizado
+    } catch {
+      setErroAtualizar('Falha ao atualizar.')
+    } finally { setAtualizando(false) }
+  }
+
+  const atualizadoEm = resp?.atualizadoEm ?? null
 
   const periodoLabel = (() => {
     if (!mesSelecionado) return ''
@@ -184,6 +215,11 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
 
   const thBase = 'px-3 py-3 text-center text-xs font-semibold cursor-pointer select-none hover:bg-[#920000]'
 
+  const ultimaAtual = atualizadoEm ? new Date(atualizadoEm) : null
+  const ultimaAtualLabel = ultimaAtual && !isNaN(ultimaAtual.getTime())
+    ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(ultimaAtual)
+    : null
+
   return (
     <div>
       {/* Filtro + pesos */}
@@ -215,6 +251,19 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
             </div>
           )}
         </div>
+        <div className="mt-4 pt-4 border-t border-[#DDC7A4]/40 flex flex-wrap items-center gap-3">
+          <button onClick={atualizarAgora} disabled={atualizando}
+            className="text-sm px-4 py-2 rounded-lg border border-[#7E0000] text-[#7E0000] hover:bg-[#7E0000]/5 disabled:opacity-50">
+            {atualizando ? 'Atualizando do Belle…' : '↻ Atualizar agora'}
+          </button>
+          <span className="text-xs text-[#392617]/60">
+            {atualizadoEm
+              ? <>Última atualização: <strong>{ultimaAtualLabel}</strong>{resp?.atualizadoPor ? ` · por ${resp.atualizadoPor}` : ''}</>
+              : 'Nunca atualizado — clique em “Atualizar agora” para buscar do Belle.'}
+          </span>
+          {atualizando && <span className="text-xs text-[#392617]/50">(pode levar até ~1 min em unidades grandes)</span>}
+          {erroAtualizar && <span className="text-xs text-[#7E0000] font-medium">⚠ {erroAtualizar}</span>}
+        </div>
       </div>
 
       {/* Tabela */}
@@ -224,7 +273,11 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
         ) : error ? (
           <div className="p-8 text-center text-[#7E0000]">{error}</div>
         ) : dados.length === 0 ? (
-          <div className="p-8 text-center text-[#392617]/70">Nenhum terapeuta ativo encontrado para o período.</div>
+          <div className="p-8 text-center text-[#392617]/70">
+            {atualizadoEm
+              ? 'Nenhum terapeuta ativo encontrado para o período.'
+              : 'Ainda não há dados. Clique em “Atualizar agora” para buscar do Belle.'}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">

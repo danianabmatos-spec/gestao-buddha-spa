@@ -121,7 +121,7 @@ export async function buscarRelatorioNPS(
   if (pageSize > 0 && total > pageSize) {
     const offsets: number[] = []
     for (let o = pageSize; o < total; o += pageSize) offsets.push(o)
-    const BATCH = 5
+    const BATCH = 3 // gentil com o rate limit do Belle (429)
     for (let i = 0; i < offsets.length; i += BATCH) {
       const results = await Promise.all(
         offsets.slice(i, i + BATCH).map(o => buscarPaginaNPS(email, senha, estab, filtroDataId, dataIni, dataFim, o)),
