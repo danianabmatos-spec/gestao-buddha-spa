@@ -5,23 +5,17 @@ import { Users, UserPlus, Trash2, Save, KeyRound, Loader2, Check } from 'lucide-
 
 interface Un { id: number; slug: string; nome: string }
 interface U { id: string; nome: string; email: string; perfil: string; ativo: boolean; unidades: Un[] }
-
-const PERFIS = [
-  { v: 'DONA', l: 'Dona (acesso total)' },
-  { v: 'COORDENACAO', l: 'Coordenação' },
-  { v: 'RECEPCAO', l: 'Recepção' },
-  { v: 'FINANCEIRO', l: 'Financeiro' },
-  { v: 'RH', l: 'RH' },
-]
-const perfilLabel = (v: string) => PERFIS.find((p) => p.v === v)?.l ?? v
+type Escopo = 'total' | 'coord' | 'unidade'
+interface P { chave: string; nome: string; sistema: boolean; superadmin: boolean; escopo: Escopo }
 
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<U[]>([])
   const [unidades, setUnidades] = useState<Un[]>([])
+  const [perfis, setPerfis] = useState<P[]>([])
   const [meuId, setMeuId] = useState('')
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
-  const [novo, setNovo] = useState({ nome: '', email: '', senha: '', perfil: 'RECEPCAO', unidadeIds: [] as number[] })
+  const [novo, setNovo] = useState({ nome: '', email: '', senha: '', perfil: '', unidadeIds: [] as number[] })
   const [criando, setCriando] = useState(false)
 
   const carregar = useCallback(async () => {
@@ -30,28 +24,30 @@ export default function UsuariosPage() {
       const r = await fetch('/api/usuarios', { cache: 'no-store' })
       if (!r.ok) { setErro(r.status === 403 ? 'Acesso restrito (somente Dona).' : `Erro ${r.status}`); setUsuarios([]); return }
       const j = await r.json()
-      setUsuarios(j.usuarios); setUnidades(j.unidades); setMeuId(j.meuId)
+      setUsuarios(j.usuarios); setUnidades(j.unidades); setPerfis(j.perfis || []); setMeuId(j.meuId)
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)) }
     finally { setLoading(false) }
   }, [])
   useEffect(() => { carregar() }, [carregar])
 
-  const precisaUnidade = novo.perfil === 'RECEPCAO' || novo.perfil === 'COORDENACAO'
+  const escopoNovo = perfis.find((p) => p.chave === novo.perfil)?.escopo
+  const precisaUnidade = escopoNovo === 'coord' || escopoNovo === 'unidade'
   function toggleNovoUnidade(id: number) {
     setNovo((p) => {
       const has = p.unidadeIds.includes(id)
-      if (p.perfil === 'RECEPCAO') return { ...p, unidadeIds: has ? [] : [id] } // recepção = 1 só
+      if (escopoNovo === 'unidade') return { ...p, unidadeIds: has ? [] : [id] } // 1 só
       return { ...p, unidadeIds: has ? p.unidadeIds.filter((x) => x !== id) : [...p.unidadeIds, id] }
     })
   }
 
   async function criar() {
+    if (!novo.perfil) { setErro('Selecione um perfil para o usuário.'); return }
     setErro(null); setCriando(true)
     try {
       const r = await fetch('/api/usuarios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(novo) })
       const j = await r.json()
       if (!j.ok) { setErro(j.error || 'Erro ao criar'); return }
-      setNovo({ nome: '', email: '', senha: '', perfil: 'RECEPCAO', unidadeIds: [] })
+      setNovo({ nome: '', email: '', senha: '', perfil: '', unidadeIds: [] })
       await carregar()
     } finally { setCriando(false) }
   }
@@ -75,13 +71,15 @@ export default function UsuariosPage() {
           <input placeholder="Nome" value={novo.nome} onChange={(e) => setNovo((p) => ({ ...p, nome: e.target.value }))} className="px-3 py-2 rounded-lg border border-[#DDC7A4] bg-white text-sm" />
           <input placeholder="E-mail" value={novo.email} onChange={(e) => setNovo((p) => ({ ...p, email: e.target.value }))} className="px-3 py-2 rounded-lg border border-[#DDC7A4] bg-white text-sm" />
           <input placeholder="Senha" type="text" value={novo.senha} onChange={(e) => setNovo((p) => ({ ...p, senha: e.target.value }))} className="px-3 py-2 rounded-lg border border-[#DDC7A4] bg-white text-sm" />
-          <select value={novo.perfil} onChange={(e) => setNovo((p) => ({ ...p, perfil: e.target.value, unidadeIds: [] }))} className="px-3 py-2 rounded-lg border border-[#DDC7A4] bg-white text-sm">
-            {PERFIS.map((p) => <option key={p.v} value={p.v}>{p.l}</option>)}
+          <select value={novo.perfil} onChange={(e) => setNovo((p) => ({ ...p, perfil: e.target.value, unidadeIds: [] }))}
+            className={`px-3 py-2 rounded-lg border bg-white text-sm ${novo.perfil ? 'border-[#DDC7A4]' : 'border-[#D78B18] text-[#392617]/60'}`}>
+            <option value="">Selecione um perfil…</option>
+            {perfis.map((p) => <option key={p.chave} value={p.chave}>{p.nome}{p.superadmin ? ' (acesso total)' : p.sistema ? '' : ' (personalizado)'}</option>)}
           </select>
         </div>
         {precisaUnidade && (
           <div className="mt-3">
-            <div className="text-xs text-[#392617]/60 mb-1">{novo.perfil === 'RECEPCAO' ? 'Unidade (escolha 1):' : 'Unidades:'}</div>
+            <div className="text-xs text-[#392617]/60 mb-1">{escopoNovo === 'unidade' ? 'Unidade (escolha 1):' : 'Unidades:'}</div>
             <div className="flex flex-wrap gap-2">
               {unidades.map((u) => (
                 <label key={u.id} className={`text-xs px-2 py-1 rounded-lg border cursor-pointer ${novo.unidadeIds.includes(u.id) ? 'bg-[#7E0000] text-[#DDC7A4] border-[#7E0000]' : 'bg-white border-[#DDC7A4] text-[#392617]'}`}>
@@ -92,7 +90,7 @@ export default function UsuariosPage() {
             </div>
           </div>
         )}
-        <button onClick={criar} disabled={criando} className="mt-3 px-4 py-2 rounded-lg bg-[#7E0000] text-[#DDC7A4] text-sm font-medium hover:bg-[#5c0000] disabled:opacity-50 inline-flex items-center gap-2">
+        <button onClick={criar} disabled={criando || !novo.perfil} className="mt-3 px-4 py-2 rounded-lg bg-[#7E0000] text-[#DDC7A4] text-sm font-medium hover:bg-[#5c0000] disabled:opacity-50 inline-flex items-center gap-2">
           {criando ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />} Criar usuário
         </button>
       </div>
@@ -103,7 +101,7 @@ export default function UsuariosPage() {
       ) : (
         <div className="mt-5 space-y-2">
           {usuarios.map((u) => (
-            <UserRow key={u.id} u={u} unidades={unidades} ehVoce={u.id === meuId} onChange={carregar} setErro={setErro} />
+            <UserRow key={u.id} u={u} unidades={unidades} perfis={perfis} ehVoce={u.id === meuId} onChange={carregar} setErro={setErro} />
           ))}
         </div>
       )}
@@ -111,7 +109,7 @@ export default function UsuariosPage() {
   )
 }
 
-function UserRow({ u, unidades, ehVoce, onChange, setErro }: { u: U; unidades: Un[]; ehVoce: boolean; onChange: () => void; setErro: (s: string | null) => void }) {
+function UserRow({ u, unidades, perfis, ehVoce, onChange, setErro }: { u: U; unidades: Un[]; perfis: P[]; ehVoce: boolean; onChange: () => void; setErro: (s: string | null) => void }) {
   const [nome, setNome] = useState(u.nome)
   const [email, setEmail] = useState(u.email)
   const [perfil, setPerfil] = useState(u.perfil)
@@ -119,10 +117,11 @@ function UserRow({ u, unidades, ehVoce, onChange, setErro }: { u: U; unidades: U
   const [ativo, setAtivo] = useState(u.ativo)
   const [senha, setSenha] = useState('')
   const [busy, setBusy] = useState(false)
-  const precisa = perfil === 'RECEPCAO' || perfil === 'COORDENACAO'
+  const escopo = perfis.find((p) => p.chave === perfil)?.escopo
+  const precisa = escopo === 'coord' || escopo === 'unidade'
 
   function toggle(id: number) {
-    if (perfil === 'RECEPCAO') setIds(ids.includes(id) ? [] : [id])
+    if (escopo === 'unidade') setIds(ids.includes(id) ? [] : [id])
     else setIds(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id])
   }
 
@@ -158,7 +157,7 @@ function UserRow({ u, unidades, ehVoce, onChange, setErro }: { u: U; unidades: U
           <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="e-mail" className="w-full px-2 py-1 rounded border border-[#DDC7A4] text-xs text-[#392617]/80 focus:border-[#D78B18] focus:outline-none" />
         </div>
         <select value={perfil} onChange={(e) => { setPerfil(e.target.value); setIds([]) }} className="px-2 py-1.5 rounded-lg border border-[#DDC7A4] bg-white text-xs">
-          {PERFIS.map((p) => <option key={p.v} value={p.v}>{p.l}</option>)}
+          {perfis.map((p) => <option key={p.chave} value={p.chave}>{p.nome}</option>)}
         </select>
         <label className="flex items-center gap-1 text-xs text-[#392617] cursor-pointer">
           <input type="checkbox" checked={ativo} onChange={(e) => { setAtivo(e.target.checked); patch({ ativo: e.target.checked }) }} disabled={ehVoce} className="accent-[#425F1D]" /> ativo

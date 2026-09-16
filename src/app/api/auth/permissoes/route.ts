@@ -16,7 +16,8 @@ export async function GET() {
   const session = await getSession()
   if (!session) return unauthorized()
   try {
-    const permissoes = await getPermissoesDoPerfil(session.perfil)
+    const chave = session.perfilChave || session.perfil
+    const permissoes = await getPermissoesDoPerfil(chave)
     const res = NextResponse.json({ perfil: session.perfil, permissoes })
 
     // Só re-emite se algo mudou (evita Set-Cookie desnecessário a cada request).

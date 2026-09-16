@@ -66,13 +66,15 @@ export async function POST(req: NextRequest) {
 
   // Permissões efetivas do perfil (mapa funcionalidade→nível), assadas no token
   // p/ o enforcement por rota no proxy. Re-emitidas a cada page-load (/api/auth/permissoes).
-  const permissoes = await getPermissoesDoPerfil(perfil).catch(() => undefined)
+  // Usa a chave REAL (usuario.perfil) — assim perfis personalizados recebem os seus níveis.
+  const permissoes = await getPermissoesDoPerfil(usuario.perfil).catch(() => undefined)
 
   const token = await signSession({
     sub: usuario.id,
     nome: usuario.nome,
     email: usuario.email,
     perfil,
+    perfilChave: usuario.perfil,
     unidadeSlug,
     unidadeSlugs,
     primeirAcesso: usuario.primeirAcesso ?? false,

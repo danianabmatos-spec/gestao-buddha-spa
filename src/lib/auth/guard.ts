@@ -24,6 +24,18 @@ export function unauthorized(): NextResponse {
  * - COORDENACAO: as unidades vinculadas (1, 2 ou mais).
  * - RECEPCAO: a própria unidade.
  */
+/**
+ * Escopo de unidades de um perfil (mesma regra do login):
+ * - 'total'   → DONA/FINANCEIRO/RH: veem todas (sem unidade vinculada).
+ * - 'coord'   → COORDENACAO: uma ou mais unidades (via UsuarioUnidade).
+ * - 'unidade' → RECEPCAO/TERAPEUTA e perfis personalizados: exatamente 1 unidade.
+ */
+export function escopoDoPerfil(perfil: string): 'total' | 'coord' | 'unidade' {
+  if (perfil === 'DONA' || perfil === 'FINANCEIRO' || perfil === 'RH') return 'total'
+  if (perfil === 'COORDENACAO') return 'coord'
+  return 'unidade'
+}
+
 export function unidadesPermitidas(session: SessionUser): string[] | null {
   if (session.perfil === 'DONA' || session.perfil === 'FINANCEIRO' || session.perfil === 'RH') return null // veem todas
   if (session.unidadeSlugs && session.unidadeSlugs.length) return session.unidadeSlugs

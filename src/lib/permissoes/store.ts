@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { escopoDoPerfil } from '@/lib/auth/guard'
 import { FUNCIONALIDADES, PERFIS_SISTEMA, GRUPOS, NIVEIS, type Nivel } from './catalogo'
 
 // ─── Store das permissões (tabelas Perfil + PerfilPermissao via SQL cru) ──────────
@@ -132,6 +133,18 @@ export async function getPermissoesDoPerfil(perfilChave: string): Promise<Record
   )
   for (const r of rows) if (FUNC_VALIDAS.has(r.funcionalidadeChave)) map[r.funcionalidadeChave] = r.nivel as Nivel
   return map
+}
+
+// Perfis que podem ser atribuídos a um usuário (todos os ativos, sistema + custom),
+// já com o escopo de unidades — usado no cadastro de usuários (/usuarios).
+export async function getPerfisAtribuiveis(): Promise<
+  { chave: string; nome: string; sistema: boolean; superadmin: boolean; escopo: 'total' | 'coord' | 'unidade' }[]
+> {
+  await garantirSeed()
+  const rows = await prisma.$queryRawUnsafe<PerfilRow[]>(
+    `SELECT "chave","nome","descricao","sistema","superadmin","ativo" FROM "Perfil" WHERE "ativo"=1 ORDER BY "sistema" DESC, "nome"`,
+  )
+  return rows.map(r => ({ chave: r.chave, nome: r.nome, sistema: !!r.sistema, superadmin: !!r.superadmin, escopo: escopoDoPerfil(r.chave) }))
 }
 
 async function existePerfil(chave: string): Promise<PerfilRow | null> {

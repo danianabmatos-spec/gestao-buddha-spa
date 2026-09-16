@@ -15,6 +15,10 @@ export interface SessionUser {
   nome: string
   email: string
   perfil: Perfil
+  // Chave REAL do perfil no banco (pode ser um perfil personalizado, ex.: "p_auditor").
+  // `perfil` acima é a versão coagida ao enum (usada no escopo e nas regras legadas);
+  // `perfilChave` é a fonte das PERMISSÕES (login e re-emissão usam esta).
+  perfilChave?: string
   // Legado (1 unidade): DONA=null, RECEPCAO=slug, COORDENACAO=1ª unidade vinculada.
   unidadeSlug: string | null
   // Escopo completo: null = todas (DONA); lista = unidades permitidas (COORDENACAO/RECEPCAO).
@@ -46,6 +50,7 @@ export async function signSession(user: SessionUser): Promise<string> {
     nome: user.nome,
     email: user.email,
     perfil: user.perfil,
+    ...(user.perfilChave ? { perfilChave: user.perfilChave } : {}),
     unidadeSlug: user.unidadeSlug,
     unidadeSlugs: user.unidadeSlugs,
     primeirAcesso: user.primeirAcesso === true,
@@ -79,6 +84,7 @@ export async function verifySession(token: string): Promise<SessionUser | null> 
       nome: String(payload.nome ?? ''),
       email: String(payload.email ?? ''),
       perfil: normalizarPerfil(payload.perfil),
+      perfilChave: payload.perfilChave ? String(payload.perfilChave) : undefined,
       unidadeSlug: payload.unidadeSlug ? String(payload.unidadeSlug) : null,
       unidadeSlugs,
       primeirAcesso: payload.primeirAcesso === true,

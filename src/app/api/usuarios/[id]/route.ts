@@ -1,12 +1,10 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSession, unauthorized } from '@/lib/auth/guard'
+import { getSession, unauthorized, escopoDoPerfil } from '@/lib/auth/guard'
+import { getPerfisAtribuiveis } from '@/lib/permissoes/store'
 import { hashSenha } from '@/lib/auth/password'
 
 export const dynamic = 'force-dynamic'
-
-type Perfil = 'DONA' | 'COORDENACAO' | 'RECEPCAO'
-const PERFIS: Perfil[] = ['DONA', 'COORDENACAO', 'RECEPCAO']
 
 // PATCH /api/usuarios/:id — edita perfil/unidades/ativo/nome e opcionalmente reseta senha
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -37,21 +35,31 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     data.senha = await hashSenha(String(b.senha))
   }
 
-  const perfil = b.perfil !== undefined && PERFIS.includes(b.perfil) ? (b.perfil as Perfil) : null
+  // Perfil (se enviado) precisa existir (sistema ou personalizado, ativo).
+  let perfil: string | null = null
+  if (b.perfil !== undefined) {
+    const chave = String(b.perfil).trim()
+    const perfis = await getPerfisAtribuiveis()
+    if (!perfis.some((p) => p.chave === chave)) {
+      return Response.json({ error: 'Perfil inválido.' }, { status: 400 })
+    }
+    perfil = chave
+  }
   const unidadeIds: number[] | null = Array.isArray(b.unidadeIds) ? b.unidadeIds.map(Number).filter(Boolean) : null
 
   // Reconciliação de perfil/unidades
   if (perfil || unidadeIds) {
-    const perfilFinal = (perfil ?? alvo.perfil) as Perfil
+    const perfilFinal = perfil ?? alvo.perfil
+    const escopo = escopoDoPerfil(perfilFinal)
     const ids = unidadeIds ?? []
-    if ((perfilFinal === 'RECEPCAO' || perfilFinal === 'COORDENACAO') && ids.length === 0 && unidadeIds) {
-      return Response.json({ error: 'Coordenação/Recepção precisam de ao menos uma unidade.' }, { status: 400 })
+    if (escopo !== 'total' && ids.length === 0 && unidadeIds) {
+      return Response.json({ error: 'Este perfil precisa de ao menos uma unidade.' }, { status: 400 })
     }
     if (perfil) data.perfil = perfilFinal
-    data.unidadeId = perfilFinal === 'RECEPCAO' ? (ids[0] ?? null) : null
+    data.unidadeId = escopo === 'unidade' ? (ids[0] ?? null) : null
     // Vínculos N:N só para COORDENACAO
     await prisma.usuarioUnidade.deleteMany({ where: { usuarioId: id } })
-    if (perfilFinal === 'COORDENACAO' && ids.length) {
+    if (escopo === 'coord' && ids.length) {
       await prisma.usuarioUnidade.createMany({ data: ids.map((uid) => ({ usuarioId: id, unidadeId: uid })) })
     }
   }
