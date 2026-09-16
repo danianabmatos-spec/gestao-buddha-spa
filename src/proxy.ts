@@ -190,9 +190,8 @@ export const config = {
     '/api/terapeutas/:path*',
     '/api/metas',
     '/api/metas/:path*',
-    '/api/tarefas-do-dia',
-    '/api/tarefas-do-dia/:path*',
-    '/api/erp/tarefas',
-    '/api/erp/tarefas/:path*',
+    // NÃO incluir /api/tarefas-do-dia nem /api/erp/tarefas: são endpoints
+    // servidor-a-servidor da Central (auth por Bearer/chave própria, sem cookie).
+    // Passá-los pelo proxy de sessão os quebrava com 401.
   ],
 }
