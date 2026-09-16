@@ -7,6 +7,7 @@ interface Un { id: number; slug: string; nome: string }
 interface U { id: string; nome: string; email: string; perfil: string; ativo: boolean; unidades: Un[] }
 type Escopo = 'total' | 'coord' | 'unidade'
 interface P { chave: string; nome: string; sistema: boolean; superadmin: boolean; escopo: Escopo }
+interface RhAlvo { id: string; nome: string; email: string; perfil: string }
 
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<U[]>([])
@@ -17,6 +18,9 @@ export default function UsuariosPage() {
   const [erro, setErro] = useState<string | null>(null)
   const [novo, setNovo] = useState({ nome: '', email: '', senha: '', perfil: '', unidadeIds: [] as number[] })
   const [criando, setCriando] = useState(false)
+  const [rhPrevia, setRhPrevia] = useState<{ rhIndisponivel: boolean; alvos: RhAlvo[] } | null>(null)
+  const [rhUltima, setRhUltima] = useState<{ quando: string; quem: string; desativados: number } | null>(null)
+  const [rhBusy, setRhBusy] = useState(false)
 
   const carregar = useCallback(async () => {
     setLoading(true); setErro(null)
@@ -27,8 +31,27 @@ export default function UsuariosPage() {
       setUsuarios(j.usuarios); setUnidades(j.unidades); setPerfis(j.perfis || []); setMeuId(j.meuId)
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)) }
     finally { setLoading(false) }
+    try {
+      const rr = await fetch('/api/rh/sincronizar-acessos', { cache: 'no-store' })
+      if (rr.ok) { const rj = await rr.json(); setRhPrevia(rj.previa); setRhUltima(rj.ultima) }
+    } catch { /* RH opcional */ }
   }, [])
   useEffect(() => { carregar() }, [carregar])
+
+  async function sincronizarRH() {
+    const alvos = rhPrevia?.alvos ?? []
+    if (alvos.length === 0) { alert('Nenhum acesso a desligar — todos batem com o RH.'); return }
+    const lista = alvos.map((a) => `• ${a.nome} (${a.email})`).join('\n')
+    if (!confirm(`Vai DESATIVAR ${alvos.length} acesso(s) de colaboradores desligados no RH:\n\n${lista}\n\nConfirmar?`)) return
+    setRhBusy(true); setErro(null)
+    try {
+      const r = await fetch('/api/rh/sincronizar-acessos', { method: 'POST' })
+      const j = await r.json()
+      if (!j.ok) { setErro(j.error || 'Falha ao sincronizar com o RH'); return }
+      await carregar()
+      alert(`${j.resultado.desativados} acesso(s) desativado(s).`)
+    } finally { setRhBusy(false) }
+  }
 
   const escopoNovo = perfis.find((p) => p.chave === novo.perfil)?.escopo
   const precisaUnidade = escopoNovo === 'coord' || escopoNovo === 'unidade'
@@ -63,6 +86,27 @@ export default function UsuariosPage() {
       </div>
 
       {erro && <div className="my-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">{erro}</div>}
+
+      {/* Integração com o RH — desligamento automático de acessos */}
+      <div className="mt-5 rounded-xl border border-[#DDC7A4] bg-white p-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-sm font-semibold text-[#7E0000]">Integração com o RH</div>
+            <div className="text-xs text-[#392617]/70 mt-0.5">
+              {rhPrevia?.rhIndisponivel
+                ? 'RH indisponível no momento — nenhuma ação será tomada.'
+                : (rhPrevia?.alvos.length ?? 0) > 0
+                  ? `${rhPrevia!.alvos.length} acesso(s) de colaboradores desligados no RH prontos para desativar.`
+                  : 'Todos os acessos batem com o RH — nada a desligar.'}
+              {rhUltima && ` · Última sincronização: ${new Date(rhUltima.quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · ${rhUltima.quem} (${rhUltima.desativados} desativados)`}
+            </div>
+          </div>
+          <button onClick={sincronizarRH} disabled={rhBusy || !!rhPrevia?.rhIndisponivel}
+            className={`text-sm px-4 py-2 rounded-lg shrink-0 disabled:opacity-40 ${(rhPrevia?.alvos.length ?? 0) > 0 ? 'bg-[#7E0000] text-[#DDC7A4] hover:bg-[#5c0000]' : 'border border-[#DDC7A4] text-[#7E0000] hover:bg-[#F5F0EB]'}`}>
+            {rhBusy ? 'Sincronizando…' : 'Sincronizar agora'}
+          </button>
+        </div>
+      </div>
 
       {/* Novo usuário */}
       <div className="mt-5 rounded-xl border border-[#D78B18]/40 bg-[#FBF6EF] p-4">
