@@ -17,6 +17,8 @@ import {
   BrainCircuit,
   Building2,
   Wallet,
+  ShieldCheck,
+  HeartHandshake,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -163,6 +165,21 @@ export function Sidebar() {
                       <Wallet size={14} strokeWidth={1.8} />
                       Caixa
                     </Link>
+                    {/* Programa de Recomendação (por unidade) */}
+                    <Link
+                      href={`/validacao?unidade=${slug}`}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white"
+                    >
+                      <ShieldCheck size={14} strokeWidth={1.8} />
+                      Validação de Atendimentos
+                    </Link>
+                    <Link
+                      href={`/pos-venda?unidade=${slug}`}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white"
+                    >
+                      <HeartHandshake size={14} strokeWidth={1.8} />
+                      Pós-venda
+                    </Link>
                   </div>
                 )}
               </div>
@@ -181,7 +198,7 @@ export function Sidebar() {
           Empresas
         </Link>
         <Link
-          href="/usuarios"
+          href="/acessos"
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#DDC7A4] hover:bg-[#5c0000] hover:text-white transition-colors"
         >
           <Users size={18} strokeWidth={1.8} />

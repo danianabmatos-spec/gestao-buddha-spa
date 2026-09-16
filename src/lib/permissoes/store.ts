@@ -1,7 +1,10 @@
 import { prisma } from '@/lib/prisma'
-import { FUNCIONALIDADES, PERFIS_SISTEMA, GRUPOS, type Nivel } from './catalogo'
+import { FUNCIONALIDADES, PERFIS_SISTEMA, GRUPOS, NIVEIS, type Nivel } from './catalogo'
 
 // ─── Store das permissões (tabelas Perfil + PerfilPermissao via SQL cru) ──────────
+
+const FUNC_VALIDAS = new Set(FUNCIONALIDADES.map(f => f.chave))
+const NIVEL_VALIDO = new Set<string>(NIVEIS)
 
 // Garante os perfis de sistema e a matriz-PADRÃO no banco. Idempotente:
 // - não sobrescreve edições já feitas (INSERT OR IGNORE);
@@ -35,12 +38,10 @@ export async function getMatriz() {
   const perms = await prisma.$queryRawUnsafe<{ perfilChave: string; funcionalidadeChave: string; nivel: string }[]>(
     `SELECT "perfilChave","funcionalidadeChave","nivel" FROM "PerfilPermissao"`,
   )
-  // niveis[perfilChave][funcChave] = nivel
   const niveis: Record<string, Record<string, Nivel>> = {}
   for (const r of perms) {
     (niveis[r.perfilChave] ??= {})[r.funcionalidadeChave] = r.nivel as Nivel
   }
-  // superadmin sempre EDITAR (mesmo que a linha diga outra coisa)
   for (const perfil of perfis) {
     if (perfil.superadmin) {
       niveis[perfil.chave] ??= {}
@@ -65,4 +66,70 @@ export async function getNivel(perfilChave: string, funcionalidadeChave: string)
     perfilChave, funcionalidadeChave,
   )
   return (rows?.[0]?.nivel as Nivel) ?? 'NENHUM'
+}
+
+async function existePerfil(chave: string): Promise<PerfilRow | null> {
+  const rows = await prisma.$queryRawUnsafe<PerfilRow[]>(`SELECT * FROM "Perfil" WHERE "chave"=? LIMIT 1`, chave)
+  return rows?.[0] ?? null
+}
+
+// Salva os níveis de UM perfil (mapa funcionalidade→nível). Ignora funcionalidades/níveis
+// inválidos. Não permite mexer em superadmin (DONA é sempre total).
+export async function salvarNiveis(perfilChave: string, niveis: Record<string, string>): Promise<void> {
+  const perfil = await existePerfil(perfilChave)
+  if (!perfil) throw new Error('Perfil não encontrado')
+  if (perfil.superadmin) throw new Error('O perfil DONA tem acesso total e não é editável')
+  for (const [func, nivel] of Object.entries(niveis)) {
+    if (!FUNC_VALIDAS.has(func) || !NIVEL_VALIDO.has(nivel)) continue
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "PerfilPermissao" ("perfilChave","funcionalidadeChave","nivel","atualizadoEm")
+       VALUES (?,?,?,datetime('now'))
+       ON CONFLICT("perfilChave","funcionalidadeChave") DO UPDATE SET "nivel"=excluded."nivel", "atualizadoEm"=excluded."atualizadoEm"`,
+      perfilChave, func, nivel,
+    )
+  }
+}
+
+// Cria um perfil customizado, copiando os níveis de um perfil-base (opcional).
+export async function criarPerfil(nome: string, descricao: string, copiarDe?: string): Promise<string> {
+  const chave = 'p_' + nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
+  if (!chave) throw new Error('Nome inválido')
+  if (await existePerfil(chave)) throw new Error('Já existe um perfil com esse nome')
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "Perfil" ("chave","nome","descricao","sistema","superadmin") VALUES (?,?,?,0,0)`,
+    chave, nome.trim(), (descricao || '').trim(),
+  )
+  if (copiarDe) {
+    const base = await prisma.$queryRawUnsafe<{ funcionalidadeChave: string; nivel: string }[]>(
+      `SELECT "funcionalidadeChave","nivel" FROM "PerfilPermissao" WHERE "perfilChave"=?`, copiarDe,
+    )
+    for (const r of base) {
+      await prisma.$executeRawUnsafe(
+        `INSERT OR IGNORE INTO "PerfilPermissao" ("perfilChave","funcionalidadeChave","nivel") VALUES (?,?,?)`,
+        chave, r.funcionalidadeChave, r.nivel,
+      )
+    }
+  }
+  return chave
+}
+
+// Renomeia / redescreve um perfil (não muda a chave). Bloqueia superadmin.
+export async function editarPerfil(chave: string, nome: string, descricao: string): Promise<void> {
+  const perfil = await existePerfil(chave)
+  if (!perfil) throw new Error('Perfil não encontrado')
+  if (perfil.superadmin) throw new Error('Perfil não editável')
+  await prisma.$executeRawUnsafe(
+    `UPDATE "Perfil" SET "nome"=?, "descricao"=?, "atualizadoEm"=datetime('now') WHERE "chave"=?`,
+    nome.trim(), (descricao || '').trim(), chave,
+  )
+}
+
+// Desativa um perfil CUSTOM (não de sistema) que não esteja em uso por usuários.
+export async function desativarPerfil(chave: string): Promise<void> {
+  const perfil = await existePerfil(chave)
+  if (!perfil) throw new Error('Perfil não encontrado')
+  if (perfil.sistema) throw new Error('Perfis de sistema não podem ser removidos')
+  const emUso = await prisma.$queryRawUnsafe<{ n: number }[]>(`SELECT COUNT(*) as n FROM "Usuario" WHERE "perfil"=?`, chave)
+  if (Number(emUso?.[0]?.n ?? 0) > 0) throw new Error('Há usuários com este perfil. Reatribua-os antes de remover.')
+  await prisma.$executeRawUnsafe(`UPDATE "Perfil" SET "ativo"=0 WHERE "chave"=?`, chave)
 }
