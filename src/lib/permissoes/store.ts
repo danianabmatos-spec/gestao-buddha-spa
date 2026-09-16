@@ -68,6 +68,21 @@ export async function getNivel(perfilChave: string, funcionalidadeChave: string)
   return (rows?.[0]?.nivel as Nivel) ?? 'NENHUM'
 }
 
+// Mapa completo { funcionalidade: nível } de um perfil (fail-closed = NENHUM).
+// Superadmin (DONA) → tudo EDITAR. Usado pela UI (esconder/read-only) e pelo enforcement.
+export async function getPermissoesDoPerfil(perfilChave: string): Promise<Record<string, Nivel>> {
+  await garantirSeed()
+  const map: Record<string, Nivel> = {}
+  const su = PERFIS_SISTEMA.find(p => p.chave === perfilChave)?.superadmin
+  if (su) { for (const f of FUNCIONALIDADES) map[f.chave] = 'EDITAR'; return map }
+  for (const f of FUNCIONALIDADES) map[f.chave] = 'NENHUM' // padrão fail-closed
+  const rows = await prisma.$queryRawUnsafe<{ funcionalidadeChave: string; nivel: string }[]>(
+    `SELECT "funcionalidadeChave","nivel" FROM "PerfilPermissao" WHERE "perfilChave"=?`, perfilChave,
+  )
+  for (const r of rows) if (FUNC_VALIDAS.has(r.funcionalidadeChave)) map[r.funcionalidadeChave] = r.nivel as Nivel
+  return map
+}
+
 async function existePerfil(chave: string): Promise<PerfilRow | null> {
   const rows = await prisma.$queryRawUnsafe<PerfilRow[]>(`SELECT * FROM "Perfil" WHERE "chave"=? LIMIT 1`, chave)
   return rows?.[0] ?? null
