@@ -27,6 +27,17 @@ const UNIDADES = [
 const DONA_EMAIL = 'buddhaspasolar@gmail.com'
 const DONA_NOME = 'Daniana Matos'
 
+// E-mails REAIS de login de cada recepção (não seguem o slug — ex.: Mooca).
+const RECEP_EMAIL = {
+  'shopping-metropole': 'recepcao.shoppingmetropole@buddhaspa.com.br',
+  'analia-franco': 'recepcao.analiafranco@buddhaspa.com.br',
+  'shopping-analia-franco': 'recepcao.shoppinganaliafranco@buddhaspa.com.br',
+  'perdizes': 'recepcao.perdizes@buddhaspa.com.br',
+  'tatuape-gomescardim': 'recepcao.tatuapegomescardim@buddhaspa.com.br',
+  'mooca-plaza': 'recepcao.shoppingmooca@buddhaspa.com.br',
+  'higienopolis': 'recepcao.higienopolis@buddhaspa.com.br',
+}
+
 function senhaTemp() {
   // 10 chars legíveis (sem caracteres ambíguos)
   const alfa = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -74,7 +85,7 @@ async function main() {
     const uid = await unidadeId(slug, nome)
     const r = await upsertUsuario({
       nome: `Recepção ${nome}`,
-      email: `recepcao.${slug}@buddhaspa.com.br`,
+      email: RECEP_EMAIL[slug] ?? `recepcao.${slug}@buddhaspa.com.br`,
       perfil: 'RECEPCAO',
       unidadeId: uid,
     })
