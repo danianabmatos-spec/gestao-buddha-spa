@@ -2,14 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession, unauthorized } from '@/lib/auth/guard'
 import { prisma } from '@/lib/prisma'
 
-const PERFIS_RESTRITO = new Set(['DONA', 'RH', 'FINANCEIRO'])
 const CAMPOS = ['pesoProdutividade', 'pesoFidelizacao', 'pesoNps', 'pesoRecomendacao', 'pesoTreinamento', 'pesoColegas'] as const
 
-// Salva os 6 pesos (soma = 100) de uma unidade. Só DONA/RH/Financeiro.
+// Salva os 6 pesos (soma = 100) de uma unidade. APENAS DONA.
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return unauthorized()
-  if (!PERFIS_RESTRITO.has(session.perfil)) {
+  if (session.perfil !== 'DONA') {
     return NextResponse.json({ error: 'sem permissão' }, { status: 403 })
   }
 

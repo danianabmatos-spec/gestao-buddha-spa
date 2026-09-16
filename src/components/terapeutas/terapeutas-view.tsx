@@ -20,7 +20,7 @@ interface Pesos {
 }
 interface Faixas { minDiamante: number; minOuro: number; minPrata: number }
 interface Resposta {
-  periodo: string; podeVerRestrito: boolean; pesos: Pesos; faixas: Faixas; terapeutas: Terapeuta[]
+  periodo: string; podeVerRestrito: boolean; podeGerenciarPesos?: boolean; pesos: Pesos; faixas: Faixas; terapeutas: Terapeuta[]
   atualizadoEm?: string | null; atualizadoPor?: string | null
 }
 
@@ -136,6 +136,7 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
   })()
 
   const podeRestrito = resp?.podeVerRestrito ?? false
+  const podeGerenciarPesos = resp?.podeGerenciarPesos ?? false
   const pesos = resp?.pesos ?? { pesoProdutividade:25,pesoFidelizacao:35,pesoNps:20,pesoRecomendacao:10,pesoTreinamento:0,pesoColegas:10 }
   const faixas = resp?.faixas ?? { minDiamante:9.5, minOuro:8.5, minPrata:7.5 }
 
@@ -239,7 +240,7 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
               </p>
             </div>
           )}
-          {podeRestrito && pesosEdit && (
+          {podeGerenciarPesos && pesosEdit && (
             <div className="ml-auto flex items-center gap-3">
               <span className={`text-sm font-semibold ${Math.abs(somaPesos-100)<0.01 ? 'text-[#425F1D]' : 'text-[#7E0000]'}`}>
                 Soma pesos: {somaPesos}%
@@ -282,7 +283,7 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-[#7E0000] text-white">
-                {podeRestrito && pesosEdit && (
+                {podeGerenciarPesos && pesosEdit && (
                   <tr className="bg-[#5E0000]">
                     <th className="px-4 py-1.5 text-left text-[10px] font-normal text-white/70">Peso →</th>
                     {PESO_ITENS.map(([k]) => (

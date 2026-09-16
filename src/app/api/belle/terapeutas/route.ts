@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
 
     const session = await getSession()
     const podeVerRestrito = !!session && PERFIS_RESTRITO.has(session.perfil)
+    const podeGerenciarPesos = !!session && session.perfil === 'DONA' // pesos: só a Dona vê/edita
 
     // Cache do Belle (JSON) — leitura local, instantânea.
     const rows = await prisma.$queryRawUnsafe<{ dados: string; atualizadoEm: string; atualizadoPor: string | null }[]>(
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
     } : FAIXAS_DEFAULT
 
     return NextResponse.json({
-      periodo, podeVerRestrito, pesos, faixas, terapeutas,
+      periodo, podeVerRestrito, podeGerenciarPesos, pesos, faixas, terapeutas,
       atualizadoEm: cache?.atualizadoEm ?? null,
       atualizadoPor: cache?.atualizadoPor ?? null,
     })
