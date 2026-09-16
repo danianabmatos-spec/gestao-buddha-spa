@@ -286,11 +286,11 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
                   <tr className="bg-[#5E0000]">
                     <th className="px-4 py-1.5 text-left text-[10px] font-normal text-white/70">Peso →</th>
                     {PESO_ITENS.map(([k]) => (
-                      <th key={k} className="px-2 py-1.5 text-center">
+                      <th key={k} className="px-2 py-1.5 text-center whitespace-nowrap">
                         <input type="number" min={0} max={100} value={pesosEdit[k]}
                           onChange={e => setPesosEdit(p => p ? { ...p, [k]: Number(e.target.value) } : p)}
-                          className="w-14 px-1 py-0.5 text-center text-xs text-[#392617] rounded" title="peso %" />
-                        <span className="text-[10px] text-white/70">%</span>
+                          className="w-12 px-1 py-0.5 text-center text-xs font-semibold text-[#392617] bg-white rounded border border-[#DDC7A4]" title="peso %" />
+                        <span className="ml-0.5 text-[11px] font-semibold text-white">%</span>
                       </th>
                     ))}
                     <th colSpan={4}></th>
