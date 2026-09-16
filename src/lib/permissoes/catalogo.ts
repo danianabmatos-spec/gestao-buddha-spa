@@ -40,7 +40,7 @@ const p = (coord: Nivel, recep: Nivel, financ: Nivel, rh: Nivel, terap: Nivel): 
 export const FUNCIONALIDADES: Funcionalidade[] = [
   // ── Visão Executiva ──
   { chave: 'inteligencia', label: 'Inteligência', grupo: 'Visão Executiva', rotas: ['/inteligencia', '/api/inteligencia'], padrao: p(V, N, V, N, N) },
-  { chave: 'radar-geral', label: 'Radar Geral', grupo: 'Visão Executiva', rotas: ['/radar-geral'], padrao: p(V, V, V, N, N) },
+  { chave: 'radar-geral', label: 'Radar Geral', grupo: 'Visão Executiva', rotas: ['/radar-geral', '/api/radar-geral'], padrao: p(V, V, V, N, N) },
   { chave: 'rotina-do-dia', label: 'Rotina do Dia', grupo: 'Visão Executiva', rotas: ['/rotina-do-dia', '/api/rotinas', '/api/tarefas-do-dia', '/api/erp/tarefas'], padrao: p(E, E, V, N, N) },
   { chave: 'reembolso', label: 'Reembolso Vouchers', grupo: 'Visão Executiva', rotas: ['/reembolso', '/api/reembolso'], padrao: p(N, N, E, N, N) },
 
@@ -62,10 +62,45 @@ export const FUNCIONALIDADES: Funcionalidade[] = [
 
   // ── Administração ──
   { chave: 'usuarios', label: 'Usuários', grupo: 'Administração', rotas: ['/usuarios', '/api/usuarios'], padrao: p(N, N, N, N, N) },
-  { chave: 'permissoes', label: 'Acessos & Permissões', grupo: 'Administração', rotas: ['/api/permissoes'], padrao: p(N, N, N, N, N) },
+  { chave: 'permissoes', label: 'Acessos & Permissões', grupo: 'Administração', rotas: ['/acessos', '/api/permissoes'], padrao: p(N, N, N, N, N) },
   { chave: 'empresas', label: 'Empresas', grupo: 'Administração', rotas: ['/empresas', '/api/empresas'], padrao: p(N, N, N, N, N) },
   { chave: 'configuracoes', label: 'Configurações', grupo: 'Administração', rotas: ['/configuracoes'], padrao: p(N, N, N, N, N) },
 ]
 
 // Grupos na ordem de exibição.
 export const GRUPOS = ['Visão Executiva', 'Unidade', 'Terapeuta', 'Administração']
+
+// ─── Matching rota → funcionalidade (puro, edge-safe: usado no proxy) ────────────
+
+// `*` é curinga de UM segmento (ex.: '/dashboard/*/historico').
+function rotaCasa(pattern: string, pathname: string): boolean {
+  if (pattern.includes('*')) {
+    const rx = new RegExp(
+      '^' + pattern.split('*').map(s => s.replace(/[.*+?^${}()|[\]\\]/g, m => '\\' + m)).join('[^/]+') + '(?:/|$)',
+    )
+    return rx.test(pathname)
+  }
+  return pathname === pattern || pathname.startsWith(pattern + '/')
+}
+
+// Funcionalidade que cobre um pathname. Quando mais de uma casa (ex.: '/api/rotinas'
+// e '/api/rotinas/caixa'), vence a MAIS específica (padrão mais longo). null = rota
+// sem funcionalidade associada (não permissionável por rota → o proxy libera).
+export function funcionalidadeDaRota(pathname: string): string | null {
+  let melhor: { chave: string; peso: number } | null = null
+  for (const f of FUNCIONALIDADES) {
+    for (const r of f.rotas ?? []) {
+      if (rotaCasa(r, pathname)) {
+        const peso = r.replace(/\*/g, '').length
+        if (!melhor || peso > melhor.peso) melhor = { chave: f.chave, peso }
+      }
+    }
+  }
+  return melhor?.chave ?? null
+}
+
+// nível atual >= nível mínimo exigido?
+export function nivelAtende(atual: string | undefined, minimo: Nivel): boolean {
+  const ordem: Record<string, number> = { NENHUM: 0, VISUALIZAR: 1, EDITAR: 2 }
+  return (ordem[atual ?? 'NENHUM'] ?? 0) >= ordem[minimo]
+}

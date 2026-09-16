@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { COOKIE_NAME, verifySession } from '@/lib/auth/session'
+import { funcionalidadeDaRota, nivelAtende, type Nivel } from '@/lib/permissoes/catalogo'
 
 // Protege as áreas de Inteligência (páginas e APIs). Roda no edge runtime,
 // então só usa `jose` (via verifySession) — nada de Prisma/Node aqui.
@@ -32,6 +33,35 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(url)
     }
 
+    // ─── Enforcement pela MATRIZ (fonte da verdade) ────────────────────────────
+    // As permissões vêm assadas no token (re-emitidas a cada page-load via
+    // /api/auth/permissoes) → ajustes em /acessos valem quase ao vivo. A DONA é
+    // superadmin (tudo EDITAR) e nunca é bloqueada.
+    if (session.permissoes) {
+      const func = funcionalidadeDaRota(pathname)
+      if (func) {
+        const escreve = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)
+        // "Atualizar agora" reconstrói um cache que o perfil já visualiza →
+        // exige só VISUALIZAR (não é edição de dado de negócio).
+        const ehRefresh =
+          pathname === '/api/inteligencia/sync' ||
+          pathname === '/api/terapeutas/atualizar' ||
+          pathname.startsWith('/api/radar-geral')
+        const minimo: Nivel = escreve && !ehRefresh ? 'EDITAR' : 'VISUALIZAR'
+        if (!nivelAtende(session.permissoes[func], minimo)) {
+          if (pathname.startsWith('/api/')) {
+            return NextResponse.json({ error: 'Acesso restrito.' }, { status: 403 })
+          }
+          const url = req.nextUrl.clone()
+          url.pathname = '/'
+          url.search = ''
+          return NextResponse.redirect(url)
+        }
+      }
+      return NextResponse.next()
+    }
+
+    // ─── Fallback (sessão antiga, sem permissões no token): regras herdadas ─────
     // FINANCEIRO: consulta tudo, mas SÓ edita o Controle de Caixa.
     // Bloqueia qualquer escrita (POST/PUT/PATCH/DELETE) fora de /api/rotinas/caixa.
     const ehEscrita = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)
@@ -137,11 +167,32 @@ export const config = {
     '/api/pontuacao/:path*',
     '/acessos',
     '/acessos/:path*',
+    '/radar-geral',
+    '/radar-geral/:path*',
+    '/dashboard/:path*',
+    '/terapeutas',
+    '/terapeutas/:path*',
+    '/metas',
+    '/metas/:path*',
+    '/configuracoes',
+    '/configuracoes/:path*',
     '/api/permissoes/:path*',
     '/api/inteligencia/:path*',
     '/api/rotinas/:path*',
     '/api/reembolso/:path*',
     '/api/usuarios/:path*',
     '/api/empresas/:path*',
+    '/api/radar-geral',
+    '/api/radar-geral/:path*',
+    '/api/dashboard-unidade',
+    '/api/dashboard-unidade/:path*',
+    '/api/belle/terapeutas',
+    '/api/terapeutas/:path*',
+    '/api/metas',
+    '/api/metas/:path*',
+    '/api/tarefas-do-dia',
+    '/api/tarefas-do-dia/:path*',
+    '/api/erp/tarefas',
+    '/api/erp/tarefas/:path*',
   ],
 }

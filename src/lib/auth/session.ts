@@ -19,6 +19,12 @@ export interface SessionUser {
   unidadeSlug: string | null
   // Escopo completo: null = todas (DONA); lista = unidades permitidas (COORDENACAO/RECEPCAO).
   unidadeSlugs: string[] | null
+  // true = precisa trocar a senha (1º acesso) antes de usar o sistema.
+  primeirAcesso?: boolean
+  // Mapa { funcionalidade: nível } assado no token no login e re-emitido a cada
+  // page-load (via /api/auth/permissoes). Ausente = sessão antiga → proxy usa as
+  // regras herdadas como fallback. Usado no enforcement por rota (proxy, edge).
+  permissoes?: Record<string, string>
 }
 
 export const COOKIE_NAME = 'bs_sess'
@@ -42,6 +48,8 @@ export async function signSession(user: SessionUser): Promise<string> {
     perfil: user.perfil,
     unidadeSlug: user.unidadeSlug,
     unidadeSlugs: user.unidadeSlugs,
+    primeirAcesso: user.primeirAcesso === true,
+    ...(user.permissoes ? { permissoes: user.permissoes } : {}),
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.sub)
@@ -58,6 +66,14 @@ export async function verifySession(token: string): Promise<SessionUser | null> 
     const unidadeSlugs = Array.isArray(rawSlugs)
       ? rawSlugs.map((s) => String(s)).filter(Boolean)
       : null
+    const rawPerms = payload.permissoes
+    let permissoes: Record<string, string> | undefined
+    if (rawPerms && typeof rawPerms === 'object' && !Array.isArray(rawPerms)) {
+      permissoes = {}
+      for (const [k, v] of Object.entries(rawPerms as Record<string, unknown>)) {
+        if (typeof v === 'string') permissoes[k] = v
+      }
+    }
     return {
       sub: payload.sub,
       nome: String(payload.nome ?? ''),
@@ -65,6 +81,8 @@ export async function verifySession(token: string): Promise<SessionUser | null> 
       perfil: normalizarPerfil(payload.perfil),
       unidadeSlug: payload.unidadeSlug ? String(payload.unidadeSlug) : null,
       unidadeSlugs,
+      primeirAcesso: payload.primeirAcesso === true,
+      permissoes,
     }
   } catch {
     return null

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verificarSenha } from '@/lib/auth/password'
 import { signSession, COOKIE_NAME, COOKIE_MAX_AGE, type Perfil } from '@/lib/auth/session'
+import { getPermissoesDoPerfil } from '@/lib/permissoes/store'
 
 export async function POST(req: NextRequest) {
   const { email, senha } = await req.json().catch(() => ({}))
@@ -27,10 +28,13 @@ export async function POST(req: NextRequest) {
     usuario.perfil === 'DONA' ? 'DONA'
     : usuario.perfil === 'COORDENACAO' ? 'COORDENACAO'
     : usuario.perfil === 'FINANCEIRO' ? 'FINANCEIRO'
+    : usuario.perfil === 'RH' ? 'RH'
+    : usuario.perfil === 'TERAPEUTA' ? 'TERAPEUTA'
     : 'RECEPCAO'
 
-  // FINANCEIRO enxerga todas as unidades (como a DONA), mas só edita o Caixa.
-  const escopoTotal = perfil === 'DONA' || perfil === 'FINANCEIRO'
+  // FINANCEIRO e RH consultam todas as unidades (como a DONA); o que podem
+  // editar é controlado pela matriz de permissões, não pelo escopo.
+  const escopoTotal = perfil === 'DONA' || perfil === 'FINANCEIRO' || perfil === 'RH'
 
   // Escopo de unidades:
   // - DONA: null (todas)
@@ -43,7 +47,8 @@ export async function POST(req: NextRequest) {
       include: { unidade: true },
     })
     unidadeSlugs = vinculos.map((v) => v.unidade.slug).filter(Boolean)
-  } else if (perfil === 'RECEPCAO') {
+  } else if (perfil === 'RECEPCAO' || perfil === 'TERAPEUTA') {
+    // TERAPEUTA tem escopo de 1 unidade (como a recepção); vê só a própria unidade.
     unidadeSlugs = usuario.unidade?.slug ? [usuario.unidade.slug] : []
   }
 
@@ -59,6 +64,10 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // Permissões efetivas do perfil (mapa funcionalidade→nível), assadas no token
+  // p/ o enforcement por rota no proxy. Re-emitidas a cada page-load (/api/auth/permissoes).
+  const permissoes = await getPermissoesDoPerfil(perfil).catch(() => undefined)
+
   const token = await signSession({
     sub: usuario.id,
     nome: usuario.nome,
@@ -66,6 +75,8 @@ export async function POST(req: NextRequest) {
     perfil,
     unidadeSlug,
     unidadeSlugs,
+    primeirAcesso: usuario.primeirAcesso ?? false,
+    permissoes,
   })
 
   const res = NextResponse.json({

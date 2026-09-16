@@ -25,7 +25,7 @@ export function unauthorized(): NextResponse {
  * - RECEPCAO: a própria unidade.
  */
 export function unidadesPermitidas(session: SessionUser): string[] | null {
-  if (session.perfil === 'DONA' || session.perfil === 'FINANCEIRO') return null // veem todas
+  if (session.perfil === 'DONA' || session.perfil === 'FINANCEIRO' || session.perfil === 'RH') return null // veem todas
   if (session.unidadeSlugs && session.unidadeSlugs.length) return session.unidadeSlugs
   return session.unidadeSlug ? [session.unidadeSlug] : []
 }
