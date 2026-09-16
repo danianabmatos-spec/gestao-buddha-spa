@@ -8,6 +8,8 @@ interface U { id: string; nome: string; email: string; perfil: string; ativo: bo
 type Escopo = 'total' | 'coord' | 'unidade'
 interface P { chave: string; nome: string; sistema: boolean; superadmin: boolean; escopo: Escopo }
 interface RhAlvo { id: string; nome: string; email: string; perfil: string }
+interface ProvPlano { email: string; nome: string; cargo: string; perfilNome: string; escopo: string; unidadeSlugs: string[]; senhaTemp?: string }
+interface ProvIgnorado { email: string; nome: string; cargo: string; motivo: string }
 
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<U[]>([])
@@ -21,6 +23,9 @@ export default function UsuariosPage() {
   const [rhPrevia, setRhPrevia] = useState<{ rhIndisponivel: boolean; alvos: RhAlvo[] } | null>(null)
   const [rhUltima, setRhUltima] = useState<{ quando: string; quem: string; desativados: number } | null>(null)
   const [rhBusy, setRhBusy] = useState(false)
+  const [prov, setProv] = useState<{ rhIndisponivel: boolean; criar: ProvPlano[]; ignorados: ProvIgnorado[] } | null>(null)
+  const [provBusy, setProvBusy] = useState(false)
+  const [provCriados, setProvCriados] = useState<ProvPlano[] | null>(null)
 
   const carregar = useCallback(async () => {
     setLoading(true); setErro(null)
@@ -35,8 +40,27 @@ export default function UsuariosPage() {
       const rr = await fetch('/api/rh/sincronizar-acessos', { cache: 'no-store' })
       if (rr.ok) { const rj = await rr.json(); setRhPrevia(rj.previa); setRhUltima(rj.ultima) }
     } catch { /* RH opcional */ }
+    try {
+      const pr = await fetch('/api/rh/provisionar', { cache: 'no-store' })
+      if (pr.ok) { const pj = await pr.json(); setProv(pj.previa) }
+    } catch { /* RH opcional */ }
   }, [])
   useEffect(() => { carregar() }, [carregar])
+
+  async function criarAcessosRH() {
+    const criar = prov?.criar ?? []
+    if (!criar.length) { alert('Nenhum acesso novo para criar.'); return }
+    const lista = criar.map((c) => `• ${c.nome} — ${c.perfilNome}${c.unidadeSlugs.length ? ' (' + c.unidadeSlugs.join(', ') + ')' : ''}`).join('\n')
+    if (!confirm(`Vai CRIAR ${criar.length} acesso(s) novo(s):\n\n${lista}\n\nAs senhas temporárias aparecerão na tela para você repassar (troca obrigatória no 1º acesso). Confirmar?`)) return
+    setProvBusy(true); setErro(null)
+    try {
+      const r = await fetch('/api/rh/provisionar', { method: 'POST' })
+      const j = await r.json()
+      if (!j.ok) { setErro(j.error || 'Falha ao criar acessos'); return }
+      setProvCriados(j.resultado.criar || [])
+      await carregar()
+    } finally { setProvBusy(false) }
+  }
 
   async function sincronizarRH() {
     const alvos = rhPrevia?.alvos ?? []
@@ -106,7 +130,43 @@ export default function UsuariosPage() {
             {rhBusy ? 'Sincronizando…' : 'Sincronizar agora'}
           </button>
         </div>
+
+        {/* Criação automática de acessos (Etapa 2) */}
+        <div className="mt-3 pt-3 border-t border-[#DDC7A4]/40 flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-xs text-[#392617]/70">
+            {prov?.rhIndisponivel
+              ? 'RH indisponível.'
+              : (prov?.criar.length ?? 0) > 0
+                ? `${prov!.criar.length} colaborador(es) novo(s) do RH sem acesso — pronto(s) para criar.`
+                : 'Nenhum acesso novo a criar (todos os colaboradores já têm login).'}
+            {prov && prov.ignorados.length > 0 && ` · ${prov.ignorados.length} ignorado(s) (cargo sem perfil / perfil personalizado / sem unidade).`}
+          </div>
+          <button onClick={criarAcessosRH} disabled={provBusy || !(prov?.criar.length)}
+            className={`text-sm px-4 py-2 rounded-lg shrink-0 disabled:opacity-40 ${(prov?.criar.length ?? 0) > 0 ? 'bg-[#425F1D] text-white hover:opacity-90' : 'border border-[#DDC7A4] text-[#7E0000] hover:bg-[#F5F0EB]'}`}>
+            {provBusy ? 'Criando…' : 'Criar acessos novos'}
+          </button>
+        </div>
       </div>
+
+      {/* Senhas temporárias dos acessos recém-criados (aparecem uma única vez) */}
+      {provCriados && provCriados.length > 0 && (
+        <div className="mt-3 rounded-xl border border-[#425F1D] bg-[#425F1D]/5 p-4">
+          <div className="text-sm font-semibold text-[#425F1D] mb-2">
+            ✓ {provCriados.length} acesso(s) criado(s) — anote/copie as senhas AGORA (não aparecem de novo):
+          </div>
+          <div className="divide-y divide-[#DDC7A4]/40">
+            {provCriados.map((c) => (
+              <div key={c.email} className="py-1.5 text-sm flex flex-wrap gap-x-3 gap-y-0.5 items-baseline">
+                <span className="font-medium text-[#392617]">{c.nome}</span>
+                <span className="text-xs text-[#392617]/70">{c.email}</span>
+                <span className="text-xs text-[#7E0000]">{c.perfilNome}{c.unidadeSlugs.length ? ` · ${c.unidadeSlugs.join(', ')}` : ''}</span>
+                <span className="ml-auto font-mono text-sm bg-white border border-[#DDC7A4] rounded px-2 py-0.5 select-all">{c.senhaTemp}</span>
+              </div>
+            ))}
+          </div>
+          <div className="text-[11px] text-[#392617]/60 mt-2">Cada pessoa troca a senha no primeiro acesso.</div>
+        </div>
+      )}
 
       {/* Novo usuário */}
       <div className="mt-5 rounded-xl border border-[#D78B18]/40 bg-[#FBF6EF] p-4">

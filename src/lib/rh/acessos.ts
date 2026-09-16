@@ -47,6 +47,35 @@ export async function getCargosRH(): Promise<{ cargo: string; ativos: number }[]
   }
 }
 
+export interface ColaboradorRH {
+  email: string          // normalizado (lower/trim)
+  nome: string
+  cargo: string
+  unidades: string[]     // nomes das unidades (principal primeiro); [] se nenhuma
+}
+
+// Colaboradores ATIVOS do RH com e-mail, cargo e unidades — base do provisionamento.
+export async function getColaboradoresRHParaAcesso(): Promise<ColaboradorRH[] | null> {
+  const p = getPool()
+  if (!p) return null
+  try {
+    const { rows } = await p.query<{ email: string; nome: string; cargo: string; unidades: string[] | null }>(
+      `SELECT lower(trim(c.email)) AS email, c.nome, cg.nome AS cargo,
+              array_agg(u.nome ORDER BY cu.principal DESC NULLS LAST) FILTER (WHERE u.nome IS NOT NULL) AS unidades
+         FROM colaboradores c
+         JOIN cargos cg ON cg.id = c."cargoId"
+         LEFT JOIN colaboradores_unidades cu ON cu."colaboradorId" = c.id
+         LEFT JOIN unidades u ON u.id = cu."unidadeId"
+        WHERE c.ativo = true AND c.email IS NOT NULL AND trim(c.email) <> ''
+        GROUP BY c.email, c.nome, cg.nome`,
+    )
+    return rows.map((r) => ({ email: r.email, nome: r.nome, cargo: r.cargo, unidades: r.unidades ?? [] }))
+  } catch (err) {
+    console.error('[rh] falha ao ler colaboradores p/ provisionamento:', err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
 // Status de acesso por e-mail, agregando por pessoa: um e-mail conta como ATIVO se
 // tiver qualquer colaborador ativo (cobre readmissão — o vínculo ativo prevalece).
 export async function getStatusEmailsRH(): Promise<StatusEmailsRH | null> {
