@@ -41,10 +41,10 @@ export const FUNCIONALIDADES: Funcionalidade[] = [
   // ── Visão Executiva ──
   { chave: 'inteligencia', label: 'Inteligência', grupo: 'Visão Executiva', rotas: ['/inteligencia', '/api/inteligencia'], padrao: p(V, N, V, N, N) },
   { chave: 'radar-geral', label: 'Radar Geral', grupo: 'Visão Executiva', rotas: ['/radar-geral', '/api/radar-geral'], padrao: p(V, V, V, N, N) },
-  { chave: 'rotina-do-dia', label: 'Rotina do Dia', grupo: 'Visão Executiva', rotas: ['/rotina-do-dia', '/api/rotinas', '/api/tarefas-do-dia', '/api/erp/tarefas'], padrao: p(E, E, V, N, N) },
   { chave: 'reembolso', label: 'Reembolso Vouchers', grupo: 'Visão Executiva', rotas: ['/reembolso', '/api/reembolso'], padrao: p(N, N, E, N, N) },
 
   // ── Unidade ──
+  { chave: 'rotina-do-dia', label: 'Rotina do Dia', grupo: 'Unidade', rotas: ['/rotina-do-dia', '/api/rotinas', '/api/tarefas-do-dia', '/api/erp/tarefas'], padrao: p(E, E, V, N, N) },
   { chave: 'dashboard', label: 'Dashboard da Unidade', grupo: 'Unidade', rotas: ['/dashboard', '/api/dashboard-unidade'], padrao: p(V, V, V, N, N) },
   { chave: 'historico', label: 'Histórico', grupo: 'Unidade', rotas: ['/dashboard/*/historico'], padrao: p(V, V, V, N, N) },
   { chave: 'terapeutas', label: 'Terapeutas (tabela)', grupo: 'Unidade', rotas: ['/terapeutas', '/dashboard/*/terapeutas', '/api/belle/terapeutas', '/api/terapeutas/atualizar'], padrao: p(V, N, V, V, N) },

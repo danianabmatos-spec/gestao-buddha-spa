@@ -19,12 +19,12 @@ import {
   Wallet,
   ShieldCheck,
   HeartHandshake,
+  Scale,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // Cada item aponta pra uma FUNCIONALIDADE — a sidebar esconde o que o perfil não acessa.
 const executiveItems = [
-  { href: '/rotina-do-dia', label: 'Rotina do Dia', icon: ClipboardList, func: 'rotina-do-dia' },
   { href: '/radar-geral', label: 'Radar Geral', icon: Radar, func: 'radar-geral' },
   { href: '/inteligencia', label: 'Inteligência', icon: BrainCircuit, func: 'inteligencia' },
   { href: '/reembolso', label: 'Reembolso Vouchers', icon: Ticket, func: 'reembolso' },
@@ -47,7 +47,7 @@ const menuOperacional = [
   { href: '/metas', label: 'Metas', icon: Target, func: 'metas' },
 ]
 // Funcionalidades que compõem uma unidade (a unidade só aparece se pelo menos 1 for visível).
-const FUNCS_UNIDADE = ['dashboard', 'historico', 'terapeutas', 'metas', 'caixa', 'validacao', 'pos-venda']
+const FUNCS_UNIDADE = ['rotina-do-dia', 'dashboard', 'historico', 'terapeutas', 'metas', 'caixa', 'validacao', 'pos-venda']
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -114,6 +114,11 @@ export function Sidebar() {
                   </button>
                   {isExpanded && (
                     <div className="ml-2 mt-1 space-y-0.5 border-l border-[#5c0000] pl-2">
+                      {pode('rotina-do-dia') && (
+                        <Link href={`/rotina-do-dia?unidade=${slug}`} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white">
+                          <ClipboardList size={14} strokeWidth={1.8} /> Rotina do Dia
+                        </Link>
+                      )}
                       {menuOperacional.filter(i => pode(i.func)).map(({ href, label, icon: Icon }) => {
                         const fullHref = `/dashboard/${slug}${href}`
                         const active = pathname === fullHref
@@ -129,6 +134,11 @@ export function Sidebar() {
                       {pode('caixa') && (
                         <Link href={`/caixa?unidade=${slug}`} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white">
                           <Wallet size={14} strokeWidth={1.8} /> Caixa
+                        </Link>
+                      )}
+                      {pode('caixa') && (
+                        <Link href={`/dashboard/${slug}/conciliacao`} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white">
+                          <Scale size={14} strokeWidth={1.8} /> Conciliação
                         </Link>
                       )}
                       {pode('validacao') && (
