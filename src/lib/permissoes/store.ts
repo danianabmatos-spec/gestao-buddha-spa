@@ -47,7 +47,12 @@ export async function salvarEscopoPerfil(chave: string, escopo: string): Promise
   )
 }
 
+// Roda o seed pesado (126 writes) só 1× por processo — evita amplificação de escrita
+// a cada request (era a raiz da lentidão/lock). No deploy/restart o processo reinicia
+// e re-semeia (pegando funcionalidades novas do catálogo).
+let seedOk = false
 export async function garantirSeed(): Promise<void> {
+  if (seedOk) return
   await garantirColunaEscopo()
   for (const perfil of PERFIS_SISTEMA) {
     await prisma.$executeRawUnsafe(
@@ -64,6 +69,7 @@ export async function garantirSeed(): Promise<void> {
       )
     }
   }
+  seedOk = true
 }
 
 // ─── Governança: funcionalidades novas pendentes de revisão pela DONA ────────────

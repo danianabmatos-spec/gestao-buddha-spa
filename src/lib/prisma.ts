@@ -17,7 +17,13 @@ function getDbUrl(): string {
 function createPrisma(): PrismaClientType {
   // PrismaLibSql espera o config { url }, não um client já criado
   const adapter = new PrismaLibSql({ url: getDbUrl() })
-  return new PrismaClient({ adapter })
+  const client = new PrismaClient({ adapter })
+  // WAL: leituras não bloqueiam escritas (evita "database is locked"/travamento sob
+  // concorrência). busy_timeout: espera o lock em vez de falhar na hora. Idempotente
+  // e persistente no arquivo — self-healing se o banco for recriado.
+  client.$executeRawUnsafe('PRAGMA journal_mode=WAL').catch(() => {})
+  client.$executeRawUnsafe('PRAGMA busy_timeout=5000').catch(() => {})
+  return client
 }
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClientType }
