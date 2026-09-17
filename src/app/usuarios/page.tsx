@@ -8,7 +8,7 @@ interface U { id: string; nome: string; email: string; perfil: string; ativo: bo
 type Escopo = 'total' | 'coord' | 'unidade'
 interface P { chave: string; nome: string; sistema: boolean; superadmin: boolean; escopo: Escopo }
 interface RhAlvo { id: string; nome: string; email: string; perfil: string }
-interface ProvPlano { email: string; nome: string; cargo: string; perfilNome: string; escopo: string; unidadeSlugs: string[]; senhaTemp?: string }
+interface ProvPlano { email: string; nome: string; cargo: string; perfilNome: string; escopo: string; unidadeSlugs: string[] }
 interface ProvIgnorado { email: string; nome: string; cargo: string; motivo: string }
 
 export default function UsuariosPage() {
@@ -51,7 +51,7 @@ export default function UsuariosPage() {
     const criar = prov?.criar ?? []
     if (!criar.length) { alert('Nenhum acesso novo para criar.'); return }
     const lista = criar.map((c) => `• ${c.nome} — ${c.perfilNome}${c.unidadeSlugs.length ? ' (' + c.unidadeSlugs.join(', ') + ')' : ''}`).join('\n')
-    if (!confirm(`Vai CRIAR ${criar.length} acesso(s) novo(s):\n\n${lista}\n\nAs senhas temporárias aparecerão na tela para você repassar (troca obrigatória no 1º acesso). Confirmar?`)) return
+    if (!confirm(`Vai CRIAR ${criar.length} acesso(s) novo(s):\n\n${lista}\n\nA senha inicial de cada um é o CPF (só números), com troca obrigatória no 1º acesso. Confirmar?`)) return
     setProvBusy(true); setErro(null)
     try {
       const r = await fetch('/api/rh/provisionar', { method: 'POST' })
@@ -137,9 +137,9 @@ export default function UsuariosPage() {
             {prov?.rhIndisponivel
               ? 'RH indisponível.'
               : (prov?.criar.length ?? 0) > 0
-                ? `${prov!.criar.length} colaborador(es) novo(s) do RH sem acesso — pronto(s) para criar.`
+                ? `${prov!.criar.length} colaborador(es) novo(s) do RH sem acesso — criados todo dia automaticamente (ou agora, no botão). Senha inicial = CPF.`
                 : 'Nenhum acesso novo a criar (todos os colaboradores já têm login).'}
-            {prov && prov.ignorados.length > 0 && ` · ${prov.ignorados.length} ignorado(s) (cargo sem perfil / perfil personalizado / sem unidade).`}
+            {prov && prov.ignorados.length > 0 && ` · ${prov.ignorados.length} ignorado(s) (cargo sem perfil / sem unidade / sem CPF).`}
           </div>
           <button onClick={criarAcessosRH} disabled={provBusy || !(prov?.criar.length)}
             className={`text-sm px-4 py-2 rounded-lg shrink-0 disabled:opacity-40 ${(prov?.criar.length ?? 0) > 0 ? 'bg-[#425F1D] text-white hover:opacity-90' : 'border border-[#DDC7A4] text-[#7E0000] hover:bg-[#F5F0EB]'}`}>
@@ -148,23 +148,22 @@ export default function UsuariosPage() {
         </div>
       </div>
 
-      {/* Senhas temporárias dos acessos recém-criados (aparecem uma única vez) */}
+      {/* Acessos recém-criados */}
       {provCriados && provCriados.length > 0 && (
         <div className="mt-3 rounded-xl border border-[#425F1D] bg-[#425F1D]/5 p-4">
           <div className="text-sm font-semibold text-[#425F1D] mb-2">
-            ✓ {provCriados.length} acesso(s) criado(s) — anote/copie as senhas AGORA (não aparecem de novo):
+            ✓ {provCriados.length} acesso(s) criado(s). Senha inicial = <b>CPF (só números)</b>, com troca obrigatória no 1º acesso.
           </div>
           <div className="divide-y divide-[#DDC7A4]/40">
             {provCriados.map((c) => (
               <div key={c.email} className="py-1.5 text-sm flex flex-wrap gap-x-3 gap-y-0.5 items-baseline">
                 <span className="font-medium text-[#392617]">{c.nome}</span>
                 <span className="text-xs text-[#392617]/70">{c.email}</span>
-                <span className="text-xs text-[#7E0000]">{c.perfilNome}{c.unidadeSlugs.length ? ` · ${c.unidadeSlugs.join(', ')}` : ''}</span>
-                <span className="ml-auto font-mono text-sm bg-white border border-[#DDC7A4] rounded px-2 py-0.5 select-all">{c.senhaTemp}</span>
+                <span className="ml-auto text-xs text-[#7E0000]">{c.perfilNome}{c.unidadeSlugs.length ? ` · ${c.unidadeSlugs.join(', ')}` : ''}</span>
               </div>
             ))}
           </div>
-          <div className="text-[11px] text-[#392617]/60 mt-2">Cada pessoa troca a senha no primeiro acesso.</div>
+          <div className="text-[11px] text-[#392617]/60 mt-2">Cada pessoa entra com o e-mail dela + o CPF e troca a senha no primeiro acesso.</div>
         </div>
       )}
 

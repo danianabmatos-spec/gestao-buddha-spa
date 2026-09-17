@@ -1,4 +1,3 @@
-import crypto from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { hashSenha } from '@/lib/auth/password'
 import { getEscopoDoPerfil, getPerfisAtribuiveis } from '@/lib/permissoes/store'
@@ -7,26 +6,21 @@ import { getMapaCargoPerfil } from './cargo-perfil'
 
 // ─── Provisionamento de acessos a partir do RH (Etapa 2) ─────────────────────────
 // Para cada colaborador ATIVO do RH SEM conta no ERP, cria o Usuario com o perfil
-// mapeado do cargo (cargo "sem acesso" → ignora), a unidade do RH e uma SENHA
-// TEMPORÁRIA (primeirAcesso=true força a troca no 1º login). Modo seguro: dryRun
-// mostra o plano sem gravar. O escopo (total/coord/unidade) vem do PERFIL — inclui
-// perfis personalizados marcados como total (ex.: Marketing/CEO veem todas).
+// mapeado do cargo (cargo "sem acesso" → ignora) e a unidade do RH. SENHA INICIAL =
+// CPF do colaborador (só dígitos), com `primeirAcesso=true` forçando a troca no 1º
+// login — assim o acesso pode nascer AUTOMÁTICO (cron), sem ninguém repassar senha.
+// (Futuro: trocar por link de definição de senha por e-mail.) Modo seguro: dryRun
+// mostra o plano sem gravar. O escopo vem do PERFIL (inclui custom marcados total).
 
 function normNome(s: string): string {
   return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
-}
-function senhaTemp(): string {
-  const alfa = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789' // sem ambíguos
-  let s = ''
-  for (let i = 0; i < 10; i++) s += alfa[crypto.randomInt(alfa.length)]
-  return s
 }
 
 export interface PlanoAcesso {
   email: string; nome: string; cargo: string; perfilChave: string; perfilNome: string
   escopo: 'total' | 'coord' | 'unidade'
   unidadeSlugs: string[]
-  senhaTemp?: string // preenchida só no commit
+  cpf: string // interno (senha inicial) — as rotas NÃO devolvem ao cliente
 }
 export interface IgnoradoAcesso { email: string; nome: string; cargo: string; motivo: string }
 export interface ResultadoProvisionamento {
@@ -65,6 +59,7 @@ export async function sincronizarProvisionamento(
     const perfilChave = mapa[c.cargo]
     if (!perfilChave) { ignorados.push({ email: c.email, nome: c.nome, cargo: c.cargo, motivo: 'cargo sem perfil (sem acesso)' }); continue }
     if (!perfilValido.has(perfilChave)) { ignorados.push({ email: c.email, nome: c.nome, cargo: c.cargo, motivo: 'perfil não existe mais' }); continue }
+    if (c.cpf.length !== 11) { ignorados.push({ email: c.email, nome: c.nome, cargo: c.cargo, motivo: 'sem CPF válido no RH (senha inicial)' }); continue }
     const escopo = await getEscopoDoPerfil(perfilChave)
     let unidadeSlugs: string[] = []
     if (escopo !== 'total') {
@@ -74,17 +69,16 @@ export async function sincronizarProvisionamento(
       if (!resolvidas.length) { ignorados.push({ email: c.email, nome: c.nome, cargo: c.cargo, motivo: 'sem unidade compatível no RH' }); continue }
       unidadeSlugs = escopo === 'unidade' ? [resolvidas[0].slug] : resolvidas.map((r) => r.slug)
     }
-    criar.push({ email: c.email, nome: c.nome, cargo: c.cargo, perfilChave, perfilNome: perfilNome.get(perfilChave) || perfilChave, escopo, unidadeSlugs })
+    criar.push({ email: c.email, nome: c.nome, cargo: c.cargo, perfilChave, perfilNome: perfilNome.get(perfilChave) || perfilChave, escopo, unidadeSlugs, cpf: c.cpf })
   }
 
   if (dryRun) return { rhIndisponivel: false, dryRun: true, criar, ignorados, criados: 0 }
 
-  // COMMIT — cria cada acesso (falha isolada não aborta o lote).
-  let criados = 0
+  // COMMIT — cria cada acesso (falha isolada não aborta o lote). Senha inicial = CPF.
+  const feitos: PlanoAcesso[] = []
   for (const plano of criar) {
     try {
-      const senha = senhaTemp()
-      const hash = await hashSenha(senha)
+      const hash = await hashSenha(plano.cpf)
       const unidadeId = plano.escopo === 'unidade' ? (slugParaId.get(plano.unidadeSlugs[0]) ?? null) : null
       const novo = await prisma.usuario.create({
         data: { nome: plano.nome, email: plano.email, senha: hash, perfil: plano.perfilChave, unidadeId, ativo: true, primeirAcesso: true },
@@ -94,14 +88,13 @@ export async function sincronizarProvisionamento(
         const ids = plano.unidadeSlugs.map((s) => slugParaId.get(s)).filter((x): x is number => !!x)
         if (ids.length) await prisma.usuarioUnidade.createMany({ data: ids.map((uid) => ({ usuarioId: novo.id, unidadeId: uid })) })
       }
-      plano.senhaTemp = senha
-      criados++
+      feitos.push(plano)
       await prisma.logAuditoria.create({
         data: { usuarioId: opts.atorId || novo.id, acao: 'ACESSO_RH_CRIAR', entidade: 'Usuario', dados: JSON.stringify({ email: plano.email, nome: plano.nome, perfil: plano.perfilChave, unidades: plano.unidadeSlugs }).slice(0, 2000) },
       }).catch(() => {})
-    } catch (e) {
+    } catch {
       ignorados.push({ email: plano.email, nome: plano.nome, cargo: plano.cargo, motivo: 'erro ao criar (e-mail já em uso?)' })
     }
   }
-  return { rhIndisponivel: false, dryRun: false, criar: criar.filter((p) => p.senhaTemp), ignorados, criados }
+  return { rhIndisponivel: false, dryRun: false, criar: feitos, ignorados, criados: feitos.length }
 }

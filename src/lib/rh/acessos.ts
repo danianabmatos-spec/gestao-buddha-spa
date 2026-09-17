@@ -51,25 +51,26 @@ export interface ColaboradorRH {
   email: string          // normalizado (lower/trim)
   nome: string
   cargo: string
+  cpf: string            // só dígitos ('' se ausente)
   unidades: string[]     // nomes das unidades (principal primeiro); [] se nenhuma
 }
 
-// Colaboradores ATIVOS do RH com e-mail, cargo e unidades — base do provisionamento.
+// Colaboradores ATIVOS do RH com e-mail, cargo, CPF e unidades — base do provisionamento.
 export async function getColaboradoresRHParaAcesso(): Promise<ColaboradorRH[] | null> {
   const p = getPool()
   if (!p) return null
   try {
-    const { rows } = await p.query<{ email: string; nome: string; cargo: string; unidades: string[] | null }>(
-      `SELECT lower(trim(c.email)) AS email, c.nome, cg.nome AS cargo,
+    const { rows } = await p.query<{ email: string; nome: string; cargo: string; cpf: string | null; unidades: string[] | null }>(
+      `SELECT lower(trim(c.email)) AS email, c.nome, cg.nome AS cargo, c.cpf,
               array_agg(u.nome ORDER BY cu.principal DESC NULLS LAST) FILTER (WHERE u.nome IS NOT NULL) AS unidades
          FROM colaboradores c
          JOIN cargos cg ON cg.id = c."cargoId"
          LEFT JOIN colaboradores_unidades cu ON cu."colaboradorId" = c.id
          LEFT JOIN unidades u ON u.id = cu."unidadeId"
         WHERE c.ativo = true AND c.email IS NOT NULL AND trim(c.email) <> ''
-        GROUP BY c.email, c.nome, cg.nome`,
+        GROUP BY c.email, c.nome, cg.nome, c.cpf`,
     )
-    return rows.map((r) => ({ email: r.email, nome: r.nome, cargo: r.cargo, unidades: r.unidades ?? [] }))
+    return rows.map((r) => ({ email: r.email, nome: r.nome, cargo: r.cargo, cpf: String(r.cpf ?? '').replace(/\D/g, ''), unidades: r.unidades ?? [] }))
   } catch (err) {
     console.error('[rh] falha ao ler colaboradores p/ provisionamento:', err instanceof Error ? err.message : err)
     return null
