@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getSession, unauthorized } from '@/lib/auth/guard'
+import { getSession, unauthorized, unidadesPermitidas } from '@/lib/auth/guard'
 import { getPermissoesDoPerfil } from '@/lib/permissoes/store'
 import { signSession, COOKIE_NAME, COOKIE_MAX_AGE } from '@/lib/auth/session'
 
@@ -18,7 +18,10 @@ export async function GET() {
   try {
     const chave = session.perfilChave || session.perfil
     const permissoes = await getPermissoesDoPerfil(chave)
-    const res = NextResponse.json({ perfil: session.perfil, permissoes })
+    // Unidades que o usuário acessa (null = todas). Usado pela sidebar p/ mostrar
+    // só as unidades da pessoa.
+    const unidades = unidadesPermitidas(session)
+    const res = NextResponse.json({ perfil: session.perfil, permissoes, unidades })
 
     // Só re-emite se algo mudou (evita Set-Cookie desnecessário a cada request).
     const mudou = JSON.stringify(session.permissoes ?? {}) !== JSON.stringify(permissoes)

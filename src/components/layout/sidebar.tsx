@@ -52,15 +52,22 @@ const FUNCS_UNIDADE = ['rotina-do-dia', 'dashboard', 'historico', 'terapeutas', 
 export function Sidebar() {
   const pathname = usePathname()
   const [perms, setPerms] = useState<Record<string, string> | null>(null)
-  const [unidadesExpanded, setUnidadesExpanded] = useState<Record<string, boolean>>({
-    'shopping-metropole': true,
-  })
+  // Slugs das unidades que o usuário acessa (null = todas; undefined = carregando).
+  const [unidadesUser, setUnidadesUser] = useState<string[] | null | undefined>(undefined)
+  const [unidadesExpanded, setUnidadesExpanded] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     fetch('/api/auth/permissoes')
       .then(r => r.ok ? r.json() : null)
-      .then(j => setPerms(j?.permissoes ?? {}))
-      .catch(() => setPerms({}))
+      .then(j => {
+        setPerms(j?.permissoes ?? {})
+        const us: string[] | null = j?.unidades ?? null
+        setUnidadesUser(us)
+        // Se a pessoa acessa 1 só unidade, já abre ela; senão abre a 1ª da lista.
+        const visiveis = us == null ? unidadesDisponiveis : unidadesDisponiveis.filter(u => us.includes(u.slug))
+        if (visiveis[0]) setUnidadesExpanded({ [visiveis[0].slug]: true })
+      })
+      .catch(() => { setPerms({}); setUnidadesUser(null) })
   }, [])
 
   // Enquanto carrega (perms null) → esconde os itens (evita mostrar o que não pode).
@@ -68,8 +75,11 @@ export function Sidebar() {
 
   const toggleUnidade = (slug: string) => setUnidadesExpanded(prev => ({ ...prev, [slug]: !prev[slug] }))
 
+  // Mostra só as unidades que a pessoa acessa (null = todas).
+  const unidadesVisiveis = unidadesUser == null ? unidadesDisponiveis : unidadesDisponiveis.filter(u => unidadesUser.includes(u.slug))
+
   const execVisiveis = executiveItems.filter(i => pode(i.func))
-  const algumaUnidade = FUNCS_UNIDADE.some(pode)
+  const algumaUnidade = FUNCS_UNIDADE.some(pode) && unidadesVisiveis.length > 0
 
   return (
     <aside className="hidden md:flex flex-col w-60 min-h-screen bg-[#7E0000] text-[#DDC7A4] shrink-0">
@@ -101,7 +111,7 @@ export function Sidebar() {
         {algumaUnidade && (
           <div>
             <p className="px-3 mb-2 text-[10px] font-semibold text-[#DDC7A4]/50 uppercase tracking-wider">Unidades</p>
-            {unidadesDisponiveis.map(({ slug, nome }) => {
+            {unidadesVisiveis.map(({ slug, nome }) => {
               const isExpanded = unidadesExpanded[slug]
               const isUnidadeActive = pathname.startsWith(`/dashboard/${slug}`)
               return (
