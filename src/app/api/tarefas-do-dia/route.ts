@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
       .filter(([, texto]) => texto),
   ) as Partial<Record<ClusterCentral, string>>
 
-  const [comPacote, frequente, totalpass, comAgenda, bloqueados] = await Promise.all([
+  const [comPacote, frequente, totalpass, comAgenda, bloqueados, scoreTodos, tpTodos] = await Promise.all([
     // Pacote vigente / vencido / sentimos-falta (ex-pacote). Suspenso é excluído já aqui.
     prisma.clienteScore.findMany({
       where: {
@@ -135,7 +135,36 @@ export async function GET(req: NextRequest) {
       where: { unidadeSlug: { in: [...slugs, '*'] } },
       select: { unidadeSlug: true, telefone: true },
     }),
+    // TODOS os telefones (leve) das unidades — para recência e "tem plano" POR TELEFONE
+    // (não por registro): um mesmo nº pode ter 2 pessoas/registros e vazar de cluster.
+    prisma.clienteScore.findMany({
+      where: { unidadeSlug: { in: slugs }, telefone: { not: null } },
+      select: { telefone: true, ultimoContato: true, temPacoteAtivo: true },
+    }),
+    prisma.clienteTotalPass.findMany({
+      where: { unidadeSlug: { in: slugs }, telefone: { not: null } },
+      select: { telefone: true, ultimoContato: true, planoCancelado: true },
+    }),
   ])
+
+  // Índices POR TELEFONE CANÔNICO (mesmo nº com 2 pessoas/registros conta como um só):
+  //  - contatoMax: último contato em QUALQUER cluster/registro → recência por telefone.
+  //  - planosAtivos: nº que tem TotalPass vigente OU pacote ativo → não recebe "frequente/reativação".
+  const contatoMax = new Map<string, number>()
+  const planosAtivos = new Set<string>()
+  const regContato = (tel: string | null, contato: Date | null) => {
+    const c = telefoneCanonico(tel); if (!c) return
+    const t = contato ? new Date(contato).getTime() : 0
+    if (t > (contatoMax.get(c) ?? 0)) contatoMax.set(c, t)
+  }
+  for (const r of scoreTodos) {
+    regContato(r.telefone, r.ultimoContato)
+    if (r.temPacoteAtivo) { const c = telefoneCanonico(r.telefone); if (c) planosAtivos.add(c) }
+  }
+  for (const r of tpTodos) {
+    regContato(r.telefone, r.ultimoContato)
+    if (!r.planoCancelado) { const c = telefoneCanonico(r.telefone); if (c) planosAtivos.add(c) }
+  }
   const telsComAgenda = new Set(
     comAgenda.map((c) => String(c.telefone ?? '').replace(/\D/g, '')).filter((t) => t.length >= 10),
   )
@@ -179,9 +208,12 @@ export async function GET(req: NextRequest) {
     if (!cluster) continue
     const telDig = String(c.telefone).replace(/\D/g, '')
     if (estaBloqueado(c.unidadeSlug, telDig)) continue // cancelado / opt-out
+    // Quem TEM plano (TotalPass vigente / pacote ativo neste nº) nunca entra em
+    // "frequente sem plano" nem "sentimos falta" — evita oferecer plano a quem já tem.
+    if ((cluster === 'FREQUENTE_SEM_PLANO' || cluster === 'SENTIMOS_FALTA') && planosAtivos.has(telefoneCanonico(c.telefone))) continue
     const ds = c.ultimaSessao ? Math.floor((nowMs - new Date(c.ultimaSessao).getTime()) / 86_400_000) : 9999
     itens.push({
-      chave: c.unidadeSlug + '|' + telDig,
+      chave: c.unidadeSlug + '|' + telefoneCanonico(telDig),
       prio: PRIO_CENTRAL[cluster],
       ds,
       cluster,
@@ -217,7 +249,7 @@ export async function GET(req: NextRequest) {
     const cluster = resolverClusterTotalPassCentral(t.sessoesMes)
     if (!cluster) continue
     itens.push({
-      chave: t.unidadeSlug + '|' + telDig,
+      chave: t.unidadeSlug + '|' + telefoneCanonico(telDig),
       prio: PRIO_CENTRAL[cluster],
       ds: 0,
       cluster,
@@ -250,11 +282,14 @@ export async function GET(req: NextRequest) {
     return true
   })
 
-  // 2) Só então aplica o CALENDÁRIO do cluster (envia hoje?) + a recência por cluster.
-  //    Assim um cliente TotalPass não vira "vigente" numa segunda: ou é dia dele, ou não sai.
-  const doDia = unicos.filter(
-    (it) => clusterEnviaHoje(it.cluster, it.telefone, ctxDia) && passouRecencia(it.ultimoContato, it.cluster),
-  )
+  // 2) Só então aplica o CALENDÁRIO do cluster (envia hoje?) + a recência POR TELEFONE
+  //    (usa o último contato do número em QUALQUER cluster/registro — impede que o mesmo
+  //    nº receba um 2º cluster poucos dias depois só porque o registro é outro).
+  const doDia = unicos.filter((it) => {
+    const gc = contatoMax.get(telefoneCanonico(it.telefone)) || 0
+    const ultGlobal = gc ? new Date(gc) : null
+    return clusterEnviaHoje(it.cluster, it.telefone, ctxDia) && passouRecencia(ultGlobal, it.cluster)
+  })
 
   // Garante que TODAS as tarefas TotalPass entrem (são poucas e a equipe precisa atuar
   // nelas); o teto corta só a fila de reativação, que pode ser grande.
