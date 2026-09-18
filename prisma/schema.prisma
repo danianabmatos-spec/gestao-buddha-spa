@@ -77,6 +77,7 @@ model Usuario {
   unidadeId  Int?
   unidade    Unidade? @relation(fields: [unidadeId], references: [id])
   ativo      Boolean  @default(true)
+  primeirAcesso Boolean @default(false)  // true = obrigada a trocar a senha antes de usar
   createdAt  DateTime @default(now())
   logs       LogAuditoria[]
   unidadesCoord UsuarioUnidade[]
@@ -658,6 +659,7 @@ model Recomendacao {
   criadoEm        DateTime @default(now())
   atualizadoEm    DateTime @updatedAt
   itens           RecomendacaoItem[]
+  venda           Venda?
 
   @@index([unidadeSlug, status])
   @@index([usuarioId])
@@ -743,4 +745,145 @@ model FechamentoValidacao {
   atualizadoEm    DateTime @updatedAt
 
   @@unique([unidadeSlug, ref])
+}
+
+// ─── Pós-venda / Conversão (F2) ─────────────────────────────────────────────────
+// A recepção trabalha as recomendações (fila) e, quando o cliente compra, registra
+// a VENDA classificando o que converteu. Uma venda por recomendação. Os itens são a
+// base da pontuação (F3): VOUCHER/NOVO_AGENDAMENTO/PRODUTO = 1 pt (×qtd);
+// PACOTE = nº de sessões pagas.
+model Venda {
+  id                Int          @id @default(autoincrement())
+  recomendacaoId    Int          @unique
+  recomendacao      Recomendacao @relation(fields: [recomendacaoId], references: [id], onDelete: Cascade)
+  belleId           String
+  unidadeSlug       String
+  confirmadoPorId   String?
+  confirmadoPorNome String?
+  observacao        String?
+  criadoEm          DateTime     @default(now())
+  atualizadoEm      DateTime     @updatedAt
+  itens             VendaItem[]
+
+  @@index([unidadeSlug])
+}
+
+model VendaItem {
+  id         Int      @id @default(autoincrement())
+  vendaId    Int
+  venda      Venda    @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  tipo       String   // VOUCHER | NOVO_AGENDAMENTO | PRODUTO | PACOTE
+  quantidade Int      @default(1) // PACOTE = nº de sessões pagas; demais = quantidade
+  descricao  String?
+  criadoEm   DateTime @default(now())
+
+  @@index([vendaId])
+}
+
+// ─── Conciliação Financeira Diária (F0) ─────────────────────────────────────────
+// Módulo multitenant de conciliação: réplica normalizada das movimentações do Belle
+// (Report 103 c/ forma de pagamento por linha + Report 183 c/ ID único e desconto)
+// confrontada com as fontes de verdade externas (operadora de cartão, banco/Pix,
+// caixa em dinheiro, plataformas de parceiro). Convenção unidadeId:Int (casa com
+// ContagemCaixa/SaidaCaixa). Mudança puramente aditiva — não altera tabelas existentes.
+
+// Réplica normalizada de cada movimentação financeira do Belle (Report 103).
+// Grão = linha de pagamento (col 0 "Cód." é única). Uma venda com pagamento
+// dividido gera N linhas com o mesmo vendaRef; um Day Spa traz vários serviços
+// em children[] (resumidos em `servico`).
+model MovimentacaoBelle {
+  id             Int      @id @default(autoincrement())
+  unidadeId      Int
+  belleMovId     String              // col 0 "Cód." — ID único da movimentação (chave estável)
+  vendaRef       String?             // col 8 "Origem" — ex.: "Venda #22074665" (liga ao Report 183)
+  data           String              // col 4 "Confirmação" → "YYYY-MM-DD"
+  clienteNome    String
+  clienteId      String?
+  cpf            String?             // col 5
+  responsavel    String?             // col 9 (recepção / terapeuta)
+  servico        String?             // resumo dos serviços (children)
+  tipoVenda      String?             // tipo do item (children): Voucher | Plano | Serviço | Produto...
+  formaPagamento String?             // col 10 (normalizada, sem espaços): "PIX" | "Cartão de Crédito"...
+  tipoMovimento  String?             // col 11 "Tipo": E (entrada) | S (saída)
+  confirmado     Boolean  @default(true)  // col 16 "Conf." (S/N)
+  parcelas       Int      @default(1)     // col 1 "Nº Pcl."
+  valorBruto     Float    @default(0)     // col 12
+  taxas          Float    @default(0)     // col 13 (taxa adquirente)
+  valorDesconto  Float    @default(0)     // do Report 183 (cruzamento posterior)
+  valorLiquido   Float    @default(0)     // col 15 (líquido = bruto − taxas)
+  statusConcil   String   @default("PENDENTE")  // PENDENTE | CONCILIADA | DIVERGENTE
+  importadoEm    DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
+  divergencias   Divergencia[]
+
+  @@unique([unidadeId, belleMovId])
+  @@index([unidadeId, data])
+  @@index([unidadeId, data, formaPagamento])
+  @@index([unidadeId, statusConcil])
+}
+
+// Evidência externa de pagamento REAL (fonte de verdade), independente do Belle.
+model FonteExterna {
+  id             Int       @id @default(autoincrement())
+  unidadeId      Int
+  origem         String    // OPERADORA_CARTAO | BANCO_PIX | CAIXA_DINHEIRO | TOTALPASS | GYMPASS | VOUCHER_SITE
+  refExterna     String?   // NSU / id da transação / id do check-in
+  data           String    // "YYYY-MM-DD"
+  dataHora       DateTime?
+  valor          Float     @default(0)
+  formaPagamento String?   // bandeira / tipo
+  descricao      String?
+  raw            String?   // JSON bruto da fonte (auditoria)
+  statusMatch    String    @default("PENDENTE")  // PENDENTE | CASADA | SEM_PAR
+  movimentacaoId Int?      // se casou, aponta pra MovimentacaoBelle
+  importadoEm    DateTime  @default(now())
+
+  @@unique([unidadeId, origem, refExterna])
+  @@index([unidadeId, data])
+  @@index([unidadeId, origem, statusMatch])
+}
+
+// Divergência apontada pelo motor — o que a ponta trata no loop.
+model Divergencia {
+  id              Int       @id @default(autoincrement())
+  unidadeId       Int
+  data            String    // "YYYY-MM-DD"
+  tipo            String    // FALTA_NO_BELLE | SOBRA_NO_BELLE | VALOR_DIVERGENTE | SEM_CHECKIN | DESCONTO | CORTESIA
+  formaPagamento  String?
+  valorEsperado   Float     @default(0)
+  valorEncontrado Float     @default(0)
+  diferenca       Float     @default(0)
+  descricao       String?              // explicação em linguagem clara (IA — F5)
+  sugestaoAjuste  String?              // sugestão de correção (IA — F5)
+  movimentacaoId  Int?
+  movimentacao    MovimentacaoBelle? @relation(fields: [movimentacaoId], references: [id])
+  fonteExternaId  Int?
+  status          String    @default("ABERTA")  // ABERTA | EM_TRATAMENTO | REPROCESSADA | CONCILIADA | JUSTIFICADA | IGNORADA
+  tratadaPorId    String?
+  tratadaPorNome  String?
+  justificativa   String?
+  tratadaEm       DateTime?
+  reprocessadaEm  DateTime?
+  criadaEm        DateTime  @default(now())
+  atualizadaEm    DateTime  @updatedAt
+
+  @@index([unidadeId, data, status])
+  @@index([unidadeId, tipo])
+}
+
+// Resumo por unidade/dia — o painel de conciliação lê daqui.
+model ConciliacaoDia {
+  id                  Int       @id @default(autoincrement())
+  unidadeId           Int
+  data                String    // "YYYY-MM-DD"
+  totalBelle          Float     @default(0)
+  totalConciliado     Float     @default(0)
+  qtdMovimentacoes    Int       @default(0)
+  qtdDivergencias     Int       @default(0)
+  qtdAbertas          Int       @default(0)
+  status              String    @default("ABERTO")  // ABERTO | EM_TRATAMENTO | CONCILIADO
+  ultimoProcessamento DateTime?
+  atualizadoEm        DateTime  @updatedAt
+
+  @@unique([unidadeId, data])
 }

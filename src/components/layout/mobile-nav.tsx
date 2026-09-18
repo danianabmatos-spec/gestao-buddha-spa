@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Radar, BrainCircuit, ClipboardList, Ticket } from 'lucide-react'
+import { Radar, BrainCircuit, ClipboardList, Ticket } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const mobileItems = [

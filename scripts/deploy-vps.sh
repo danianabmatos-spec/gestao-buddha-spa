@@ -49,8 +49,17 @@ $SSH "$VPS" "cd $APP && \
   (grep -q '^ERP_INTEGRATION_KEY=' .env.local 2>/dev/null || { K=\$(grep '^ERP_INTEGRATION_KEY=' /var/www/apps/leadflow/backend/.env 2>/dev/null | cut -d= -f2-); [ -n \"\$K\" ] && echo \"ERP_INTEGRATION_KEY=\$K\" >> .env.local && echo '   ERP_INTEGRATION_KEY copiada do LeadFlow'; }) && \
   echo '   integração LeadFlow configurada (OFF)'"
 
-echo "▶ 5/9  npm install + prisma + tabelas (mensagens + rotinas) + build…"
-$SSH "$VPS" "cd $APP && npm install --no-audit --no-fund && npx prisma generate && DATABASE_URL=file:$APP/dev.db node scripts/criar-tabela-templates.mjs && DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-rotinas.mjs && npm run build"
+echo "▶ 5/9  npm install + prisma + tabelas (rotinas + programa de recomendação) + build…"
+$SSH "$VPS" "cd $APP && npm install --no-audit --no-fund && npx prisma generate && \
+  DATABASE_URL=file:$APP/dev.db node scripts/criar-tabela-templates.mjs && \
+  DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-rotinas.mjs && \
+  DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-recomendacao.mjs && \
+  DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-atendimentos.mjs && \
+  DATABASE_URL=file:$APP/dev.db node scripts/criar-tabela-fechamento-validacao.mjs && \
+  DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-venda.mjs && \
+  DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-conciliacao.mjs && \
+  DATABASE_URL=file:$APP/dev.db node scripts/alterar-usuario-primeiro-acesso.mjs && \
+  npm run build"
 
 echo "▶ 6/9  Semeando usuários/unidades (idempotente)…"
 $SSH "$VPS" "cd $APP && node scripts/seed-usuarios.mjs"
@@ -59,8 +68,10 @@ echo "▶ 7/9  Instalando cron de sistema (sync a cada 3h)…"
 $SSH "$VPS" "cd $APP && \
   SECRET=\$(grep '^CRON_SECRET=' .env.local | cut -d= -f2-) && \
   LINE=\"0 */3 * * * curl -s -X POST -H 'x-cron-secret: \$SECRET' http://localhost:3000/api/cron/sync >> /var/log/gestao-sync.log 2>&1\" && \
-  ( crontab -l 2>/dev/null | grep -v 'api/cron/sync'; echo \"\$LINE\" ) | crontab - && \
-  echo '   cron instalado:' && crontab -l | grep 'api/cron/sync'"
+  LINE2=\"0 3 * * * curl -s -X POST -H 'x-cron-secret: \$SECRET' http://localhost:3000/api/cron/conciliacao >> /var/log/gestao-conciliacao.log 2>&1\" && \
+  LINE3=\"0 4 * * * curl -s -X POST -H 'x-cron-secret: \$SECRET' http://localhost:3000/api/cron/vouchers-wp >> /var/log/gestao-vouchers-wp.log 2>&1\" && \
+  ( crontab -l 2>/dev/null | grep -v 'api/cron/sync' | grep -v 'api/cron/conciliacao' | grep -v 'api/cron/vouchers-wp'; echo \"\$LINE\"; echo \"\$LINE2\"; echo \"\$LINE3\" ) | crontab - && \
+  echo '   crons instalados:' && crontab -l | grep 'api/cron/'"
 
 echo "▶ 8/9  Reiniciando PM2…"
 $SSH "$VPS" "pm2 restart gestao-buddha --update-env && pm2 save"

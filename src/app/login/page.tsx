@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 function LoginForm() {
   const router = useRouter()
   const params = useSearchParams()
-  const next = params.get('next') || '/inteligencia'
+  const next = params.get('next')
 
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
@@ -29,7 +29,8 @@ function LoginForm() {
         setCarregando(false)
         return
       }
-      router.replace(next)
+      const perfil = d?.usuario?.perfil
+      router.replace(next || (perfil === 'TERAPEUTA' ? '/meus-atendimentos' : '/inteligencia'))
     } catch {
       setErro('Erro de conexão. Tente novamente.')
       setCarregando(false)

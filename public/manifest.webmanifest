@@ -1,0 +1,15 @@
+{
+  "name": "Buddha Spa — Gestão",
+  "short_name": "Buddha Spa",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#7E0000",
+  "theme_color": "#7E0000",
+  "icons": [
+    { "src": "/icon-192-v3.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512-v3.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512-v3.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

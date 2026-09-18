@@ -24,13 +24,14 @@ async function fetchReportPage(
   token: string,
   dataIniISO: string,
   dataFimISO: string,
-  offsetRecords: number = 0
+  offsetRecords: number = 0,
+  estab: string = '1'
 ): Promise<any> {
   const payload: any = {
     reportId: 2422,
     sortColumn: null,
     sortOrder: 1,
-    estab: '1',
+    estab,
     filters: [
       { id: '121101', value: 'commerce' },
       { id: '121096', value: '' },
@@ -57,7 +58,7 @@ async function fetchReportPage(
   }
 
   const resp = await fetch(
-    `${BASE_URL}/BI/v1.0/report/build?estabGeral=1`,
+    `${BASE_URL}/BI/v1.0/report/build?estabGeral=${estab}`,
     {
       method: 'POST',
       headers: { ...HEADERS, Authorization: token },
@@ -85,8 +86,9 @@ export async function getVouchersUsados(
   const dataIniISO = new Date(dataIni + 'T03:00:00.000Z').toISOString()
   const dataFimISO = new Date(dataFim + 'T03:00:00.000Z').toISOString()
 
+  const estabStr = String(estab)
   // Busca primeira página
-  const firstPage = await fetchReportPage(token, dataIniISO, dataFimISO, 0)
+  const firstPage = await fetchReportPage(token, dataIniISO, dataFimISO, 0, estabStr)
 
   const recordCount = firstPage.record_count || 0
   const pageSize = firstPage.data?.length || 0
@@ -98,7 +100,7 @@ export async function getVouchersUsados(
   if (recordCount > pageSize) {
     let offset = pageSize
     while (offset < recordCount) {
-      const nextPage = await fetchReportPage(token, dataIniISO, dataFimISO, offset)
+      const nextPage = await fetchReportPage(token, dataIniISO, dataFimISO, offset, estabStr)
       const newRecords = nextPage.data || []
       allRecords = allRecords.concat(newRecords)
 

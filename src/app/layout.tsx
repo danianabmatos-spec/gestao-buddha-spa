@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Gestão Buddha Spa",
   description: "Sistema de Gestão Operacional — Buddha Spa",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Buddha Spa", statusBarStyle: "default" },
+  icons: { icon: "/icon-192-v3.png", apple: "/apple-touch-icon-v3.png" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#7E0000",
 };
 
 export default function RootLayout({

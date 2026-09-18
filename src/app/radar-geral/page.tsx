@@ -16,6 +16,7 @@ export default function RadarGeralPage() {
   const [loading, setLoading] = useState(false)
   const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null)
   const [atualizando, setAtualizando] = useState(false)
+  const [pontos, setPontos] = useState<Record<string, number>>({})
 
   const buscarDados = useCallback(async (ini: Date, fim: Date) => {
     setLoading(true)
@@ -54,6 +55,19 @@ export default function RadarGeralPage() {
   useEffect(() => {
     buscarDados(dataIni, dataFim)
   }, [dataIni, dataFim, buscarDados])
+
+  // Pontuação do Programa de Recomendação (por unidade) do mês do período.
+  useEffect(() => {
+    const ref = format(dataFim, 'yyyy-MM')
+    fetch(`/api/pontuacao?geral=1&ref=${ref}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const m: Record<string, number> = {}
+        if (j && j.unidades) for (const u of j.unidades) m[u.slug] = u.totalUnidade
+        setPontos(m)
+      })
+      .catch(() => setPontos({}))
+  }, [dataFim])
 
   const handlePeriodoChange = (ini: Date, fim: Date) => {
     setDataIni(ini)
@@ -281,6 +295,23 @@ export default function RadarGeralPage() {
                         {formatReal(dados.unidades.filter(u => u.status === 'ativo').reduce((sum, u) =>
                           sum + u.faturamento.caixa + u.faturamento.totalPass + u.faturamento.gympass + u.faturamento.voucherSite, 0
                         ))}
+                      </td>
+                    </tr>
+
+                    {/* Pontuação — Programa de Recomendação */}
+                    <tr className="hover:bg-[#DDC7A4]/10 transition-colors">
+                      <td className="px-4 py-4 text-sm font-semibold text-[#7E0000] sticky left-0 bg-white z-10">
+                        🏆 Pontuação
+                      </td>
+                      {dados.unidades
+                        .filter(u => u.status === 'ativo')
+                        .map((unidade) => (
+                          <td key={unidade.slug} className="px-4 py-4 text-sm text-center font-semibold text-[#7E0000]">
+                            {pontos[unidade.slug] ?? 0} pts
+                          </td>
+                        ))}
+                      <td className="px-4 py-4 text-sm text-center font-bold text-[#7E0000]">
+                        {dados.unidades.filter(u => u.status === 'ativo').reduce((sum, u) => sum + (pontos[u.slug] ?? 0), 0)} pts
                       </td>
                     </tr>
 
