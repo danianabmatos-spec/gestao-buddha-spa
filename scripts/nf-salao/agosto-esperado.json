@@ -1,0 +1,122 @@
+{
+  "base": {
+    "faturamentoCaixa": 141059.7,
+    "reembolsoVoucher": 68355.61,
+    "reembolsoGympass": 2702.59,
+    "reembolsoTotalpass": 9108.0,
+    "notasAvulsas": 4391.0,
+    "valorBaseEsperado": 216834.9
+  },
+  "terapeutas": [
+    {
+      "nome": "ADRIANA FERREIRA ALVES",
+      "cnpjMei": "12.506.425/0001-56",
+      "comissao": 4719.0,
+      "diasCredito": 0.0,
+      "expValorTerapeuta": 4719.0,
+      "expPct": 0.08048666546252202,
+      "expValorNota": 17452.318056899414,
+      "expBaseCalculo": 12733.318056899414
+    },
+    {
+      "nome": "APARECIDA FERREIRA BORGES",
+      "cnpjMei": "61.723.919/0001-06",
+      "comissao": 4820.0,
+      "diasCredito": 0.0,
+      "expValorTerapeuta": 4820.0,
+      "expPct": 0.0822093086521204,
+      "expValorNota": 17825.84722065166,
+      "expBaseCalculo": 13005.84722065166
+    },
+    {
+      "nome": "CARINA MAYUMI KAMEYA SHIMADA",
+      "cnpjMei": "31.580.805/0001-85",
+      "comissao": 4573.0,
+      "diasCredito": 0.0,
+      "expValorTerapeuta": 4573.0,
+      "expPct": 0.07799650798052833,
+      "expValorNota": 16912.36500830706,
+      "expBaseCalculo": 12339.36500830706
+    },
+    {
+      "nome": "CARLA PEREZ",
+      "cnpjMei": "59.610.585/0001-04",
+      "comissao": 6839.0,
+      "diasCredito": 1818.83,
+      "expValorTerapeuta": 8657.83,
+      "expPct": 0.14766685035842064,
+      "expValorNota": 32019.326730783105,
+      "expBaseCalculo": 23361.496730783103
+    },
+    {
+      "nome": "CINTIA REGINA DE SOUZA GONÇALVES",
+      "cnpjMei": "61.585.517/0001 84",
+      "comissao": 2284.0,
+      "diasCredito": 0.0,
+      "expValorTerapeuta": 2284.0,
+      "expPct": 0.038955614307353316,
+      "expValorNota": 8446.936732773525,
+      "expBaseCalculo": 6162.936732773525
+    },
+    {
+      "nome": "CLAUDIA NAKANDAKARE",
+      "cnpjMei": "",
+      "comissao": 8868.0,
+      "diasCredito": 0.0,
+      "expValorTerapeuta": 8868.0,
+      "expPct": 0.15125148322137005,
+      "expValorNota": 32796.60023915745,
+      "expBaseCalculo": 23928.60023915745
+    },
+    {
+      "nome": "ELIZABETH SANTANA OSHIMA",
+      "cnpjMei": "48.648.242/0001-12",
+      "comissao": 4869.0,
+      "diasCredito": 0.0,
+      "expValorTerapeuta": 4869.0,
+      "expPct": 0.08304504643717307,
+      "expValorNota": 18007.06433969978,
+      "expBaseCalculo": 13138.06433969978
+    },
+    {
+      "nome": "ELAINE CRISTINA DA SILVA PIMENTA",
+      "cnpjMei": "62.010.728/0001-51",
+      "comissao": 2893.0,
+      "diasCredito": 0.0,
+      "expValorTerapeuta": 2893.0,
+      "expPct": 0.049342641064436574,
+      "expValorNota": 10699.206640942997,
+      "expBaseCalculo": 7806.206640942997
+    },
+    {
+      "nome": "HELENA EMIKO HATTORI",
+      "cnpjMei": "",
+      "comissao": 9825.0,
+      "diasCredito": 0.0,
+      "expValorTerapeuta": 9825.0,
+      "expPct": 0.16757395383964374,
+      "expValorNota": 36335.88152342376,
+      "expBaseCalculo": 26510.881523423763
+    },
+    {
+      "nome": "LUCILENE DE MORAES NASCIMENTO",
+      "cnpjMei": "47.317.711/0001-58",
+      "comissao": 5473.0,
+      "diasCredito": 0.0,
+      "expValorTerapeuta": 5473.0,
+      "expPct": 0.09334679382843462,
+      "expValorNota": 20240.842705109237,
+      "expBaseCalculo": 14767.842705109237
+    },
+    {
+      "nome": "VICTORIA RODRIGUES DE OLIVEIRA",
+      "cnpjMei": "60.827.242/0001-85",
+      "comissao": 1649.0,
+      "diasCredito": 0.0,
+      "expValorTerapeuta": 1649.0,
+      "expPct": 0.028125134847997203,
+      "expValorNota": 6098.510802251989,
+      "expBaseCalculo": 4449.510802251989
+    }
+  ]
+}

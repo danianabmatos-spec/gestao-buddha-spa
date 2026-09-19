@@ -887,3 +887,81 @@ model ConciliacaoDia {
 
   @@unique([unidadeId, data])
 }
+
+// ─── NF Salão Parceiro (controle fiscal) ────────────────────────────────────────
+// Lei do Salão Parceiro: o faturamento é dividido entre a terapeuta (MEI, emite a
+// própria NF) e o salão (emite 1 NF por terapeuta/mês). Módulo isolado, mesmo padrão
+// da Conciliação (unidadeId Int puro, sem relation, pra manter desacoplado). Acesso
+// só DONA/FINANCEIRO. Piloto Anália (unidadeId 2), 1ª competência ao vivo = set/2026.
+
+// Competência mensal por unidade: base a emitir (congelada no fechamento) + alíquotas.
+model NfSalaoMes {
+  id                 Int      @id @default(autoincrement())
+  unidadeId          Int
+  ano                Int
+  mes                Int                         // 1..12 (mês da competência)
+  status             String   @default("ABERTO") // ABERTO | FECHADO
+  // Alíquotas do mês (mudam por unidade/mês; a Daniana preenche no fechamento)
+  aliquotaIss        Float    @default(0)        // % ISS (ex.: 2.39)
+  aliquotaTributos   Float    @default(0)        // % tributos aprox. (ex.: 3.67)
+  // Base a emitir (memória de cálculo). Fat/reembolso puxados; resto manual.
+  faturamentoCaixa   Float    @default(0)        // caixa do mês da competência (gestão)
+  reembolsoVoucher   Float    @default(0)        // reembolso voucher do MÊS ANTERIOR (gestão)
+  reembolsoGympass   Float    @default(0)        // manual
+  reembolsoTotalpass Float    @default(0)        // manual
+  notasAvulsas       Float    @default(0)        // NFs já emitidas a clientes — abate da base
+  valorBase          Float    @default(0)        // = fat + voucher + gympass + totalpass − avulsas
+  // Origem do que foi puxado automático (transparência — a ponta confere/edita)
+  faturamentoFonte   String?                     // ex.: "gestao:caixa 2026-08"
+  reembolsoFonte     String?                     // ex.: "gestao:reembolso 2026-07"
+  fechadoEm          DateTime?
+  fechadoPorNome     String?
+  criadoEm           DateTime @default(now())
+  atualizadoEm       DateTime @updatedAt
+
+  @@unique([unidadeId, ano, mes])
+  @@index([unidadeId])
+}
+
+// Uma linha por terapeuta/mês = uma NF do salão. Valores da terapeuta vêm da Folha
+// (comissão do fechamento + dias de crédito + os nºs das NFs dela). Cálculo do salão
+// é derivado da base. RPS e nº da NF preenchidos na emissão.
+model NfSalaoTerapeuta {
+  id               Int      @id @default(autoincrement())
+  nfSalaoMesId     Int
+  unidadeId        Int
+  // Identidade (da Folha)
+  terapeutaNome    String
+  cnpjMei          String   @default("")
+  folhaTerapeutaId String?                       // id na Folha (casamento)
+  // Valores da terapeuta (da Folha) — P = comissão + dias de crédito
+  comissao         Float    @default(0)          // G
+  diasCredito      Float    @default(0)          // F
+  valorTerapeuta   Float    @default(0)          // P (= H na planilha)
+  nfComissaoNumero String?                       // C — nº da NF de comissão dela
+  nfCreditoNumero  String?                       // B — nº da NF de dias de crédito dela
+  // Cálculo do salão
+  pct              Float    @default(0)          // N = valorTerapeuta / ΣvalorTerapeuta
+  valorNota        Float    @default(0)          // M = base × pct ("valor total recebido")
+  baseCalculo      Float    @default(0)          // O = valorNota − valorTerapeuta (base ISS)
+  // Emissão do salão na prefeitura
+  rps              Int?                           // Q — sequencial interno
+  nfSalaoNumero    String?                        // J — nº da NF emitida
+  codVerificacao   String?
+  emitidaEm        DateTime?
+  discriminacao    String   @default("")          // bloco pronto pra copiar/colar
+  status           String   @default("PENDENTE")  // PENDENTE | EMITIDA
+  criadoEm         DateTime @default(now())
+  atualizadoEm     DateTime @updatedAt
+
+  @@index([nfSalaoMesId])
+  @@index([unidadeId])
+}
+
+// Sequenciador de RPS por unidade (cada CNPJ tem a sua). Trava contra repetir/pular.
+model RpsSequencia {
+  id           Int      @id @default(autoincrement())
+  unidadeId    Int      @unique
+  proximoRps   Int      @default(1)
+  atualizadoEm DateTime @updatedAt
+}

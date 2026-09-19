@@ -102,6 +102,14 @@ Fórmula: `Base = Faturamento + Reembolso + Gympass + TotalPass − NotasAvulsas
 - Sync de CNPJ (e futuramente comissão) a partir do `folha-pagamento-buddha`.
 - Deploy = migration + link no menu + liberar perfil (Financeiro + Felipe).
 
+## Progresso do build
+- ✅ **F0** — 3 models criados no `dev.db` local via SQL aditivo (NÃO usar `prisma db push`: ele quer dropar `Perfil`/`PerfilPermissao`, que existem só no banco). Client regenerado. RPS da Anália (unidadeId 2) semeado em **1159**. Backup do db em `dev.db.bak-nfsalao-*`.
+- ✅ **F1** — motor `src/lib/nf-salao/motor.ts` (puro) validado 1:1 contra AGOSTO 26 via `scripts/nf-salao/validar-agosto.ts` (Node 24). Base 216.834,90 e os 11 valores (M/O/P) batem ao centavo; discriminação idêntica à NF real.
+  - ✅ **Arredondamento (decidido):** cada NF arredondada a 2 casas; **aceitar a tolerância** (sem ajuste de resíduo). Soma das notas pode variar 1–2 centavos da base — é como a emissão real acontece. `conferir()` usa tolerância.
+- ✅ **F2** — persistência: `scripts/nf-salao/seed-agosto.ts` gera o payload via motor; competência ago/26 gravada no banco (NfSalaoMes id=1 + 11 NfSalaoTerapeuta, status FECHADO, RPS/NF reais). `conferir()` = trava ΣM≈base.
+- ✅ **F3 (v1 leitura)** — camada `src/lib/nf-salao/dados.ts` + rota `GET /api/nf-salao/[ano]/[mes]` (gated DONA/FINANCEIRO) + página `src/app/nf-salao/page.tsx` (base c/ origem, KPIs, tabela por terapeuta, detalhe c/ discriminação copiável, banner de conferência) + layout. Registrado no catálogo de permissões (`nf-salao`, FINANCEIRO=EDITAR) e no menu (Sidebar, ícone Scale). **Verificado E2E no local:** login DONA → API devolve os 11 registros reais; página compila (200) e é gated (401 sem sessão). `scripts` excluído do tsconfig.
+- ⏭️ Próximo: **F3 (escrita)** — abrir/editar competência, lançar base manual (gympass/tp/avulsas/alíquota), avançar RPS ao emitir, registrar nº NF/verificação, fechar mês. E o **endpoint na Folha** `/api/integracao/notas-terapeutas` + client em `src/lib/folha/` pra puxar terapeutas (hoje o seed de agosto foi da planilha). Depois: as outras 6 unidades; emissão automática na prefeitura.
+
 ## Pendências abertas
 1. ⚠️ Próximo RPS da Anália: a planilha de agosto já mostra o **1159 usado** (Cintia). Confirmar se o próximo livre é **1159** mesmo ou **1160** (não pode repetir). Campo será editável — a Daniana ajusta na 1ª emissão.
 2. ✅ Alíquota = parâmetro do mês (campo editável no fechamento). Ago/26 = ISS 2,39% / tributos 3,67%.

@@ -42,6 +42,7 @@ export const FUNCIONALIDADES: Funcionalidade[] = [
   { chave: 'inteligencia', label: 'Inteligência', grupo: 'Visão Executiva', rotas: ['/inteligencia', '/api/inteligencia'], padrao: p(V, N, V, N, N) },
   { chave: 'radar-geral', label: 'Radar Geral', grupo: 'Visão Executiva', rotas: ['/radar-geral', '/api/radar-geral'], padrao: p(V, V, V, N, N) },
   { chave: 'reembolso', label: 'Reembolso Vouchers', grupo: 'Visão Executiva', rotas: ['/reembolso', '/api/reembolso'], padrao: p(N, N, E, N, N) },
+  { chave: 'nf-salao', label: 'Salão Parceiro (NF)', grupo: 'Visão Executiva', rotas: ['/nf-salao', '/api/nf-salao'], padrao: p(N, N, E, N, N) },
 
   // ── Unidade ──
   { chave: 'rotina-do-dia', label: 'Rotina do Dia', grupo: 'Unidade', rotas: ['/rotina-do-dia', '/api/rotinas', '/api/tarefas-do-dia', '/api/erp/tarefas'], padrao: p(E, E, V, N, N) },
