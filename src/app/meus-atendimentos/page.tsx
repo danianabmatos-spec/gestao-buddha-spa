@@ -27,6 +27,9 @@ const LABEL: Record<string, string> = Object.fromEntries(
   [...OLEOS, ...CHAS, ...RETORNOS].map((i) => [i.tipo, i.label]),
 )
 
+// Unidades onde a bola/unificação já está liberada (piloto). Expandir conforme rolar.
+const UNIDADES_PILOTO = ['tatuape-gomescardim']
+
 interface Recomendacao {
   notaSono: number | null; notaEnergia: number | null; notaEstresse: number | null
   pontosTensao: string | null; retorno: string | null; observacao: string | null
@@ -95,8 +98,8 @@ export default function MeusAtendimentosPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-5 sm:px-6">
-        {resp?.terapeuta && <CheckinBola />}
-        {resp?.terapeuta && <MinhaComissao />}
+        {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <CheckinBola />}
+        {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <MinhaComissao />}
         {resp?.terapeuta && (
           <p className="text-sm text-[#392617]/70 mb-1">Atendimentos de {mesLongo(resp.ref)}</p>
         )}
