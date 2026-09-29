@@ -68,3 +68,9 @@ auditoria-resultado.txt
 
 # Uploads em runtime (fotos de notinhas do caixa) — não versionar
 uploads/
+
+# faxina (29/09): cache regeneravel, backups de db, tooling
+/cache/
+dev.db.bak*
+*.db.bak*
+.claude/
