@@ -152,6 +152,12 @@ export function Sidebar() {
                           <Scale size={14} strokeWidth={1.8} /> Conciliação
                         </Link>
                       )}
+                      {/* Controle da Bola — piloto (só Tatuapé por enquanto) */}
+                      {slug === 'tatuape-gomescardim' && (
+                        <Link href={`/dashboard/${slug}/bola`} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white">
+                          <Target size={14} strokeWidth={1.8} /> Controle da Bola
+                        </Link>
+                      )}
                       {pode('validacao') && (
                         <Link href={`/validacao?unidade=${slug}`} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white">
                           <ShieldCheck size={14} strokeWidth={1.8} /> Validação de Atendimentos
