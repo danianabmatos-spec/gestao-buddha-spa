@@ -5,6 +5,7 @@ import { getUnidadeNome, getUnidadeCredenciais } from '@/lib/belle/unidades-conf
 import { getFaturamentoMensal } from '@/lib/belle/bi'
 import { HistoricoChart } from './historico-chart'
 import { HistoricoChartHoras } from './historico-chart-horas'
+import { HistoricoSecaoValor } from './secao-valor'
 
 // Força a página a ser dinâmica para sempre buscar dados atualizados
 export const dynamic = 'force-dynamic'
@@ -613,8 +614,8 @@ export default async function HistoricoPage({ params }: Props) {
           if ((caixa ?? 0) > 0 || (horas ?? 0) > 0) {
             await prisma.faturamentoHistorico.upsert({
               where: { unidadeSlug_ano_mes: { unidadeSlug: unidade, ano: anoAtual, mes: m } },
-              create: { unidadeSlug: unidade, ano: anoAtual, mes: m, caixa: caixa ?? 0, horas: horas ?? 0 },
-              update: { caixa: caixa ?? 0, horas: horas ?? 0 },
+              create: { unidadeSlug: unidade, ano: anoAtual, mes: m, caixa: caixa ?? 0, horas: horas ?? 0, gympass: f.gympass ?? 0, totalpass: f.totalPass ?? 0 },
+              update: { caixa: caixa ?? 0, horas: horas ?? 0, gympass: f.gympass ?? 0, totalpass: f.totalPass ?? 0 },
             })
           }
         }
@@ -630,6 +631,20 @@ export default async function HistoricoPage({ params }: Props) {
       }
     }
   }
+
+  // Parcerias (Gympass/TotalPass): vêm 100% do cache FaturamentoHistorico (backfill
+  // do Belle) — não há base hardcoded. Só meses com valor > 0 entram no gráfico/tabela.
+  const parceriaRows = await prisma.faturamentoHistorico.findMany({
+    where: { unidadeSlug: unidade },
+    select: { ano: true, mes: true, gympass: true, totalpass: true },
+  })
+  const nomesMesesP = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+  const gympassHist = parceriaRows
+    .filter(r => r.gympass > 0)
+    .map(r => ({ mes: nomesMesesP[r.mes - 1], ano: r.ano, valor: r.gympass }))
+  const totalpassHist = parceriaRows
+    .filter(r => r.totalpass > 0)
+    .map(r => ({ mes: nomesMesesP[r.mes - 1], ano: r.ano, valor: r.totalpass }))
 
   // Transformar dados em formato pivotado (meses x anos) - CAIXA
   const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
@@ -886,6 +901,12 @@ export default async function HistoricoPage({ params }: Props) {
           </div>
         </div>
       ) : null}
+
+      {/* Gympass — gráfico + tabela ao longo dos anos (dados do Belle) */}
+      <HistoricoSecaoValor titulo="Gympass (R$)" historico={gympassHist} />
+
+      {/* TotalPass — gráfico + tabela ao longo dos anos (dados do Belle) */}
+      <HistoricoSecaoValor titulo="TotalPass (R$)" historico={totalpassHist} />
     </div>
   )
 }

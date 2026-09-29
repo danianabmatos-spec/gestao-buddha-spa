@@ -34,7 +34,8 @@ npx prisma generate
 echo ">> tabelas (idempotente — CREATE IF NOT EXISTS)"
 for s in criar-tabela-templates criar-tabelas-rotinas criar-tabelas-recomendacao \
          criar-tabelas-atendimentos criar-tabela-fechamento-validacao criar-tabelas-venda \
-         criar-tabelas-conciliacao criar-tabelas-nf-salao criar-tabelas-bola alterar-usuario-primeiro-acesso; do
+         criar-tabelas-conciliacao criar-tabelas-nf-salao criar-tabelas-bola \
+         criar-tabelas-parcerias-historico alterar-usuario-primeiro-acesso; do
   [ -f "scripts/$s.mjs" ] && { echo "   - $s"; DATABASE_URL="$DBURL" node "scripts/$s.mjs" >/dev/null 2>&1 || echo "     (aviso: $s retornou erro não-fatal)"; }
 done
 

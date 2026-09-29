@@ -59,6 +59,7 @@ $SSH "$VPS" "cd $APP && npm install --no-audit --no-fund && npx prisma generate 
   DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-venda.mjs && \
   DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-conciliacao.mjs && \
   DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-nf-salao.mjs && \
+  DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-parcerias-historico.mjs && \
   DATABASE_URL=file:$APP/dev.db node scripts/alterar-usuario-primeiro-acesso.mjs && \
   npm run build"
 
