@@ -2,7 +2,7 @@
 // Lê a competência persistida (NfSalaoMes + NfSalaoTerapeuta) e devolve já no formato
 // que a tela consome. Piloto: Anália Franco (unidadeId 2).
 import { prisma } from "@/lib/prisma";
-import { round2 } from "@/lib/nf-salao/motor";
+import { round2, fmtBRL } from "@/lib/nf-salao/motor";
 
 export const UNIDADE_PILOTO = 2; // Anália Franco / Sol Central
 
@@ -20,8 +20,18 @@ export interface TerapeutaLinha {
   nfSalaoNumero: string | null;
   nfComissaoNumero: string | null;
   nfCreditoNumero: string | null;
+  codVerificacao: string | null;
   discriminacao: string;
   status: string;
+}
+
+export interface Pendencia {
+  nivel: "erro" | "aviso";
+  codigo: string; // 'aliquota'|'base_zero'|'base_diverge'|'sem_terapeutas'|'cnpj'|'nf_comissao'|'nf_credito'|'rps'
+  escopo: "competencia" | "terapeuta";
+  terapeutaId?: number;
+  terapeutaNome?: string;
+  mensagem: string;
 }
 
 export interface CompetenciaResumo {
@@ -52,6 +62,7 @@ export interface CompetenciaResumo {
     difBase: number; // ΣM − base
   };
   proximoRps: number | null;
+  pendencias: Pendencia[];
 }
 
 /** Meses (ano/mes) que já têm competência lançada — pro seletor da tela. */
@@ -64,6 +75,30 @@ export async function listarCompetencias(
     select: { ano: true, mes: true, status: true },
   });
   return rows;
+}
+
+export interface EmpresaResumo {
+  razaoSocial: string;
+  cnpj: string;
+  inscricaoMunicipal: string;
+  nomeFantasia: string;
+}
+
+/** Dados fiscais da empresa vinculada à unidade (cabeçalho da tela). Null se não cadastrada
+ *  ou indisponível — resiliente: nunca derruba a competência por causa do cabeçalho. */
+export async function getEmpresaDaUnidade(unidadeSlug: string): Promise<EmpresaResumo | null> {
+  try {
+    const e = await prisma.empresa.findFirst({ where: { unidadeSlug, ativa: true } });
+    if (!e) return null;
+    return {
+      razaoSocial: e.razaoSocial,
+      cnpj: e.cnpj,
+      inscricaoMunicipal: e.inscricaoMunicipal,
+      nomeFantasia: e.nomeFantasia,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function getCompetencia(
@@ -109,6 +144,7 @@ export async function getCompetencia(
         nfSalaoNumero: t.nfSalaoNumero,
         nfComissaoNumero: t.nfComissaoNumero,
         nfCreditoNumero: t.nfCreditoNumero,
+        codVerificacao: t.codVerificacao,
         discriminacao: t.discriminacao,
         status: t.status,
       }))
@@ -124,6 +160,37 @@ export async function getCompetencia(
     difBase: round2(somaNotas - base.valorBase),
   };
 
+  // Pendências: o que falta pra fechar/emitir com segurança. Erros pesam mais que avisos.
+  const pendencias: Pendencia[] = [];
+  if (mesRow) {
+    if ((mesRow.aliquotaIss ?? 0) <= 0 || (mesRow.aliquotaTributos ?? 0) <= 0) {
+      pendencias.push({ nivel: "erro", codigo: "aliquota", escopo: "competencia", mensagem: "Alíquotas do mês (ISS / tributos) não preenchidas." });
+    }
+    if ((base.valorBase ?? 0) <= 0) {
+      pendencias.push({ nivel: "erro", codigo: "base_zero", escopo: "competencia", mensagem: "Base ainda não calculada — puxe a base da Gestão." });
+    } else if (Math.abs(totais.difBase) > 0.05) {
+      pendencias.push({ nivel: "erro", codigo: "base_diverge", escopo: "competencia", mensagem: `Soma das notas não bate com a base (diferença de ${fmtBRL(totais.difBase)}).` });
+    }
+    if (terapeutas.length === 0) {
+      pendencias.push({ nivel: "erro", codigo: "sem_terapeutas", escopo: "competencia", mensagem: "Nenhuma terapeuta na competência — puxe da Folha ou adicione." });
+    }
+    for (const t of terapeutas) {
+      const nome = t.terapeutaNome;
+      if (!t.cnpjMei?.trim()) {
+        pendencias.push({ nivel: "erro", codigo: "cnpj", escopo: "terapeuta", terapeutaId: t.id, terapeutaNome: nome, mensagem: "CNPJ da terapeuta ausente." });
+      }
+      if (!t.nfComissaoNumero) {
+        pendencias.push({ nivel: "aviso", codigo: "nf_comissao", escopo: "terapeuta", terapeutaId: t.id, terapeutaNome: nome, mensagem: "Nº da NF de comissão ainda não veio da Folha." });
+      }
+      if (t.diasCredito > 0 && !t.nfCreditoNumero) {
+        pendencias.push({ nivel: "aviso", codigo: "nf_credito", escopo: "terapeuta", terapeutaId: t.id, terapeutaNome: nome, mensagem: "Nº da NF de dias de crédito ainda não veio da Folha." });
+      }
+      if (t.rps == null) {
+        pendencias.push({ nivel: "aviso", codigo: "rps", escopo: "terapeuta", terapeutaId: t.id, terapeutaNome: nome, mensagem: "RPS ainda não atribuído." });
+      }
+    }
+  }
+
   return {
     existe: !!mesRow,
     unidadeId,
@@ -136,5 +203,6 @@ export async function getCompetencia(
     terapeutas,
     totais,
     proximoRps: seq?.proximoRps ?? null,
+    pendencias,
   };
 }

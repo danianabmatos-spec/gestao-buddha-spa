@@ -4,8 +4,14 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-// Colunas do resumo (ordem de exibição).
-const COLUNAS = ['Dinheiro', 'Cartão', 'Pix', 'TotalPass', 'Gympass', 'Voucher'] as const
+// Coluna extra (eixo do serviço): atendimentos sem lastro financeiro / cortesia / desconto.
+const COL_ATEND = 'Atend. s/ financeiro'
+// Tipos de divergência do eixo de ATENDIMENTOS (Parte 2) → caem na coluna COL_ATEND.
+const ATEND_TIPOS = ['ATENDIMENTO_SEM_JUSTIFICATIVA', 'CORTESIA', 'DESCONTO']
+
+// Colunas do resumo (ordem de exibição). Formas de pagamento + a coluna de atendimentos.
+const COLUNAS_FORMA = ['Dinheiro', 'Cartão', 'Pix', 'TotalPass', 'Gympass', 'Voucher'] as const
+const COLUNAS = [...COLUNAS_FORMA, COL_ATEND] as const
 type Coluna = (typeof COLUNAS)[number]
 
 // Mapeia a forma de pagamento do Belle → coluna do resumo.
@@ -57,15 +63,18 @@ export async function GET(request: NextRequest) {
     if (!unidade) return NextResponse.json({ error: 'Unidade não encontrada' }, { status: 404 })
     const unidadeId = unidade.id
 
-    const [movs, divs] = await Promise.all([
+    const [movs, divs, atendDias] = await Promise.all([
       prisma.movimentacaoBelle.findMany({
         where: { unidadeId, data: { startsWith: prefixo } },
         select: { data: true, formaPagamento: true, statusConcil: true, valorLiquido: true, tipoMovimento: true },
       }),
       prisma.divergencia.findMany({
         where: { unidadeId, data: { startsWith: prefixo }, status: { in: STATUS_ABERTOS } },
-        select: { data: true, formaPagamento: true, diferenca: true },
+        select: { id: true, data: true, tipo: true, formaPagamento: true, diferenca: true, descricao: true },
+        orderBy: [{ data: 'asc' }, { id: 'asc' }],
       }),
+      // Dias que tiveram atendimentos (p/ marcar verde quando o dia está limpo).
+      prisma.atendimentoConc.groupBy({ by: ['data'], where: { unidadeId, data: { startsWith: prefixo } }, _count: { _all: true } }),
     ])
 
     // dia -> coluna -> Celula
@@ -89,8 +98,15 @@ export async function GET(request: NextRequest) {
       if (cel.status === 'vazio') cel.status = m.statusConcil === 'CONCILIADA' ? 'ok' : 'pendente'
     }
 
+    // Marca verde os dias que tiveram atendimentos (será sobrescrito por divergência abaixo).
+    for (const ad of atendDias) {
+      const cel = garantirDia(ad.data)[COL_ATEND]
+      if (cel.status === 'vazio') cel.status = 'ok'
+    }
+
     for (const dv of divs) {
-      const col = colunaDaForma(dv.formaPagamento)
+      // Divergência do eixo de atendimentos → coluna COL_ATEND; senão, coluna da forma.
+      const col = ATEND_TIPOS.includes(dv.tipo) ? COL_ATEND : colunaDaForma(dv.formaPagamento)
       if (!col) continue
       const cel = garantirDia(dv.data)[col]
       cel.status = 'divergente'
@@ -110,7 +126,19 @@ export async function GET(request: NextRequest) {
       COLUNAS.map((c) => [c, dias.reduce((s, d) => s + d.celulas[c].qtdDivergencias, 0)]),
     )
 
-    return NextResponse.json({ unidade: unidadeSlug, ano, mes, colunas: COLUNAS, dias, totaisDivergencias })
+    // Lista plana de TODAS as divergências abertas do mês (quadro lateral).
+    const divergencias = divs.map((dv) => ({
+      id: dv.id,
+      data: dv.data,
+      diaNum: Number(dv.data.slice(8, 10)),
+      tipo: dv.tipo,
+      formaPagamento: dv.formaPagamento,
+      coluna: ATEND_TIPOS.includes(dv.tipo) ? COL_ATEND : (colunaDaForma(dv.formaPagamento) ?? null),
+      diferenca: dv.diferenca || 0,
+      descricao: dv.descricao,
+    }))
+
+    return NextResponse.json({ unidade: unidadeSlug, ano, mes, colunas: COLUNAS, colAtend: COL_ATEND, dias, totaisDivergencias, divergencias })
   } catch (error) {
     console.error('[Conciliação/Mês] Erro:', error)
     const msg = error instanceof Error ? error.message : 'Erro ao carregar o resumo do mês'

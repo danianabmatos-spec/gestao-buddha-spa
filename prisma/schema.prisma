@@ -698,6 +698,8 @@ model Terapeuta {
   criadoEm    DateTime @default(now())
   atualizadoEm DateTime @updatedAt
   atendimentos Atendimento[]
+  bolaCheckins     BolaCheckin[]
+  bolaAtendimentos BolaAtendimento[]
 
   @@index([unidadeSlug, ativo])
 }
@@ -863,6 +865,8 @@ model Divergencia {
   tratadaPorNome  String?
   justificativa   String?
   tratadaEm       DateTime?
+  aprovadaPorNome String?              // aprovação da justificativa por DONA (proprietário)
+  aprovadaEm      DateTime?            // justificada mas SEM aprovadaEm = aguardando aprovação (vermelho)
   reprocessadaEm  DateTime?
   criadaEm        DateTime  @default(now())
   atualizadaEm    DateTime  @updatedAt
@@ -886,6 +890,55 @@ model ConciliacaoDia {
   atualizadoEm        DateTime  @updatedAt
 
   @@unique([unidadeId, data])
+}
+
+// ─── Conciliação de ATENDIMENTOS (Parte 2 — eixo do serviço) ─────────────────────
+// A Parte 1 (MovimentacaoBelle) olha o dinheiro que ENTROU. A Parte 2 olha o serviço
+// que SAIU: todo atendimento "Atendido" precisa de justificativa (financeira OU não).
+// Pega o que a Parte 1 não vê: sessão de plano, voucher local, e cortesia/desconto
+// 100% sem autorização. Fontes: Report 7 (universo, chave [0] ID + Plano inline) +
+// Report 2421 "Descontos Aplicados" (classificador via coluna Origem Desconto).
+// Uma linha por atendimento. Idempotente por (unidadeId, belleAtendId).
+model AtendimentoConc {
+  id           Int      @id @default(autoincrement())
+  unidadeId    Int
+  belleAtendId String              // Report 7 [0] ID (mesmo ID que abre a Descrição do 2421/2422)
+  data         String              // Report 7 [1] "YYYY-MM-DD"
+  horario      String?             // [2]
+  clienteNome  String              // [3]
+  clienteId    String?             // ID do cliente Belle (via Report 241130472) — chave p/ cruzar MovimentacaoBelle
+  servico      String?             // [6]
+  tempo        Int?                // [7] (min)
+  profissional String?             // [8]
+  planoId      String?             // [9] ID do plano (null quando 0 = sem plano)
+  tipo         String?             // [11]
+  statusAtend  String              // [12] "Atendido" | ...
+  valorBruto   Float    @default(0) // valor do serviço (do Report 2421 quando há linha)
+  // Rateio de cobertura (R$) — quanto de cada justificativa cobriu o atendimento
+  covPlano     Float    @default(0) // coberto por plano/pacote
+  covVoucher   Float    @default(0) // coberto por voucher (local/site — subtipo refinado na F2)
+  covParceria  Float    @default(0) // coberto por parceria (Gympass/TotalPass promo)
+  covCortesia  Float    @default(0) // cortesia (colaborador ou não — regra colaborador na F2)
+  covDesconto  Float    @default(0) // desconto discricionário
+  covFinanceiro Float   @default(0) // pago em dinheiro/cartão/pix (cruzamento Parte 1 — F2)
+  covAberto    Float    @default(0) // não coberto por nada (F2)
+  // Classificação da justificativa (árvore F2 completa; F1 = preliminar Report 7+2421):
+  //   PLANO | VOUCHER | PARCERIA | CORTESIA | DESCONTO | FINANCEIRO |
+  //   A_VERIFICAR_FINANCEIRO (sem plano e sem desconto → provável pago; cruzar Parte 1) |
+  //   SEM_JUSTIFICATIVA (F2, quando nem financeiro cobre)
+  classificacao  String @default("A_VERIFICAR_FINANCEIRO")
+  justificado    Boolean @default(false) // true = justificativa válida (não gera alarme)
+  aniversarioMes Boolean @default(false) // cliente faz aniversário no mês do atendimento (Report 1)
+  origemDesconto String?             // origens brutas do Report 2421 (auditoria; várias juntadas por " | ")
+  divergenciaId  Int?                // se virou divergência (cortesia/desconto/sem-just), aponta pra Divergencia
+  importadoEm    DateTime @default(now())
+  atualizadoEm   DateTime @updatedAt
+
+  @@unique([unidadeId, belleAtendId])
+  @@index([unidadeId, data])
+  @@index([unidadeId, data, classificacao])
+  @@index([unidadeId, classificacao])
+  @@index([unidadeId, clienteId, data])
 }
 
 // ─── NF Salão Parceiro (controle fiscal) ────────────────────────────────────────
@@ -964,4 +1017,49 @@ model RpsSequencia {
   unidadeId    Int      @unique
   proximoRps   Int      @default(1)
   atualizadoEm DateTime @updatedAt
+}
+
+// ─── CONTROLE DA BOLA (rodízio de terapeutas) ────────────────────────────────
+// A ÚNICA coisa que não existe no Belle: a fila de chegada ("Cheguei") e os
+// atendimentos que a bola mandou. Turno, preferencial, sala, duração e gênero
+// (Tipo Obs) vêm do Belle ao vivo. Motor em src/lib/bola/motor.ts.
+
+// Check-in do terapeuta no dia (o "Cheguei"). A hora define a ordem de chegada.
+model BolaCheckin {
+  id           Int       @id @default(autoincrement())
+  unidadeSlug  String
+  terapeutaId  Int
+  terapeuta    Terapeuta @relation(fields: [terapeutaId], references: [id])
+  data         String                       // "YYYY-MM-DD" (fuso America/Sao_Paulo)
+  chegadaEm    DateTime  @default(now())     // define a ordem da bola
+  // ATIVO | ENCERRADO (saiu / fim do turno)
+  status       String    @default("ATIVO")
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+
+  @@unique([unidadeSlug, terapeutaId, data]) // 1 check-in por terapeuta/dia
+  @@index([unidadeSlug, data, status])
+}
+
+// Atendimento que a BOLA passou para a terapeuta — fonte de "ocupado" e "rodadas".
+// (NÃO confundir com o modelo Atendimento, que vem do Belle para comissão.)
+model BolaAtendimento {
+  id            Int       @id @default(autoincrement())
+  unidadeSlug   String
+  terapeutaId   Int
+  terapeuta     Terapeuta @relation(fields: [terapeutaId], references: [id])
+  data          String                      // "YYYY-MM-DD"
+  clienteNome   String?
+  servicoNome   String?
+  servicoCod    Int?
+  duracaoMin    Int
+  salaNome      String?                     // sala que veio do Belle
+  preferencial  Boolean   @default(false)   // atendimento de cliente verde
+  belleAgendaId String?                     // cod_consulta do Belle, se houver
+  inicioEm      DateTime  @default(now())    // quando a bola passou (= início)
+  fimPrevistoEm DateTime                     // inicioEm + duracaoMin
+  criadoEm      DateTime  @default(now())
+
+  @@index([unidadeSlug, data])
+  @@index([terapeutaId, data])
 }

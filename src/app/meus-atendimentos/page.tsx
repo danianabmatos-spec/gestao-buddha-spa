@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Loader2, CheckCircle2, XCircle, Camera, ClipboardList, Leaf, Moon, Zap,
-  ThumbsUp, MessageSquareWarning, LogOut, CalendarDays,
+  ThumbsUp, MessageSquareWarning, LogOut, CalendarDays, Hand, Clock, Wallet, FileText,
 } from 'lucide-react'
 
 // ─── Catálogo do bloquinho (espelha o papel de Recomendação) ────────────────────
@@ -95,6 +95,8 @@ export default function MeusAtendimentosPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-5 sm:px-6">
+        {resp?.terapeuta && <CheckinBola />}
+        {resp?.terapeuta && <MinhaComissao />}
         {resp?.terapeuta && (
           <p className="text-sm text-[#392617]/70 mb-1">Atendimentos de {mesLongo(resp.ref)}</p>
         )}
@@ -121,6 +123,133 @@ export default function MeusAtendimentosPage() {
           </div>
         )}
       </main>
+    </div>
+  )
+}
+
+// ─── Check-in da bola ("Cheguei") ───────────────────────────────────────────────
+// A ação diária da terapeuta: marca presença e entra na fila do rodízio. Substitui
+// o caderno da recepção. Turno/preferencial/sala vêm do Belle; aqui só a chegada.
+function horaSP(iso: string | null): string {
+  if (!iso) return ''
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
+}
+
+function CheckinBola() {
+  const [carregando, setCarregando] = useState(true)
+  const [marcando, setMarcando] = useState(false)
+  const [naFila, setNaFila] = useState(false)
+  const [posicao, setPosicao] = useState<number | null>(null)
+  const [total, setTotal] = useState(0)
+  const [chegada, setChegada] = useState<string | null>(null)
+
+  const buscar = useCallback(async () => {
+    try {
+      const r = await fetch('/api/bola/meu-checkin', { cache: 'no-store' })
+      const j = await r.json()
+      if (j.terapeuta) { setNaFila(!!j.checkedIn); setPosicao(j.posicao); setTotal(j.totalNaFila); setChegada(j.chegadaEm) }
+    } finally { setCarregando(false) }
+  }, [])
+
+  useEffect(() => { const t = setTimeout(buscar, 0); return () => clearTimeout(t) }, [buscar])
+
+  async function cheguei() {
+    setMarcando(true)
+    try {
+      const r = await fetch('/api/bola/checkin', { method: 'POST' })
+      const j = await r.json()
+      if (r.ok) { setNaFila(true); setPosicao(j.posicao); setTotal(j.totalNaFila); setChegada(j.chegadaEm) }
+    } finally { setMarcando(false) }
+  }
+
+  if (carregando) return <div className="h-[76px] mb-4 rounded-2xl bg-white/60 border border-[#DDC7A4] animate-pulse" />
+
+  if (naFila) {
+    return (
+      <div className="mb-4 rounded-2xl border border-[#425F1D]/40 bg-[#425F1D]/[0.08] px-4 py-3.5 flex items-center gap-3">
+        <div className="shrink-0 w-10 h-10 rounded-full bg-[#425F1D] text-white flex items-center justify-center">
+          <CheckCircle2 size={22} />
+        </div>
+        <div className="flex-1">
+          <p className="text-[15px] font-bold text-[#2f4a15]">Você está na bola</p>
+          <p className="text-[13px] text-[#392617]/70 inline-flex items-center gap-1.5">
+            {posicao != null && <span><strong>{posicao}ª</strong> de {total} na fila</span>}
+            {chegada && <span className="inline-flex items-center gap-1"><Clock size={12} /> desde {horaSP(chegada)}</span>}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mb-4 rounded-2xl border border-[#DDC7A4] bg-white px-4 py-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[15px] font-bold text-[#392617]">Chegou na unidade?</p>
+          <p className="text-[13px] text-[#392617]/65">Toque para entrar na fila da bola de hoje.</p>
+        </div>
+        <button onClick={cheguei} disabled={marcando}
+          className="shrink-0 inline-flex items-center gap-2 text-sm font-semibold text-white bg-[#7E0000] hover:bg-[#5c0000] disabled:opacity-60 rounded-xl px-5 py-3 shadow-sm">
+          {marcando ? <Loader2 size={18} className="animate-spin" /> : <Hand size={18} />} Cheguei
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Minha comissão (read-only, lida da Folha) ───────────────────────────────────
+// A terapeuta vê "quanto vou receber" sem abrir o Folha. Fonte: /api/minha-comissao,
+// que lê ao vivo a integração da Folha. Bruto por ora; líquido quando enriquecermos.
+function MinhaComissao() {
+  const [carregando, setCarregando] = useState(true)
+  const [d, setD] = useState<{
+    disponivel: boolean; encontrada?: boolean; comissaoBruta?: number
+    nfEmitida?: boolean; nfNumero?: string | null; ano?: number; mes?: number; motivo?: string
+  } | null>(null)
+
+  const buscar = useCallback(async () => {
+    try {
+      const r = await fetch('/api/minha-comissao', { cache: 'no-store' })
+      const j = await r.json()
+      if (j.terapeuta) setD(j)
+    } finally { setCarregando(false) }
+  }, [])
+  useEffect(() => { const t = setTimeout(buscar, 0); return () => clearTimeout(t) }, [buscar])
+
+  if (carregando) return <div className="h-[64px] mb-4 rounded-2xl bg-white/60 border border-[#DDC7A4] animate-pulse" />
+  if (!d) return null
+
+  const meses = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+  const ref = d.mes ? `${meses[d.mes]}/${d.ano}` : 'do mês'
+  const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  if (!d.disponivel || !d.encontrada) {
+    return (
+      <div className="mb-4 rounded-2xl border border-[#DDC7A4] bg-white px-4 py-3 flex items-center gap-2.5 text-[13px] text-[#392617]/60">
+        <Wallet size={16} className="text-[#7E0000]/60" />
+        <span>Comissão de {ref}: {d.motivo || 'indisponível no momento'}.</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mb-4 rounded-2xl border border-[#D78B18]/40 bg-[#D78B18]/[0.07] px-4 py-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="shrink-0 w-9 h-9 rounded-full bg-[#D78B18] text-white flex items-center justify-center"><Wallet size={18} /></div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-[#9a6410] font-bold">Minha comissão · {ref}</p>
+            <p className="text-[18px] font-bold text-[#7E0000] leading-tight">
+              {brl(d.comissaoBruta || 0)} <span className="text-[11px] font-medium text-[#392617]/55">(bruto)</span>
+            </p>
+          </div>
+        </div>
+        <div className="text-right text-[12px]">
+          {d.nfEmitida
+            ? <span className="inline-flex items-center gap-1 text-[#425F1D] font-semibold"><FileText size={13} /> NF nº {d.nfNumero}</span>
+            : <span className="inline-flex items-center gap-1 text-[#9a6410] font-semibold"><FileText size={13} /> NF a emitir</span>}
+        </div>
+      </div>
     </div>
   )
 }

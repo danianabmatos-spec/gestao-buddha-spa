@@ -12,6 +12,12 @@ import { conciliarVouchersUnidade } from '@/lib/conciliacao/motor'
 
 interface VoucherWP { codigo?: string; dataTerapia?: string; dataVenda?: string; valorReembolso?: number; produto?: string }
 
+// Extrai o ID do cliente de "14574000 - Nathalia…" (Report 2422 col Cliente).
+function parseClienteId(cli: string | undefined | null): string | null {
+  const m = String(cli ?? '').match(/^(\d+)\s*-/)
+  return m ? m[1] : null
+}
+
 // Normaliza "2026-06-01T…" ou "01/06/2026" → "YYYY-MM-DD".
 function toISO(s: string | undefined | null): string {
   const t = String(s ?? '').trim()
@@ -62,13 +68,14 @@ export async function ingerirVouchers(
       where: { unidadeId_belleMovId: { unidadeId, belleMovId: `VCH-${v.idVenda}` } },
       create: {
         unidadeId, belleMovId: `VCH-${v.idVenda}`, vendaRef: codigo, data,
-        clienteNome: v.cliente || '', servico: v.descricao || null, tipoVenda: 'Voucher - Usado',
+        clienteNome: v.cliente || '', clienteId: parseClienteId(v.cliente),
+        servico: v.descricao || null, tipoVenda: 'Voucher - Usado',
         formaPagamento: 'Voucher', valorBruto: v.valorFinal || 0, valorLiquido: v.valorFinal || 0,
         statusConcil: 'PENDENTE',
       },
       update: {
-        vendaRef: codigo, data, clienteNome: v.cliente || '', servico: v.descricao || null,
-        valorBruto: v.valorFinal || 0, valorLiquido: v.valorFinal || 0,
+        vendaRef: codigo, data, clienteNome: v.cliente || '', clienteId: parseClienteId(v.cliente),
+        servico: v.descricao || null, valorBruto: v.valorFinal || 0, valorLiquido: v.valorFinal || 0,
       },
     })
     gravadosUsados++

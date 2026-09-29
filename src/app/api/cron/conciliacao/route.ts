@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUnidadesDisponiveis } from '@/lib/belle/unidades-config'
 import { ingerirMovimentacoes } from '@/lib/conciliacao/ingestao-belle'
 import { ingerirVouchers } from '@/lib/conciliacao/ingestao-vouchers'
+import { ingerirAtendimentos } from '@/lib/conciliacao/ingestao-atendimentos'
 
 // ─── CRON · Conciliação diária ──────────────────────────────────────────────────
 // Acionado pelo cron da VPS (fora do login). Autentica por CRON_SECRET
@@ -40,7 +41,12 @@ async function runConciliacao(slugs: string[], dataIni: string, dataFim: string)
       try { vch = (await ingerirVouchers(slug, dataIni, dataFim)).usados } catch (ev) {
         console.error(`[cron-conciliacao] vouchers ${slug}:`, ev instanceof Error ? ev.message : ev)
       }
-      console.log(`[cron-conciliacao] ${slug}: ${r.gravadas} movimentações + ${vch} vouchers (${dataIni}→${dataFim})`)
+      // Parte 2 — conciliação de atendimentos (+ regra de colaborador via roster do RH).
+      let atd = 0
+      try { atd = (await ingerirAtendimentos(slug, dataIni, dataFim)).gravados } catch (ea) {
+        console.error(`[cron-conciliacao] atendimentos ${slug}:`, ea instanceof Error ? ea.message : ea)
+      }
+      console.log(`[cron-conciliacao] ${slug}: ${r.gravadas} movimentações + ${vch} vouchers + ${atd} atendimentos (${dataIni}→${dataFim})`)
     } catch (err) {
       console.error(`[cron-conciliacao] ${slug}: erro —`, err instanceof Error ? err.message : String(err))
     } finally {

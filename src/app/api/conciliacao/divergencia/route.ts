@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession, unauthorized, unidadesPermitidas } from '@/lib/auth/guard'
 import { prisma } from '@/lib/prisma'
 import { conciliarDia, conciliarVouchersUnidade } from '@/lib/conciliacao/motor'
+import { conciliarAtendimentosDia, aplicarRegraColaborador } from '@/lib/conciliacao/motor-atendimentos'
 
 export const dynamic = 'force-dynamic'
 
-type Acao = 'em_tratamento' | 'justificar' | 'ignorar' | 'reprocessar'
+type Acao = 'em_tratamento' | 'justificar' | 'ignorar' | 'reprocessar' | 'aprovar' | 'reprovar'
+
+// Divergências do eixo de ATENDIMENTOS (Parte 2) — reprocessam pelo motor de atendimentos.
+const TIPOS_ATENDIMENTO = ['ATENDIMENTO_SEM_JUSTIFICATIVA', 'CORTESIA', 'DESCONTO']
 
 /**
  * POST /api/conciliacao/divergencia
@@ -24,9 +28,10 @@ export async function POST(request: NextRequest) {
     const acao = body?.acao as Acao
     const justificativa: string | undefined = body?.justificativa?.trim() || undefined
 
-    if (!id || !['em_tratamento', 'justificar', 'ignorar', 'reprocessar'].includes(acao)) {
+    if (!id || !['em_tratamento', 'justificar', 'ignorar', 'reprocessar', 'aprovar', 'reprovar'].includes(acao)) {
       return NextResponse.json({ error: 'Parâmetros inválidos (id, acao)' }, { status: 400 })
     }
+    const ehDona = session.perfil === 'DONA'
 
     const div = await prisma.divergencia.findUnique({ where: { id } })
     if (!div) return NextResponse.json({ error: 'Divergência não encontrada' }, { status: 404 })
@@ -48,14 +53,37 @@ export async function POST(request: NextRequest) {
       if (acao === 'justificar' && !justificativa) {
         return NextResponse.json({ error: 'Justificativa é obrigatória' }, { status: 400 })
       }
+      // Justificativa da equipe fica AGUARDANDO APROVAÇÃO (aprovadaEm null). Se quem
+      // justifica já é DONA (proprietário), aprova na hora. "Ignorar" não precisa aprovar.
+      const auto = ehDona || acao === 'ignorar'
       await prisma.divergencia.update({
         where: { id },
-        data: { status: acao === 'justificar' ? 'JUSTIFICADA' : 'IGNORADA', justificativa, ...quem },
+        data: {
+          status: acao === 'justificar' ? 'JUSTIFICADA' : 'IGNORADA', justificativa, ...quem,
+          aprovadaPorNome: auto ? session.nome : null,
+          aprovadaEm: auto ? new Date() : null,
+        },
       })
+    } else if (acao === 'aprovar' || acao === 'reprovar') {
+      // Só DONA aprova/reprova a justificativa da equipe.
+      if (!ehDona) return NextResponse.json({ error: 'Só a dona/dono pode aprovar ou reprovar justificativas' }, { status: 403 })
+      if (acao === 'aprovar') {
+        await prisma.divergencia.update({ where: { id }, data: { aprovadaPorNome: session.nome, aprovadaEm: new Date() } })
+      } else {
+        // Reprova: reabre a divergência (limpa justificativa e aprovação).
+        await prisma.divergencia.update({
+          where: { id },
+          data: { status: 'ABERTA', justificativa: null, tratadaPorId: null, tratadaPorNome: null, tratadaEm: null, aprovadaPorNome: null, aprovadaEm: null },
+        })
+      }
     } else if (acao === 'reprocessar') {
       // Re-roda o motor: se a ponta já corrigiu no Belle/caixa, concilia sozinho.
-      // Voucher casa por código na unidade inteira (cross-mês); o resto é por dia.
-      if (div.formaPagamento === 'Voucher') {
+      if (TIPOS_ATENDIMENTO.includes(div.tipo)) {
+        // Eixo de atendimentos: re-classifica o dia + reaplica a regra de colaborador do mês.
+        await conciliarAtendimentosDia(div.unidadeId, div.data)
+        await aplicarRegraColaborador(div.unidadeId, div.data.slice(0, 7))
+      } else if (div.formaPagamento === 'Voucher') {
+        // Voucher casa por código na unidade inteira (cross-mês).
         await conciliarVouchersUnidade(div.unidadeId)
       } else {
         await conciliarDia(div.unidadeId, div.data)

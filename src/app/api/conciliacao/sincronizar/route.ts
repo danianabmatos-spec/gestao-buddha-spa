@@ -3,6 +3,7 @@ import { getSession, unauthorized, unidadesPermitidas, resolveUnidade } from '@/
 import { getUnidadesDisponiveis, getUnidadeCredenciais } from '@/lib/belle/unidades-config'
 import { ingerirMovimentacoes } from '@/lib/conciliacao/ingestao-belle'
 import { ingerirVouchers } from '@/lib/conciliacao/ingestao-vouchers'
+import { ingerirAtendimentos } from '@/lib/conciliacao/ingestao-atendimentos'
 
 export const maxDuration = 300
 
@@ -70,7 +71,15 @@ export async function POST(request: NextRequest) {
           } catch (ev) {
             console.error(`[Conciliação] vouchers ${slug}:`, ev instanceof Error ? ev.message : ev)
           }
-          return { unidade: slug, ok: true, ...r, vouchers }
+          // Parte 2 — conciliação de atendimentos (isolado: falha aqui não derruba o resto).
+          let atendimentos: { gravados: number; distribuicao: Record<string, number> } | null = null
+          try {
+            const a = await ingerirAtendimentos(slug, dataIni, dataFim)
+            atendimentos = { gravados: a.gravados, distribuicao: a.distribuicao }
+          } catch (ea) {
+            console.error(`[Conciliação] atendimentos ${slug}:`, ea instanceof Error ? ea.message : ea)
+          }
+          return { unidade: slug, ok: true, ...r, vouchers, atendimentos }
         } catch (e) {
           return { unidade: slug, ok: false, erro: e instanceof Error ? e.message : 'Erro na ingestão' }
         }

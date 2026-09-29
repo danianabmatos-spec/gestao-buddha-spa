@@ -2,20 +2,23 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import { RefreshCw, RotateCw, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getUnidadeNome } from '@/lib/belle/unidades-config'
+import { DescontosCortesias } from '@/components/conciliacao/descontos-cortesias'
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────────
 interface Celula { status: 'ok' | 'divergente' | 'pendente' | 'vazio'; diferenca: number; qtdDivergencias: number; total: number }
 interface DiaGrade { dia: string; diaNum: number; celulas: Record<string, Celula>; total: number }
-interface MesData { ano: number; mes: number; colunas: string[]; dias: DiaGrade[]; totaisDivergencias: Record<string, number> }
+interface DivergenciaMes { id: number; data: string; diaNum: number; tipo: string; formaPagamento: string | null; coluna: string | null; diferenca: number; descricao: string | null }
+interface MesData { ano: number; mes: number; colunas: string[]; colAtend: string; dias: DiaGrade[]; totaisDivergencias: Record<string, number>; divergencias: DivergenciaMes[] }
 
 interface Divergencia {
   id: number; data: string; tipo: string; formaPagamento: string | null
   valorEsperado: number; valorEncontrado: number; diferenca: number
   status: string; justificativa: string | null; tratadaPorNome: string | null
-  codigo?: string | null; cliente?: string | null; servico?: string | null
+  codigo?: string | null; cliente?: string | null; servico?: string | null; descricao?: string | null; sugestaoAjuste?: string | null
 }
 interface Resumo { totalBelle: number; totalConciliado: number; qtdMovimentacoes: number; qtdAbertas: number; status: string }
 interface Caixa { fundoAbertura: number | null; valorFechamento: number | null; saidas: number }
@@ -31,8 +34,9 @@ const TIPO_LABEL: Record<string, string> = {
   SOBRA_NO_BELLE: 'Lançamento sem pagamento',
   SEM_CHECKIN: 'Check-in de parceiro faltando',
   SEM_VALIDACAO: 'Voucher usado sem validação (reembolso em risco)',
-  DESCONTO: 'Desconto dado',
+  DESCONTO: 'Desconto discricionário',
   CORTESIA: 'Cortesia sem autorização',
+  ATENDIMENTO_SEM_JUSTIFICATIVA: 'Atendimento sem justificativa',
 }
 
 function hoje() {
@@ -42,9 +46,10 @@ function hoje() {
 
 // ─── Célula da tabela do mês ────────────────────────────────────────────────────
 function CelulaMes({ cel, onClick }: { cel: Celula; onClick: () => void }) {
-  if (cel.status === 'vazio') return <td className="px-3 py-2 text-center text-muted-foreground/30">·</td>
-  if (cel.status === 'ok') return <td className="px-3 py-2 text-center text-[#425F1D]">✓</td>
-  if (cel.status === 'pendente') return <td className="px-3 py-2 text-center text-muted-foreground/60 text-xs">pend.</td>
+  if (cel.status === 'vazio') return <td className="px-2 py-1.5 text-center text-muted-foreground/30">·</td>
+  // Dia bateu → bolinha verde (o dia passou, conciliado).
+  if (cel.status === 'ok') return <td className="px-2 py-1.5 text-center"><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#425F1D]" title="Conciliado" /></td>
+  if (cel.status === 'pendente') return <td className="px-2 py-1.5 text-center text-muted-foreground/60 text-[11px]">pend.</td>
   // divergente — mostra o valor da diferença, ou a quantidade quando não há valor (ex.: voucher)
   const rotulo = Math.abs(cel.diferenca) < 0.01 ? `${cel.qtdDivergencias}×` : brl(cel.diferenca)
   return (
@@ -58,6 +63,7 @@ function CelulaMes({ cel, onClick }: { cel: Celula; onClick: () => void }) {
   )
 }
 
+// ─── Quadro lateral: todas as divergências abertas do mês ────────────────────────
 export default function ConciliacaoPage() {
   const params = useParams()
   const unidadeSlug = params.unidade as string
@@ -69,6 +75,7 @@ export default function ConciliacaoPage() {
   const [carregandoMes, setCarregandoMes] = useState(false)
   const [sincronizando, setSincronizando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [reloadDC, setReloadDC] = useState(0) // recarrega a lista de descontos/cortesias após sincronizar
 
   // detalhe do dia
   const [data, setData] = useState(hoje().dia)
@@ -112,6 +119,7 @@ export default function ConciliacaoPage() {
       const j = await r.json()
       if (!r.ok || j.error) { setErro(j.error || 'Erro ao sincronizar'); return }
       await carregarMes()
+      setReloadDC((n) => n + 1)
     } catch { setErro('Falha ao sincronizar') } finally { setSincronizando(false) }
   }, [unidadeSlug, ano, mes, carregarMes])
 
@@ -145,12 +153,16 @@ export default function ConciliacaoPage() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-5">
+    <div className={`${modo === 'mes' ? 'max-w-7xl' : 'max-w-4xl'} mx-auto p-6 space-y-5`}>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-[#7E0000]">Conciliação Financeira</h1>
           <p className="text-sm text-muted-foreground">{getUnidadeNome(unidadeSlug)}</p>
         </div>
+        <Link href={`/dashboard/${unidadeSlug}/conciliacao/atendimentos`}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[#7E0000]/30 text-[#7E0000] hover:bg-[#7E0000]/5 px-3 py-1.5 text-sm font-medium transition-colors">
+          Atendimentos <ChevronRight size={15} />
+        </Link>
       </div>
 
       {erro && <div className="bg-[#7E0000]/8 border border-[#7E0000]/20 text-[#7E0000] rounded-lg px-4 py-3 text-sm">{erro}</div>}
@@ -175,48 +187,56 @@ export default function ConciliacaoPage() {
             </div>
           </div>
 
-          {/* Tabela do mês */}
-          <div className="rounded-lg border bg-white overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-[#E4E5E2]/40 text-xs text-muted-foreground">
-                  <th className="px-3 py-2 text-left font-semibold">Dia</th>
-                  {(mesData?.colunas ?? ['Dinheiro', 'Cartão', 'Pix', 'TotalPass', 'Gympass', 'Voucher']).map((c) => (
-                    <th key={c} className="px-3 py-2 text-center font-semibold">{c}</th>
-                  ))}
-                  <th className="px-3 py-2 text-right font-semibold">Total do dia</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mesData?.dias.map((d) => {
-                  const temDiv = mesData.colunas.some((c) => d.celulas[c].status === 'divergente')
-                  return (
-                    <tr key={d.dia} className="border-b last:border-0 hover:bg-[#E4E5E2]/20">
-                      <td className="px-3 py-2">
-                        <button onClick={() => abrirDia(d.dia)}
-                          className={`font-medium ${temDiv ? 'text-[#7E0000]' : 'text-foreground'} hover:underline`}>
-                          {String(d.diaNum).padStart(2, '0')}
-                        </button>
-                      </td>
-                      {mesData.colunas.map((c) => (
-                        <CelulaMes key={c} cel={d.celulas[c]} onClick={() => abrirDia(d.dia)} />
-                      ))}
-                      <td className="px-3 py-2 text-right font-medium text-foreground whitespace-nowrap">{brl(d.total)}</td>
-                    </tr>
-                  )
-                })}
-                {mesData && mesData.dias.length === 0 && (
-                  <tr><td colSpan={8} className="px-3 py-6 text-center text-sm text-muted-foreground">
-                    Nenhum movimento neste mês. Clique em “Sincronizar o mês”.
-                  </td></tr>
-                )}
-              </tbody>
-            </table>
+          {/* Grade do mês (esquerda) + descontos e cortesias (direita) na mesma tela */}
+          <div className="flex flex-col lg:flex-row gap-4 items-start">
+            {/* Grade do mês */}
+            <div className="rounded-lg border bg-white overflow-x-auto w-full lg:w-auto shrink-0">
+              <table className="text-sm w-full">
+                <thead>
+                  <tr className="border-b bg-[#E4E5E2]/40 text-[11px] text-muted-foreground">
+                    <th className="px-2 py-1.5 text-left font-semibold">Dia</th>
+                    {(mesData?.colunas ?? ['Dinheiro', 'Cartão', 'Pix', 'TotalPass', 'Gympass', 'Voucher']).map((c) => (
+                      <th key={c} className="px-2 py-1.5 text-center font-semibold whitespace-nowrap">{c}</th>
+                    ))}
+                    <th className="px-2 py-1.5 text-right font-semibold whitespace-nowrap">Total do dia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mesData?.dias.map((d) => {
+                    const temDiv = mesData.colunas.some((c) => d.celulas[c].status === 'divergente')
+                    return (
+                      <tr key={d.dia} className="border-b last:border-0 hover:bg-[#E4E5E2]/20 text-[13px]">
+                        <td className="px-2 py-1.5">
+                          <button onClick={() => abrirDia(d.dia)}
+                            className={`font-medium ${temDiv ? 'text-[#7E0000]' : 'text-foreground'} hover:underline`}>
+                            {String(d.diaNum).padStart(2, '0')}
+                          </button>
+                        </td>
+                        {mesData.colunas.map((c) => (
+                          <CelulaMes key={c} cel={d.celulas[c]} onClick={() => abrirDia(d.dia)} />
+                        ))}
+                        <td className="px-2 py-1.5 text-right font-medium text-foreground whitespace-nowrap">{brl(d.total)}</td>
+                      </tr>
+                    )
+                  })}
+                  {mesData && mesData.dias.length === 0 && (
+                    <tr><td colSpan={9} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                      Nenhum movimento neste mês. Clique em “Sincronizar o mês”.
+                    </td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Descontos e cortesias do mês (com justificativa) */}
+            <div className="w-full lg:flex-1 min-w-0">
+              <DescontosCortesias unidadeSlug={unidadeSlug} ano={ano} mes={mes} reloadKey={reloadDC} />
+            </div>
           </div>
 
           {/* Legenda */}
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-            <span><span className="text-[#425F1D]">✓</span> conciliado</span>
+            <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#425F1D] align-middle" /> conciliado</span>
             <span>🔴 divergência (clique para corrigir)</span>
             <span><span className="text-muted-foreground/60">pend.</span> aguardando dados da operadora/banco</span>
             <span><span className="text-muted-foreground/30">·</span> sem movimento</span>
@@ -314,6 +334,9 @@ function DiaView(props: {
           {abertas.map((d) => (
             <div key={d.id} className="rounded-lg border border-[#7E0000]/20 bg-[#7E0000]/[0.03] p-3">
               <p className="text-sm font-medium text-foreground">{TIPO_LABEL[d.tipo] ?? d.tipo}</p>
+              {d.descricao && (
+                <p className="text-xs text-foreground">{d.descricao}</p>
+              )}
               {d.codigo && (
                 <p className="text-xs text-foreground">
                   Código: <b className="font-mono">{d.codigo}</b>
@@ -324,6 +347,11 @@ function DiaView(props: {
               {Math.abs(d.diferenca) >= 0.01 && (
                 <p className="text-xs text-muted-foreground">
                   {d.formaPagamento} · Belle {brl(d.valorEsperado)} vs real {brl(d.valorEncontrado)} · <b className="text-[#7E0000]">dif {brl(d.diferenca)}</b>
+                </p>
+              )}
+              {d.sugestaoAjuste && (
+                <p className="mt-1.5 text-xs bg-[#D78B18]/12 text-[#7a5200] rounded px-2 py-1.5">
+                  💡 <b>Justificativa sugerida:</b> {d.sugestaoAjuste} <span className="text-[#7a5200]/70">(clique em Justificar — já vem preenchida)</span>
                 </p>
               )}
               {justificandoId === d.id ? (
@@ -340,7 +368,7 @@ function DiaView(props: {
                     <RotateCw size={13} className={acaoId === d.id ? 'animate-spin' : ''} /> Reprocessar
                   </Button>
                   {d.status === 'ABERTA' && <Button size="sm" variant="ghost" disabled={acaoId === d.id} onClick={() => tratar(d.id, 'em_tratamento')}>Marcar em tratamento</Button>}
-                  <Button size="sm" variant="ghost" disabled={acaoId === d.id} onClick={() => { setJustificandoId(d.id); setTextoJust('') }}>Justificar</Button>
+                  <Button size="sm" variant="ghost" disabled={acaoId === d.id} onClick={() => { setJustificandoId(d.id); setTextoJust(d.sugestaoAjuste ?? '') }}>Justificar</Button>
                 </div>
               )}
             </div>
