@@ -5,6 +5,7 @@ import { getFaturamentoMensal, getVendasRecepcao } from '@/lib/belle/bi'
 import { getNPSRelatorio } from '@/lib/belle/relatorio-nps'
 import { getCaixaDiario } from '@/lib/belle/caixa-diario'
 import { getVoucherReembolso } from '@/lib/reembolso/voucher-unidade'
+import { getSession, unauthorized, resolveUnidade, unidadesPermitidas } from '@/lib/auth/guard'
 import { format, startOfMonth } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
@@ -54,8 +55,11 @@ async function atualizar(unidade: string, dataIni: string, dataFim: string) {
 // GET — serve do CACHE (instantâneo). Só calcula ao vivo se ainda não houver cache.
 export async function GET(req: NextRequest) {
   try {
+    const session = await getSession()
+    if (!session) return unauthorized()
     const { searchParams } = req.nextUrl
-    const unidade = searchParams.get('unidade')
+    // Multi-tenant: clampa a unidade ao escopo da sessão (impede IDOR — ver outra unidade).
+    const unidade = resolveUnidade(session, searchParams.get('unidade'))
     const dataIni = searchParams.get('dataIni')
     const dataFim = searchParams.get('dataFim')
     if (!unidade || !dataIni || !dataFim) {
@@ -80,15 +84,20 @@ export async function GET(req: NextRequest) {
 // Sem unidade = refresca as 7 (usado pelo cron). Sem datas = mês atual até hoje.
 export async function POST(req: NextRequest) {
   try {
+    const session = await getSession()
+    if (!session) return unauthorized()
     const { searchParams } = req.nextUrl
     const hoje = new Date()
     const dataIni = searchParams.get('dataIni') || format(startOfMonth(hoje), 'yyyy-MM-dd')
     const dataFim = searchParams.get('dataFim') || format(hoje, 'yyyy-MM-dd')
     const unidadeParam = searchParams.get('unidade')
 
+    // Multi-tenant: quem não é escopo total só refresca as próprias unidades.
+    const permitidas = unidadesPermitidas(session) // null = todas (DONA/FINANCEIRO/RH)
+    const TODAS = ['higienopolis', 'perdizes', 'analia-franco', 'shopping-analia-franco', 'mooca-plaza', 'shopping-metropole', 'tatuape-gomescardim']
     const unidades = unidadeParam
-      ? [unidadeParam]
-      : ['higienopolis', 'perdizes', 'analia-franco', 'shopping-analia-franco', 'mooca-plaza', 'shopping-metropole', 'tatuape-gomescardim']
+      ? [resolveUnidade(session, unidadeParam)].filter((u): u is string => !!u)
+      : (permitidas ?? TODAS)
 
     const resultados: Record<string, string> = {}
     for (const u of unidades) {

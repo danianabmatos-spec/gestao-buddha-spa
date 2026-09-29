@@ -3,11 +3,22 @@ import { prisma } from '@/lib/prisma'
 import { verificarSenha } from '@/lib/auth/password'
 import { signSession, COOKIE_NAME, COOKIE_MAX_AGE, type Perfil } from '@/lib/auth/session'
 import { getPermissoesDoPerfil, getEscopoDoPerfil } from '@/lib/permissoes/store'
+import { checkRateLimit, registerFail, registerSuccess, clientIp } from '@/lib/auth/rate-limit'
 
 export async function POST(req: NextRequest) {
   const { email, senha } = await req.json().catch(() => ({}))
   if (!email || !senha) {
     return NextResponse.json({ error: 'Informe e-mail e senha' }, { status: 400 })
+  }
+
+  // Trava de força bruta: limita tentativas falhas por IP + e-mail.
+  const rlKey = `${clientIp(req)}:${String(email).toLowerCase().trim()}`
+  const rl = checkRateLimit(rlKey)
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'Muitas tentativas. Tente novamente em alguns minutos.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 900) } },
+    )
   }
 
   const usuario = await prisma.usuario.findUnique({
@@ -16,13 +27,18 @@ export async function POST(req: NextRequest) {
   })
 
   // Mensagem genérica — não revela se o e-mail existe
-  const invalido = () =>
-    NextResponse.json({ error: 'E-mail ou senha inválidos' }, { status: 401 })
+  const invalido = () => {
+    registerFail(rlKey)
+    return NextResponse.json({ error: 'E-mail ou senha inválidos' }, { status: 401 })
+  }
 
   if (!usuario || !usuario.ativo) return invalido()
 
   const ok = await verificarSenha(String(senha), usuario.senha)
   if (!ok) return invalido()
+
+  // Sucesso: zera o contador de tentativas desta chave.
+  registerSuccess(rlKey)
 
   const perfil: Perfil =
     usuario.perfil === 'DONA' ? 'DONA'

@@ -189,12 +189,25 @@ export const config = {
     '/api/radar-geral/:path*',
     '/api/dashboard-unidade',
     '/api/dashboard-unidade/:path*',
-    '/api/belle/terapeutas',
+    // Rotas de LEITURA sensível (faturamento, agenda, NPS, vendas, reviews):
+    // exigem login. Antes ficavam fora do matcher e sem guarda → dados
+    // financeiros das 7 unidades acessíveis sem autenticação. Nenhuma delas é
+    // chamada por cron/robô (o robô de voucher usa /api/cron/* com CRON_SECRET);
+    // todas partem do navegador com cookie de sessão.
+    '/api/belle/:path*',
+    '/api/vendas-recepcao',
+    '/api/vendas-recepcao/:path*',
+    '/api/metas-realizado',
+    '/api/metas-realizado/:path*',
+    '/api/google/reviews',
+    '/api/google/reviews/:path*',
     '/api/terapeutas/:path*',
     '/api/metas',
     '/api/metas/:path*',
     // NÃO incluir /api/tarefas-do-dia nem /api/erp/tarefas: são endpoints
     // servidor-a-servidor da Central (auth por Bearer/chave própria, sem cookie).
     // Passá-los pelo proxy de sessão os quebrava com 401.
+    // NÃO incluir /api/vouchers/*: o relay do WordPress (buddhaspa.com.br) chama
+    // cross-origin (sem cookie). Serão protegidos por chave própria num passo à parte.
   ],
 }
