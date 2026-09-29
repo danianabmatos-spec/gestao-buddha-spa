@@ -204,10 +204,15 @@ export const config = {
     '/api/terapeutas/:path*',
     '/api/metas',
     '/api/metas/:path*',
+    // Rotas de voucher (leitura E escrita): exigem login. Os callers reais são
+    // páginas do próprio gestão (mesma origem → cookie enviado); o robô autônomo
+    // grava por /api/cron/vouchers-wp (CRON_SECRET) + lib, NÃO por estas rotas; e
+    // a extensão do WordPress usa /api/reembolso/pull, não estas. Logs de ~31h de
+    // produção: 0 chamadas cross-origin a /api/vouchers/*. Antes ficavam abertas →
+    // qualquer anônimo podia envenenar o cache financeiro de voucher/reembolso.
+    '/api/vouchers/:path*',
     // NÃO incluir /api/tarefas-do-dia nem /api/erp/tarefas: são endpoints
     // servidor-a-servidor da Central (auth por Bearer/chave própria, sem cookie).
     // Passá-los pelo proxy de sessão os quebrava com 401.
-    // NÃO incluir /api/vouchers/*: o relay do WordPress (buddhaspa.com.br) chama
-    // cross-origin (sem cookie). Serão protegidos por chave própria num passo à parte.
   ],
 }
