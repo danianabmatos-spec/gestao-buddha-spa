@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { getUnidadeCredenciais } from '@/lib/belle/unidades-config'
 import { carregarBelleBola } from './belle'
 import { casarNome } from '@/lib/belle/matching'
 import { hojeBrasilia } from './dados'
@@ -20,9 +21,6 @@ export interface Prontidao {
 }
 
 export async function diagnosticoProntidao(unidadeSlug: string): Promise<Prontidao> {
-  const unidade = await prisma.unidade.findUnique({ where: { slug: unidadeSlug } })
-  if (!unidade) throw new Error(`Unidade não encontrada: ${unidadeSlug}`)
-
   const cadastradas = await prisma.terapeuta.findMany({
     where: { unidadeSlug, ativo: true },
     select: { id: true, nome: true, nomeBelle: true, usuarioId: true },
@@ -32,13 +30,9 @@ export async function diagnosticoProntidao(unidadeSlug: string): Promise<Prontid
   let belleOk = true
   let belleErro: string | undefined
   try {
-    if (!unidade.belleEmail || !unidade.bellePassword) throw new Error('sem credenciais Belle cadastradas')
-    const belle = await carregarBelleBola(
-      unidade.belleEmail,
-      unidade.bellePassword,
-      unidade.belleEstabId,
-      hojeBrasilia()
-    )
+    const cred = getUnidadeCredenciais(unidadeSlug)
+    if (!cred) throw new Error('sem credenciais Belle (env/config)')
+    const belle = await carregarBelleBola(cred.email, cred.password, cred.estab, hojeBrasilia())
     belleTerapeutas = belle.profissionais
       .filter((p) => p.cod_profissional !== 'Banho' && !/banho de imers/i.test(p.nome_profiss || p.nome || ''))
       .map((p) => ({ cod: String(p.cod_profissional), nome: (p.nome_profiss || p.nome || '').trim() }))

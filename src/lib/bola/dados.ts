@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { getUnidadeCredenciais } from '@/lib/belle/unidades-config'
 import { carregarBelleBola, type BolaAgendamentoRaw } from './belle'
 import {
   computarEstado,
@@ -70,15 +71,11 @@ export async function montarEstadoBola(
   const data = opts?.data ?? hojeBrasilia()
   const agoraMin = opts?.agoraMin ?? minutosAgoraSP()
 
-  const unidade = await prisma.unidade.findUnique({ where: { slug: unidadeSlug } })
-  if (!unidade) throw new Error(`Unidade não encontrada: ${unidadeSlug}`)
+  // Credenciais Belle pela MESMA fonte do resto do app (env/config), não da tabela Unidade.
+  const cred = getUnidadeCredenciais(unidadeSlug)
+  if (!cred) throw new Error(`Unidade sem credenciais Belle: ${unidadeSlug}`)
 
-  const belle = await carregarBelleBola(
-    unidade.belleEmail,
-    unidade.bellePassword,
-    unidade.belleEstabId,
-    data
-  )
+  const belle = await carregarBelleBola(cred.email, cred.password, cred.estab, data)
 
   // roster do Belle (exclui recurso "Banho"); gênero = cadastro futuro (default F)
   const profs = belle.profissionais.filter((p) => p.cod_profissional !== 'Banho')
