@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { getAgendamentos } from '@/lib/belle/client'
+import { maybeDecrypt } from '@/lib/auth/crypto'
 import { format, eachDayOfInterval, parseISO } from 'date-fns'
 import type { BelleAgendamento } from '@/lib/belle/types'
 
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
         const dataStr = format(dia, 'yyyy-MM-dd')
         const agendamentos = await getAgendamentos(
           unidade.email,
-          unidade.senha,
+          maybeDecrypt(unidade.senha),
           dataStr,
           unidade.estab
         )

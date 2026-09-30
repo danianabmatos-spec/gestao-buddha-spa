@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { getFaturamentoMensal } from '@/lib/belle/bi'
+import { maybeDecrypt } from '@/lib/auth/crypto'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 
 const UNIDADES: Record<string, { email: string; senha: string; estab: string }> = {
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
   try {
     const resultado = await getFaturamentoMensal(
       unidade.email,
-      unidade.senha,
+      maybeDecrypt(unidade.senha),
       unidade.estab,
       dataIni,
       dataFim

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getNPSRelatorio } from '@/lib/belle/relatorio-nps'
+import { maybeDecrypt } from '@/lib/auth/crypto'
 
 const UNIDADES: Record<string, { email: string; senha: string; estab: number }> = {
   'shopping-metropole': {
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest) {
 
     const npsData = await getNPSRelatorio(
       unidade.email,
-      unidade.senha,
+      maybeDecrypt(unidade.senha),
       dataIni,
       dataFim,
       unidade.estab

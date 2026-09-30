@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from '@/lib/belle/client-auth'
+import { maybeDecrypt } from '@/lib/auth/crypto'
 
 const BASE_URL = 'https://app.bellesoftware.com.br/api/release/controller'
 
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unidade não encontrada' }, { status: 404 })
     }
 
-    const token = await getToken(config.email, config.senha)
+    const token = await getToken(config.email, maybeDecrypt(config.senha))
 
     // Endpoint para listar relatórios disponíveis
     const url = `${BASE_URL}/BI/v1.0/report/list?estabGeral=${config.estab}`

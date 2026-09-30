@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { getAgendamentos } from '@/lib/belle/client'
 import { processarAgendamentos } from '@/lib/belle/agregacoes'
+import { maybeDecrypt } from '@/lib/auth/crypto'
 import { format } from 'date-fns'
 
 const UNIDADES = [
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const agendamentos = await getAgendamentos(unidade.email, unidade.senha, dataParam, unidade.estab)
+    const agendamentos = await getAgendamentos(unidade.email, maybeDecrypt(unidade.senha), dataParam, unidade.estab)
     const resultado = processarAgendamentos(agendamentos, dataParam, unidade.nome)
     return Response.json(resultado)
   } catch (err) {
