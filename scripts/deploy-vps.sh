@@ -50,7 +50,9 @@ $SSH "$VPS" "cd $APP && \
   echo '   integração LeadFlow configurada (OFF)'"
 
 echo "▶ 5/9  npm install + prisma + tabelas (rotinas + programa de recomendação) + build…"
-$SSH "$VPS" "cd $APP && npm install --no-audit --no-fund && npx prisma generate && \
+# FILA GLOBAL: o build entra atrás de qualquer outro deploy em andamento na VPS
+# (mesmo cadeado do deploy.sh git). Evita dois `next build` simultâneos.
+$SSH "$VPS" "flock /var/lock/buddha-deploy.lock bash -lc 'cd $APP && npm install --no-audit --no-fund && npx prisma generate && \
   DATABASE_URL=file:$APP/dev.db node scripts/criar-tabela-templates.mjs && \
   DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-rotinas.mjs && \
   DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-recomendacao.mjs && \
@@ -61,7 +63,7 @@ $SSH "$VPS" "cd $APP && npm install --no-audit --no-fund && npx prisma generate 
   DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-nf-salao.mjs && \
   DATABASE_URL=file:$APP/dev.db node scripts/criar-tabelas-parcerias-historico.mjs && \
   DATABASE_URL=file:$APP/dev.db node scripts/alterar-usuario-primeiro-acesso.mjs && \
-  npm run build"
+  npm run build'"
 
 echo "▶ 6/9  Semeando usuários/unidades (idempotente)…"
 $SSH "$VPS" "cd $APP && node scripts/seed-usuarios.mjs"

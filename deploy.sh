@@ -17,6 +17,21 @@ APP="$(pwd)"
 DBURL="file:$APP/dev.db"
 BRANCH="clean-main"
 
+# ── FILA GLOBAL DE DEPLOY (um deploy por vez em TODA a VPS) ────────────────────
+# Dois `next build` simultâneos (ex.: gestão + buddha-rh) brigam pelos 2 vCPU e
+# corrompem o .next um do outro (erro ENOENT _buildManifest → o app CAI). Este
+# cadeado põe os deploys em FILA: o segundo ESPERA o primeiro terminar e só então
+# entra. Todos os apps usam o MESMO arquivo de lock. flock solta o cadeado sozinho
+# no fim, no kill ou no crash — nunca fica travado. (Requer o mesmo bloco no
+# deploy.sh de cada app: gestão, buddha-rh, folha, etc.)
+DEPLOY_LOCK="/var/lock/buddha-deploy.lock"
+if [ -z "${_BUDDHA_DEPLOY_LOCKED:-}" ] && command -v flock >/dev/null 2>&1; then
+  export _BUDDHA_DEPLOY_LOCKED=1
+  echo ">> aguardando a vez na FILA de deploy (cadeado global $DEPLOY_LOCK)..."
+  exec flock "$DEPLOY_LOCK" bash "$0" "$@"
+fi
+echo ">> [fila] cadeado adquirido — deploy exclusivo nesta VPS."
+
 echo ">> git pull --ff-only ($BRANCH)"
 git pull --ff-only origin "$BRANCH"
 
