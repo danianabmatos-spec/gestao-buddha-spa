@@ -26,6 +26,24 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
+  // Exceção: chamadas SERVIDOR-A-SERVIDOR do Radar Geral. computarRadar() faz
+  // fetch nos próprios endpoints de leitura do Belle/Google (sem cookie, pois
+  // roda no servidor) e anexa o CRON_SECRET no header. O hardening (f3b7bfc)
+  // pôs /api/belle/* e /api/google/* atrás de login sem prever essas chamadas
+  // internas → o Radar passou a receber 401 e todas as unidades viravam 'erro'.
+  // Liberamos SÓ os endpoints de leitura (e o próprio radar, p/ cron/refresh)
+  // quando o header casa com o CRON_SECRET.
+  const cronKey = req.headers.get('x-cron-secret')
+  if (cronKey && process.env.CRON_SECRET && cronKey === process.env.CRON_SECRET) {
+    if (
+      pathname.startsWith('/api/belle/') ||
+      pathname.startsWith('/api/google/') ||
+      pathname.startsWith('/api/radar-geral')
+    ) {
+      return NextResponse.next()
+    }
+  }
+
   const token = req.cookies.get(COOKIE_NAME)?.value
   const session = token ? await verifySession(token) : null
 

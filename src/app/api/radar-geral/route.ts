@@ -146,20 +146,26 @@ async function buscarDadosUnidade(
   if (unidadesAtivas.includes(unidadeSlug)) {
     try {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3002'
+      // Estas chamadas são servidor-a-servidor (sem cookie). O proxy protege
+      // /api/belle/* e /api/google/* com login; passamos o CRON_SECRET no header
+      // pra o proxy liberar a chamada interna (ver exceção em src/proxy.ts).
+      const internalHeaders: Record<string, string> = process.env.CRON_SECRET
+        ? { 'x-cron-secret': process.env.CRON_SECRET }
+        : {}
 
       // Busca dados em paralelo
       const [faturamentoRes, npsRes, googleRes, vendasRes] = await Promise.all([
         fetch(`${baseUrl}/api/belle/faturamento?unidade=${unidadeSlug}&dataIni=${dataIni}&dataFim=${dataFim}`, {
-          cache: 'no-store'
+          cache: 'no-store', headers: internalHeaders
         }),
         fetch(`${baseUrl}/api/belle/nps?unidade=${unidadeSlug}&dataIni=${dataIni}&dataFim=${dataFim}`, {
-          cache: 'no-store'
+          cache: 'no-store', headers: internalHeaders
         }),
         fetch(`${baseUrl}/api/google/reviews?unidade=${unidadeSlug}`, {
-          cache: 'no-store'
+          cache: 'no-store', headers: internalHeaders
         }),
         fetch(`${baseUrl}/api/belle/vendas-recepcao?unidade=${unidadeSlug}&dataIni=${dataIni}&dataFim=${dataFim}`, {
-          cache: 'no-store'
+          cache: 'no-store', headers: internalHeaders
         })
       ])
 
