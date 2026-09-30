@@ -18,6 +18,14 @@ export async function proxy(req: NextRequest) {
     }
   }
 
+  // Exceção: a extensão do WordPress faz POST cross-origin (sem cookie) em
+  // /api/reembolso/pull. A própria rota trata CORS e valida ano/mês/unidade + o
+  // "mês fechado". O hardening (f3b7bfc) pegou essa rota por engano via
+  // /api/reembolso/:path* → 401 quebrava o relay da extensão. Liberamos só ela.
+  if (pathname === '/api/reembolso/pull') {
+    return NextResponse.next()
+  }
+
   const token = req.cookies.get(COOKIE_NAME)?.value
   const session = token ? await verifySession(token) : null
 
