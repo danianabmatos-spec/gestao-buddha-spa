@@ -19,6 +19,7 @@ await db.execute(`
     "horas" REAL NOT NULL DEFAULT 0,
     "gympass" REAL NOT NULL DEFAULT 0,
     "totalpass" REAL NOT NULL DEFAULT 0,
+    "voucherOnline" REAL NOT NULL DEFAULT 0,
     "atualizadoEm" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   )
 `)
@@ -27,7 +28,7 @@ await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS "FaturamentoHistorico_unidad
 // Adiciona colunas em bancos que já tinham a tabela sem elas
 const info = await db.execute(`PRAGMA table_info("FaturamentoHistorico")`)
 const cols = new Set(info.rows.map(r => r.name))
-for (const col of ['gympass', 'totalpass']) {
+for (const col of ['gympass', 'totalpass', 'voucherOnline']) {
   if (!cols.has(col)) {
     await db.execute(`ALTER TABLE "FaturamentoHistorico" ADD COLUMN "${col}" REAL NOT NULL DEFAULT 0`)
     console.log(`✔ coluna ${col} adicionada`)

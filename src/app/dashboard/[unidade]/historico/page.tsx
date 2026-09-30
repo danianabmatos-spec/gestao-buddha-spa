@@ -636,7 +636,7 @@ export default async function HistoricoPage({ params }: Props) {
   // do Belle) — não há base hardcoded. Só meses com valor > 0 entram no gráfico/tabela.
   const parceriaRows = await prisma.faturamentoHistorico.findMany({
     where: { unidadeSlug: unidade },
-    select: { ano: true, mes: true, gympass: true, totalpass: true },
+    select: { ano: true, mes: true, gympass: true, totalpass: true, voucherOnline: true },
   })
   const nomesMesesP = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
   const gympassHist = parceriaRows
@@ -645,6 +645,9 @@ export default async function HistoricoPage({ params }: Props) {
   const totalpassHist = parceriaRows
     .filter(r => r.totalpass > 0)
     .map(r => ({ mes: nomesMesesP[r.mes - 1], ano: r.ano, valor: r.totalpass }))
+  const voucherOnlineHist = parceriaRows
+    .filter(r => r.voucherOnline > 0)
+    .map(r => ({ mes: nomesMesesP[r.mes - 1], ano: r.ano, valor: r.voucherOnline }))
 
   // Transformar dados em formato pivotado (meses x anos) - CAIXA
   const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
@@ -907,6 +910,9 @@ export default async function HistoricoPage({ params }: Props) {
 
       {/* TotalPass — gráfico + tabela ao longo dos anos (dados do Belle) */}
       <HistoricoSecaoValor titulo="TotalPass (R$)" historico={totalpassHist} />
+
+      {/* Vouchers Online (site/WordPress) — gráfico + tabela ao longo dos anos */}
+      <HistoricoSecaoValor titulo="Vouchers Online (R$)" historico={voucherOnlineHist} />
     </div>
   )
 }

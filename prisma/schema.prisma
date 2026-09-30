@@ -568,9 +568,10 @@ model FaturamentoHistorico {
   mes          Int      // 1..12
   caixa        Float    @default(0)
   horas        Float    @default(0)
-  gympass      Float    @default(0)
-  totalpass    Float    @default(0)
-  atualizadoEm DateTime @updatedAt
+  gympass       Float    @default(0)
+  totalpass     Float    @default(0)
+  voucherOnline Float    @default(0)
+  atualizadoEm  DateTime @updatedAt
 
   @@unique([unidadeSlug, ano, mes])
 }
