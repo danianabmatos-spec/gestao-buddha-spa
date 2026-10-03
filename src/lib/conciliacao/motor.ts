@@ -21,6 +21,10 @@ const ORIGEM_TOTALPASS = 'TOTALPASS'
 const ORIGEM_GYMPASS = 'GYMPASS'
 const FORMA_VOUCHER = 'Voucher'
 const ORIGEM_VOUCHER = 'VOUCHER_SITE'
+// Pix DIRETO (QR/chave) cai direto na conta → casa com o extrato do banco. "PIX Máquina"
+// (maquininha) liquida pela adquirente (cartão), NÃO entra aqui.
+const FORMAS_PIX = ['PIX']
+const ORIGEM_PIX = 'BANCO_PIX'
 const STATUS_ABERTOS = ['ABERTA', 'EM_TRATAMENTO', 'REPROCESSADA'] as const
 
 export interface AvaliacaoDinheiro {
@@ -280,6 +284,13 @@ async function manterDivergenciaLigada(d: {
   }
 }
 
+/** Pix (banco): casa Belle (forma 'PIX') × extrato do banco (FonteExterna BANCO_PIX), mão
+ * dupla. Belle sem par no banco = SOBRA_NO_BELLE (lançou mas não caiu); banco sem par no
+ * Belle = FALTA_NO_BELLE (caiu mas não lançou). Match por valor+dia. */
+export function conciliarPixDia(unidadeId: number, data: string): Promise<ResultadoMatchDia> {
+  return conciliarPorMatch(unidadeId, data, { formas: FORMAS_PIX, origem: ORIGEM_PIX, tipoBelleSemPar: 'SOBRA_NO_BELLE' })
+}
+
 /** Parceiro (TotalPass/Gympass): casa Belle × check-ins da plataforma. Sem check-in = SEM_CHECKIN. */
 export function conciliarParceiroDia(
   unidadeId: number, data: string, forma: string, origem: string,
@@ -373,6 +384,7 @@ export async function conciliarVouchersUnidade(unidadeId: number): Promise<Resul
 export async function conciliarDia(unidadeId: number, data: string): Promise<void> {
   await conciliarDinheiroDia(unidadeId, data)
   await conciliarCartaoDia(unidadeId, data)
+  await conciliarPixDia(unidadeId, data)
   await conciliarParceiroDia(unidadeId, data, FORMA_TOTALPASS, ORIGEM_TOTALPASS)
   await conciliarParceiroDia(unidadeId, data, FORMA_GYMPASS, ORIGEM_GYMPASS)
   // Voucher NÃO é por dia: casa por código na unidade inteira (cross-mês) —

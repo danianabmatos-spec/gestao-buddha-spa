@@ -76,6 +76,8 @@ export default function ConciliacaoPage() {
   const [sincronizando, setSincronizando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [reloadDC, setReloadDC] = useState(0) // recarrega a lista de descontos/cortesias após sincronizar
+  const [importando, setImportando] = useState(false)
+  const [importMsg, setImportMsg] = useState<string | null>(null)
 
   // detalhe do dia
   const [data, setData] = useState(hoje().dia)
@@ -122,6 +124,21 @@ export default function ConciliacaoPage() {
       setReloadDC((n) => n + 1)
     } catch { setErro('Falha ao sincronizar') } finally { setSincronizando(false) }
   }, [unidadeSlug, ano, mes, carregarMes])
+
+  const importarOFX = async (file: File) => {
+    setImportando(true); setErro(null); setImportMsg(null)
+    try {
+      const texto = await file.text()
+      const r = await fetch('/api/conciliacao/importar-ofx', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unidade: unidadeSlug, ofx: texto }),
+      })
+      const j = await r.json()
+      if (!r.ok || j.error) { setErro(j.error || 'Erro ao importar OFX'); return }
+      setImportMsg(`Extrato importado: ${j.pixRecebidos} Pix recebidos (de ${j.lidas} lançamentos). Conciliação atualizada.`)
+      await carregarMes(); setReloadDC((n) => n + 1)
+    } catch { setErro('Falha ao ler o arquivo OFX') } finally { setImportando(false) }
+  }
 
   // ─── Dia (detalhe) ──────────────────────────────────────────────────────────────
   const carregarDia = useCallback(async (d: string) => {
@@ -184,8 +201,14 @@ export default function ConciliacaoPage() {
               <Button onClick={carregarMes} disabled={carregandoMes} variant="ghost" size="sm" className="gap-1.5 text-[#7E0000]">
                 <RotateCw size={13} className={carregandoMes ? 'animate-spin' : ''} /> Atualizar
               </Button>
+              <label className={`inline-flex items-center gap-1.5 rounded-md border border-[#7E0000]/30 text-[#7E0000] hover:bg-[#7E0000]/5 px-3 py-1.5 text-sm font-medium cursor-pointer transition-colors ${importando ? 'opacity-60 pointer-events-none' : ''}`}>
+                {importando ? 'Importando…' : 'Importar extrato (OFX)'}
+                <input type="file" accept=".ofx,.OFX,text/plain" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) importarOFX(f); e.currentTarget.value = '' }} />
+              </label>
             </div>
           </div>
+          {importMsg && <div className="rounded-lg border border-[#425F1D]/30 bg-[#425F1D]/8 text-[#2f4414] px-4 py-2 text-sm">{importMsg}</div>}
 
           {/* Grade do mês (esquerda) + descontos e cortesias (direita) na mesma tela */}
           <div className="flex flex-col lg:flex-row gap-4 items-start">
