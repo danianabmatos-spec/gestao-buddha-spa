@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { RefreshCw, RotateCw, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react'
+import { RefreshCw, RotateCw, CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, ArrowLeft, ListTree } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getUnidadeNome } from '@/lib/belle/unidades-config'
 import { DescontosCortesias } from '@/components/conciliacao/descontos-cortesias'
@@ -86,6 +86,10 @@ export default function ConciliacaoPage() {
   const [justificandoId, setJustificandoId] = useState<number | null>(null)
   const [textoJust, setTextoJust] = useState('')
   const [acaoId, setAcaoId] = useState<number | null>(null)
+  // classificar entrada do banco (Pix não-cliente) numa conta da DRE
+  const [contasReceber, setContasReceber] = useState<{ id: number; nome: string }[]>([])
+  const [classificandoId, setClassificandoId] = useState<number | null>(null)
+  const [contaSel, setContaSel] = useState<string>('')
 
   // ─── Mês ──────────────────────────────────────────────────────────────────────
   const carregarMes = useCallback(async () => {
@@ -99,6 +103,13 @@ export default function ConciliacaoPage() {
   }, [unidadeSlug, ano, mes])
 
   useEffect(() => { if (modo === 'mes') carregarMes() }, [modo, carregarMes])
+
+  // Contas "A Receber" do plano de contas (p/ classificar entradas do banco na DRE).
+  useEffect(() => {
+    fetch('/api/plano-contas').then(r => r.ok ? r.json() : null).then(j => {
+      if (j?.contas) setContasReceber(j.contas.filter((c: { tipo: string }) => c.tipo === 'A Receber'))
+    }).catch(() => {})
+  }, [])
 
   const mudarMes = (delta: number) => {
     let m = mes + delta, a = ano
@@ -154,16 +165,17 @@ export default function ConciliacaoPage() {
   const abrirDia = (d: string) => { setData(d); setModo('dia'); carregarDia(d) }
   const voltarAoMes = () => { setModo('mes'); setDia(null) }
 
-  const tratar = useCallback(async (id: number, acao: string, justificativa?: string) => {
+  const tratar = useCallback(async (id: number, acao: string, justificativa?: string, extra?: Record<string, unknown>) => {
     setAcaoId(id); setErro(null)
     try {
       const r = await fetch('/api/conciliacao/divergencia', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, acao, justificativa }),
+        body: JSON.stringify({ id, acao, justificativa, ...extra }),
       })
       const j = await r.json()
       if (!r.ok || j.error) { setErro(j.error || 'Erro ao tratar'); return }
       setJustificandoId(null); setTextoJust('')
+      setClassificandoId(null); setContaSel('')
       await carregarDia(data)
     } finally { setAcaoId(null) }
   }, [carregarDia, data])
@@ -283,6 +295,9 @@ export default function ConciliacaoPage() {
           tratar={tratar} acaoId={acaoId}
           justificandoId={justificandoId} setJustificandoId={setJustificandoId}
           textoJust={textoJust} setTextoJust={setTextoJust}
+          contasReceber={contasReceber}
+          classificandoId={classificandoId} setClassificandoId={setClassificandoId}
+          contaSel={contaSel} setContaSel={setContaSel}
         />
       )}
     </div>
@@ -293,11 +308,15 @@ export default function ConciliacaoPage() {
 function DiaView(props: {
   data: string; dia: DiaDetalhe | null; carregando: boolean
   onVoltar: () => void; onSincronizar: () => void; sincronizando: boolean
-  tratar: (id: number, acao: string, j?: string) => void; acaoId: number | null
+  tratar: (id: number, acao: string, j?: string, extra?: Record<string, unknown>) => void; acaoId: number | null
   justificandoId: number | null; setJustificandoId: (n: number | null) => void
   textoJust: string; setTextoJust: (s: string) => void
+  contasReceber: { id: number; nome: string }[]
+  classificandoId: number | null; setClassificandoId: (n: number | null) => void
+  contaSel: string; setContaSel: (s: string) => void
 }) {
-  const { data, dia, onVoltar, onSincronizar, sincronizando, tratar, acaoId, justificandoId, setJustificandoId, textoJust, setTextoJust } = props
+  const { data, dia, onVoltar, onSincronizar, sincronizando, tratar, acaoId, justificandoId, setJustificandoId, textoJust, setTextoJust,
+    contasReceber, classificandoId, setClassificandoId, contaSel, setContaSel } = props
   const abertas = (dia?.divergencias ?? []).filter((d) => ABERTAS.includes(d.status))
   const fechadas = (dia?.divergencias ?? []).filter((d) => !ABERTAS.includes(d.status))
   const [d1, d2, d3] = data.split('-')
@@ -385,8 +404,25 @@ function DiaView(props: {
                     <Button size="sm" variant="ghost" onClick={() => { setJustificandoId(null); setTextoJust('') }}>Cancelar</Button>
                   </div>
                 </div>
+              ) : classificandoId === d.id ? (
+                <div className="mt-2 flex flex-col gap-2">
+                  <p className="text-xs text-muted-foreground">Esta entrada não é de cliente — classifique numa conta pra entrar na DRE:</p>
+                  <div className="flex flex-wrap gap-2">
+                    <select value={contaSel} onChange={(e) => setContaSel(e.target.value)} className="rounded-md border px-2 py-1.5 text-sm min-w-[220px]">
+                      <option value="">Escolha a conta (A Receber)…</option>
+                      {contasReceber.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                    </select>
+                    <Button size="sm" disabled={acaoId === d.id || !contaSel} onClick={() => tratar(d.id, 'classificar', undefined, { planoContaId: Number(contaSel) })} className="bg-[#425F1D] hover:bg-[#344a16] text-white">Classificar</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setClassificandoId(null); setContaSel('') }}>Cancelar</Button>
+                  </div>
+                </div>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
+                  {d.tipo === 'FALTA_NO_BELLE' && d.formaPagamento === 'Pix - Banco' && (
+                    <Button size="sm" disabled={acaoId === d.id} onClick={() => { setClassificandoId(d.id); setContaSel('') }} className="gap-1.5 bg-[#425F1D] hover:bg-[#344a16] text-white">
+                      <ListTree size={13} /> Classificar na DRE
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" disabled={acaoId === d.id} onClick={() => tratar(d.id, 'reprocessar')} className="gap-1.5">
                     <RotateCw size={13} className={acaoId === d.id ? 'animate-spin' : ''} /> Reprocessar
                   </Button>

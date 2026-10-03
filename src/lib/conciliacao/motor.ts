@@ -306,6 +306,9 @@ export async function conciliarPixUnidade(unidadeId: number): Promise<ResultadoM
     where: { unidadeId, formaPagamento: { in: FORMAS_PIX } },
   })).filter((m) => (m.tipoMovimento ?? 'E').toUpperCase() !== 'S')
   const fontes = await prisma.fonteExterna.findMany({ where: { unidadeId, origem: ORIGEM_PIX } })
+  // Entradas já CLASSIFICADAs na DRE (Pix que não é cliente) saem do jogo: não voltam a
+  // casar nem a virar divergência — já foram contabilizadas numa conta do plano de contas.
+  const fontesAtivas = fontes.filter((f) => f.statusMatch !== 'CLASSIFICADA')
 
   const diasAfetados = new Set<string>()
   for (const m of belle) diasAfetados.add(m.data)
@@ -333,7 +336,7 @@ export async function conciliarPixUnidade(unidadeId: number): Promise<ResultadoM
   const fontesCasadas: number[] = []
   for (const m of [...belle].sort((a, b) => a.data.localeCompare(b.data))) {
     let melhor = -1, melhorDiff = Infinity
-    for (const f of fontes) {
+    for (const f of fontesAtivas) {
       if (fonteUsada.has(f.id)) continue
       if (Math.abs(f.valor - m.valorBruto) > TOLERANCIA_CARTAO) continue
       const dd = diasEntre(f.data, m.data)
@@ -360,9 +363,9 @@ export async function conciliarPixUnidade(unidadeId: number): Promise<ResultadoM
     })
   }
 
-  // Banco sem par → FALTA_NO_BELLE (caiu, não lançou).
+  // Banco sem par → FALTA_NO_BELLE (caiu, não lançou). Ignora as já classificadas na DRE.
   let fonteSemPar = 0
-  for (const f of fontes.filter((x) => !fonteUsada.has(x.id))) {
+  for (const f of fontesAtivas.filter((x) => !fonteUsada.has(x.id))) {
     fonteSemPar++
     await prisma.fonteExterna.update({ where: { id: f.id }, data: { statusMatch: 'SEM_PAR' } })
     await manterDivergenciaLigada({
@@ -477,7 +480,7 @@ export async function conciliarDia(unidadeId: number, data: string): Promise<voi
 }
 
 /** Recalcula o resumo ConciliacaoDia de um dia a partir das movs e divergências atuais. */
-async function recalcularResumoDia(unidadeId: number, data: string): Promise<void> {
+export async function recalcularResumoDia(unidadeId: number, data: string): Promise<void> {
   const movs = await prisma.movimentacaoBelle.findMany({ where: { unidadeId, data } })
   const entradas = movs.filter((m) => (m.tipoMovimento ?? 'E').toUpperCase() !== 'S')
   const totalBelle = entradas.reduce((s, m) => s + (m.valorLiquido || 0), 0)

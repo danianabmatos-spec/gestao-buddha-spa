@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession, unauthorized, unidadesPermitidas } from '@/lib/auth/guard'
 import { prisma } from '@/lib/prisma'
-import { conciliarDia, conciliarVouchersUnidade } from '@/lib/conciliacao/motor'
+import { conciliarDia, conciliarVouchersUnidade, recalcularResumoDia } from '@/lib/conciliacao/motor'
 import { conciliarAtendimentosDia, aplicarRegraColaborador } from '@/lib/conciliacao/motor-atendimentos'
 
 export const dynamic = 'force-dynamic'
 
-type Acao = 'em_tratamento' | 'justificar' | 'ignorar' | 'reprocessar' | 'aprovar' | 'reprovar'
+type Acao = 'em_tratamento' | 'justificar' | 'ignorar' | 'reprocessar' | 'aprovar' | 'reprovar' | 'classificar'
 
 // Divergências do eixo de ATENDIMENTOS (Parte 2) — reprocessam pelo motor de atendimentos.
 const TIPOS_ATENDIMENTO = ['ATENDIMENTO_SEM_JUSTIFICATIVA', 'CORTESIA', 'DESCONTO']
@@ -28,10 +28,11 @@ export async function POST(request: NextRequest) {
     const acao = body?.acao as Acao
     const justificativa: string | undefined = body?.justificativa?.trim() || undefined
 
-    if (!id || !['em_tratamento', 'justificar', 'ignorar', 'reprocessar', 'aprovar', 'reprovar'].includes(acao)) {
+    if (!id || !['em_tratamento', 'justificar', 'ignorar', 'reprocessar', 'aprovar', 'reprovar', 'classificar'].includes(acao)) {
       return NextResponse.json({ error: 'Parâmetros inválidos (id, acao)' }, { status: 400 })
     }
     const ehDona = session.perfil === 'DONA'
+    const planoContaId = Number(body?.planoContaId) || null
 
     const div = await prisma.divergencia.findUnique({ where: { id } })
     if (!div) return NextResponse.json({ error: 'Divergência não encontrada' }, { status: 404 })
@@ -76,6 +77,29 @@ export async function POST(request: NextRequest) {
           data: { status: 'ABERTA', justificativa: null, tratadaPorId: null, tratadaPorNome: null, tratadaEm: null, aprovadaPorNome: null, aprovadaEm: null },
         })
       }
+    } else if (acao === 'classificar') {
+      // Classifica uma ENTRADA do banco (Pix que não é cliente) numa conta do plano de
+      // contas → sai do vermelho e passa a alimentar a DRE. Só financeiro/dona.
+      if (!ehDona && session.perfil !== 'FINANCEIRO') {
+        return NextResponse.json({ error: 'Só o financeiro ou a dona/dono pode classificar entradas' }, { status: 403 })
+      }
+      if (div.tipo !== 'FALTA_NO_BELLE' || !div.fonteExternaId) {
+        return NextResponse.json({ error: 'Só entradas do banco (sem par no Belle) podem ser classificadas' }, { status: 400 })
+      }
+      if (!planoContaId) return NextResponse.json({ error: 'Escolha uma conta do plano de contas' }, { status: 400 })
+      const conta = await prisma.planoConta.findUnique({ where: { id: planoContaId } })
+      if (!conta) return NextResponse.json({ error: 'Conta não encontrada' }, { status: 404 })
+
+      await prisma.fonteExterna.update({
+        where: { id: div.fonteExternaId },
+        data: { planoContaId, statusMatch: 'CLASSIFICADA', classificadoEm: new Date(), classificadoPor: session.nome },
+      })
+      // A entrada está contabilizada na DRE → divergência resolvida (guarda a conta no texto).
+      await prisma.divergencia.update({
+        where: { id },
+        data: { status: 'CONCILIADA', justificativa: `Classificado em: ${conta.nome}`, reprocessadaEm: new Date(), ...quem },
+      })
+      await recalcularResumoDia(div.unidadeId, div.data)
     } else if (acao === 'reprocessar') {
       // Re-roda o motor: se a ponta já corrigiu no Belle/caixa, concilia sozinho.
       if (TIPOS_ATENDIMENTO.includes(div.tipo)) {
