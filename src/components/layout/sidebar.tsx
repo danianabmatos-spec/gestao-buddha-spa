@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   HeartHandshake,
   Scale,
+  ListTree,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -39,6 +40,10 @@ const unidadesDisponiveis = [
   { slug: 'tatuape-gomescardim', nome: 'Tatuapé Gomes Cardim' },
   { slug: 'mooca-plaza', nome: 'Mooca Plaza' },
   { slug: 'higienopolis', nome: 'Higienópolis' },
+]
+
+const financeiroItems = [
+  { href: '/plano-contas', label: 'Plano de Contas', icon: ListTree, func: 'plano-contas' },
 ]
 
 const menuOperacional = [
@@ -80,6 +85,7 @@ export function Sidebar() {
   const unidadesVisiveis = unidadesUser == null ? unidadesDisponiveis : unidadesDisponiveis.filter(u => unidadesUser.includes(u.slug))
 
   const execVisiveis = executiveItems.filter(i => pode(i.func))
+  const financVisiveis = financeiroItems.filter(i => pode(i.func))
   const algumaUnidade = FUNCS_UNIDADE.some(pode) && unidadesVisiveis.length > 0
 
   return (
@@ -107,7 +113,24 @@ export function Sidebar() {
           </div>
         )}
 
-        {execVisiveis.length > 0 && algumaUnidade && <div className="h-px bg-[#5c0000] my-4" />}
+        {financVisiveis.length > 0 && (
+          <div className="mb-4">
+            <p className="px-3 mb-2 text-[10px] font-semibold text-[#D78B18] uppercase tracking-wider">Financeiro</p>
+            {financVisiveis.map(({ href, label, icon: Icon }) => {
+              const active = pathname === href || pathname.startsWith(href + '/')
+              return (
+                <Link key={href} href={href}
+                  className={cn('flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                    active ? 'bg-[#D78B18] text-white' : 'text-[#DDC7A4] hover:bg-[#5c0000] hover:text-white')}>
+                  <Icon size={18} strokeWidth={1.8} />
+                  {label}
+                </Link>
+              )
+            })}
+          </div>
+        )}
+
+        {(execVisiveis.length > 0 || financVisiveis.length > 0) && algumaUnidade && <div className="h-px bg-[#5c0000] my-4" />}
 
         {algumaUnidade && (
           <div>

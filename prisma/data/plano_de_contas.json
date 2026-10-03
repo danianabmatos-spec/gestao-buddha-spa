@@ -1,0 +1,926 @@
+[
+ {
+  "nome": "Acessórios Day Spa",
+  "tipo": "A Pagar",
+  "codObrigacao": "100127",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Adiantamento a Fornecedor (FC)",
+  "tipo": "A Pagar",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": "Variavel"
+ },
+ {
+  "nome": "Adiantamento de salário",
+  "tipo": "A Pagar",
+  "codObrigacao": "256",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Adiantamento de Salário (FC)",
+  "tipo": "A Pagar",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": "Variavel"
+ },
+ {
+  "nome": "Agência e Assessoria Imprensa",
+  "tipo": "A Pagar",
+  "codObrigacao": "100127",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Água - Contas de consumo",
+  "tipo": "A Pagar",
+  "codObrigacao": "3115",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Ajustes a Crédito de Cartão",
+  "tipo": "A Receber",
+  "codObrigacao": "100064",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Ajustes a Débito de Cartão",
+  "tipo": "A Pagar",
+  "codObrigacao": "100127",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Alimentação e Mercado",
+  "tipo": "A Pagar",
+  "codObrigacao": "3417",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Aluguel de POS / Outras Taxas",
+  "tipo": "A Pagar",
+  "codObrigacao": "100127",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Aluguel e Condomínio - Custo de Ocupação (Imóvel)",
+  "tipo": "A Pagar",
+  "codObrigacao": "100123",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Anna Pegova",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Anúncios e Divulgação",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Anúncios e Lançamento",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Aplicação",
+  "tipo": "A Pagar",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": "Variavel"
+ },
+ {
+  "nome": "Ar Condicionado, sprinkler etc",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Arquiteto e Projetos",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "ART, Seguro de Obra, caçambas, Andaimes etc",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Ativo imobilizado (Reforma estrutural)",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Balcão, Ambientação, Estantes, Portas, Mesinhas, Aparadores etc",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Banheira Imersão",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Benefícios e planos de saúde",
+  "tipo": "A Pagar",
+  "codObrigacao": "3247",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Benefícios Terapeutas",
+  "tipo": "A Pagar",
+  "codObrigacao": "3328",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Cancelamento e Devolução",
+  "tipo": "A Pagar",
+  "codObrigacao": "159",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Cancelamento e Devolução de compras",
+  "tipo": "A Receber",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Cartão de Crédito",
+  "tipo": "A Pagar",
+  "codObrigacao": "100154",
+  "codProvisao": "",
+  "tipoDespesa": "Variavel"
+ },
+ {
+  "nome": "Cofins",
+  "tipo": "A Pagar",
+  "codObrigacao": "1600",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Comissões de Terapeutas e Garantido",
+  "tipo": "A Pagar",
+  "codObrigacao": "3093",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Comissões de venda",
+  "tipo": "A Pagar",
+  "codObrigacao": "3093",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Compra de Mobiliário e Equipamentos",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Computador Laptop",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "CONSÓRCIO",
+  "tipo": "A Pagar",
+  "codObrigacao": "949",
+  "codProvisao": "",
+  "tipoDespesa": "Variavel"
+ },
+ {
+  "nome": "Contábil - Legal",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Correio e Empresas de transporte ( Uber, Jadlog, Loggi) - Logistica",
+  "tipo": "A Pagar",
+  "codObrigacao": "100611",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Cosméticos",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Cosméticos Linha Cliente",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Cosméticos Profissionais",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "CSLL",
+  "tipo": "A Pagar",
+  "codObrigacao": "1635",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Demolição/Constr/Piso/ Pintura/ Revest/ Gesso/Eletr/Hidr/Vid/Banh/Materias",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Descartáveis",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Descontos sobre Benefícios  (FC)",
+  "tipo": "A Receber",
+  "codObrigacao": "3492",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Descontos sobre Despesas",
+  "tipo": "A Receber",
+  "codObrigacao": "2445",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Descontos sobre Encargos (FC)",
+  "tipo": "A Receber",
+  "codObrigacao": "2445",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Descontos sobre Folha  (FC)",
+  "tipo": "A Receber",
+  "codObrigacao": "2445",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Descontos sobre Receitas",
+  "tipo": "A Pagar",
+  "codObrigacao": "3492",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "despesas com veiculos",
+  "tipo": "A Pagar",
+  "codObrigacao": "100053",
+  "codProvisao": "",
+  "tipoDespesa": "Variavel"
+ },
+ {
+  "nome": "Despesas com Veículos",
+  "tipo": "A Pagar",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "despesas com viagem",
+  "tipo": "A Pagar",
+  "codObrigacao": "3360",
+  "codProvisao": "",
+  "tipoDespesa": "Variavel"
+ },
+ {
+  "nome": "Despesas de Viagens",
+  "tipo": "A Pagar",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Devolução Tarifas Bancárias",
+  "tipo": "A Receber",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Doação",
+  "tipo": "A Pagar",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": "Variavel"
+ },
+ {
+  "nome": "Empréstimos",
+  "tipo": "A Pagar",
+  "codObrigacao": "100092",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Entrada de emprestimo",
+  "tipo": "A Pagar",
+  "codObrigacao": "100092",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Enxoval Geral",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Equipamentos Estéticos",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Estornos e outras despesas financeiras",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Eventos e Ações Pontuais",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Fachada e Logos",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Falta de Caixa",
+  "tipo": "A Pagar",
+  "codObrigacao": "100088",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Férias",
+  "tipo": "A Pagar",
+  "codObrigacao": "1295",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "FGTS",
+  "tipo": "A Pagar",
+  "codObrigacao": "1392",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Financiamentos",
+  "tipo": "A Pagar",
+  "codObrigacao": "100092",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Folha de pagamento (Salário e 13o)",
+  "tipo": "A Pagar",
+  "codObrigacao": "1287",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Frete da Mercadoria Vendida",
+  "tipo": "A Pagar",
+  "codObrigacao": "3239",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Geladeira",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "GPS / INSS",
+  "tipo": "A Pagar",
+  "codObrigacao": "100516",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "ICMS",
+  "tipo": "A Pagar",
+  "codObrigacao": "1597",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Internet - Contas de consumo",
+  "tipo": "A Pagar",
+  "codObrigacao": "3301",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "IOF e anuidade de cartões",
+  "tipo": "A Pagar",
+  "codObrigacao": "100115",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "IPTU - Custo de Ocupação (Imóvel)",
+  "tipo": "A Pagar",
+  "codObrigacao": "3557",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "IRPJ",
+  "tipo": "A Pagar",
+  "codObrigacao": "1490",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "IRRF (FC)",
+  "tipo": "A Pagar",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "ISS",
+  "tipo": "A Pagar",
+  "codObrigacao": "1651",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Juros sobre Despesas",
+  "tipo": "A Pagar",
+  "codObrigacao": "3484",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Juros sobre Receitas",
+  "tipo": "A Receber",
+  "codObrigacao": "2437",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Lavanderia",
+  "tipo": "A Pagar",
+  "codObrigacao": "100127",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Logistica (hospedagem e transporte de pessoas)",
+  "tipo": "A Pagar",
+  "codObrigacao": "3328",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "LUCROS SOCIOS",
+  "tipo": "A Pagar",
+  "codObrigacao": "100075",
+  "codProvisao": "",
+  "tipoDespesa": "Variavel"
+ },
+ {
+  "nome": "Luz - Contas de consumo",
+  "tipo": "A Pagar",
+  "codObrigacao": "3123",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Macas e Colchões/Colchão ayurvédica",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Manobrista",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Manutenções Diversas",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Materiais de construção",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": "Variavel"
+ },
+ {
+  "nome": "Materiais de escritório e gráficos",
+  "tipo": "A Pagar",
+  "codObrigacao": "3166",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Materiais de limpeza",
+  "tipo": "A Pagar",
+  "codObrigacao": "3158",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Materiais de Marketing e Gráficos",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Microondas",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Mobiliário, Decoração e Acessórios de Atendimento",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Multa sobre Despesas",
+  "tipo": "A Pagar",
+  "codObrigacao": "3484",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Multa sobre Receitas",
+  "tipo": "A Receber",
+  "codObrigacao": "2437",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outras Despesas Administrativas",
+  "tipo": "A Pagar",
+  "codObrigacao": "100051",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outras despesas de consumo - Contas de consumo",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outras despesas de Marketing",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outras Despesas de Pessoal",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outras despesas relacionadas a serviços prestados",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outras Receitas Financeiras",
+  "tipo": "A Receber",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outras Taxas Stone",
+  "tipo": "A Pagar",
+  "codObrigacao": "100057",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outros (celular, som, telefone, liquidificador, impressora fiscal etc)",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outros (escada marinheiro, alçapão, limpeza, etc)",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outros (Marcenaria)",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outros (Mobiliário, Decoração, Acessórios e Atendimento)",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outros Acessórios",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outros Custos Terapeutas",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outros Impostos",
+  "tipo": "A Pagar",
+  "codObrigacao": "100051",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Outros Investimentos",
+  "tipo": "A Pagar",
+  "codObrigacao": "100186",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "PIS",
+  "tipo": "A Pagar",
+  "codObrigacao": "1619",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Plataforma de whatsapp",
+  "tipo": "A Pagar",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Plataformas de Marketing",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Pré-Operacionais, Contador, Logística e Custo Imóvel durante Obra",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Produtos Adquiridos para Revenda",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Publicidade",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Recebimento de emprestimo",
+  "tipo": "A Receber",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Receita de serviços",
+  "tipo": "A Receber",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Receita de Venda de produtos",
+  "tipo": "A Receber",
+  "codObrigacao": "159",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Receita de vouchers online",
+  "tipo": "A Receber",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Regulatórios ( Taxas diversas de órgão publicos) - Legal",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Royalties",
+  "tipo": "A Pagar",
+  "codObrigacao": "100223",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Salários",
+  "tipo": "A Pagar",
+  "codObrigacao": "1287",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Seguro Empresa e alarmes - Contas de consumo",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Serviços de Vigilância e Segurança",
+  "tipo": "A Pagar",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Simples Nacional (DAS)",
+  "tipo": "A Pagar",
+  "codObrigacao": "1660",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Sobra de Caixa",
+  "tipo": "A Receber",
+  "codObrigacao": "51",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Software",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Suprimentos/ Produtos",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Tarifas da conta",
+  "tipo": "A Pagar",
+  "codObrigacao": "100057",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Taxa Administrativa de Cartões",
+  "tipo": "A Pagar",
+  "codObrigacao": "100051",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Taxa de Antecipação de Cartões de Crédito",
+  "tipo": "A Pagar",
+  "codObrigacao": "100051",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Taxa de Franquia",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Taxas de Cartões",
+  "tipo": "A Pagar",
+  "codObrigacao": "100051",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Telefones e Celulares - Contas de consumo",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Treinamentos",
+  "tipo": "A Pagar",
+  "codObrigacao": "",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ },
+ {
+  "nome": "Uniformes e Rouparia",
+  "tipo": "A Pagar",
+  "codObrigacao": "100005",
+  "codProvisao": "",
+  "tipoDespesa": ""
+ }
+]

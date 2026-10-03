@@ -44,6 +44,9 @@ export const FUNCIONALIDADES: Funcionalidade[] = [
   { chave: 'reembolso', label: 'Reembolso Vouchers', grupo: 'Visão Executiva', rotas: ['/reembolso', '/api/reembolso'], padrao: p(N, N, E, N, N) },
   { chave: 'nf-salao', label: 'Salão Parceiro (NF)', grupo: 'Visão Executiva', rotas: ['/nf-salao', '/api/nf-salao'], padrao: p(N, N, E, N, N) },
 
+  // ── Financeiro (migrado do app de Estoque) ──
+  { chave: 'plano-contas', label: 'Plano de Contas', grupo: 'Financeiro', rotas: ['/plano-contas', '/api/plano-contas'], padrao: p(N, N, V, N, N) },
+
   // ── Unidade ──
   { chave: 'rotina-do-dia', label: 'Rotina do Dia', grupo: 'Unidade', rotas: ['/rotina-do-dia', '/api/rotinas', '/api/tarefas-do-dia', '/api/erp/tarefas'], padrao: p(E, E, V, N, N) },
   { chave: 'dashboard', label: 'Dashboard da Unidade', grupo: 'Unidade', rotas: ['/dashboard', '/api/dashboard-unidade'], padrao: p(V, V, V, N, N) },
@@ -69,7 +72,7 @@ export const FUNCIONALIDADES: Funcionalidade[] = [
 ]
 
 // Grupos na ordem de exibição.
-export const GRUPOS = ['Visão Executiva', 'Unidade', 'Terapeuta', 'Administração']
+export const GRUPOS = ['Visão Executiva', 'Financeiro', 'Unidade', 'Terapeuta', 'Administração']
 
 // ─── Matching rota → funcionalidade (puro, edge-safe: usado no proxy) ────────────
 

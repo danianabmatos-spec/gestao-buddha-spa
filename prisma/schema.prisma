@@ -839,9 +839,15 @@ model FonteExterna {
   formaPagamento String?   // bandeira / tipo
   descricao      String?
   raw            String?   // JSON bruto da fonte (auditoria)
-  statusMatch    String    @default("PENDENTE")  // PENDENTE | CASADA | SEM_PAR
+  statusMatch    String    @default("PENDENTE")  // PENDENTE | CASADA | SEM_PAR | CLASSIFICADA
   movimentacaoId Int?      // se casou, aponta pra MovimentacaoBelle
   importadoEm    DateTime  @default(now())
+  // Classificação na DRE (F2): entrada que não é cliente (ex.: Pix de aporte/transferência)
+  // recebe uma conta do plano de contas e passa a alimentar a DRE em vez de ficar divergente.
+  planoContaId   Int?
+  planoConta     PlanoConta? @relation(fields: [planoContaId], references: [id])
+  classificadoEm   DateTime?
+  classificadoPor  String?
 
   @@unique([unidadeId, origem, refExterna])
   @@index([unidadeId, data])
@@ -1065,4 +1071,18 @@ model BolaAtendimento {
 
   @@index([unidadeSlug, data])
   @@index([terapeutaId, data])
+}
+
+// ─── Financeiro · Plano de Contas (migrado do app de Estoque) ─────────────────────
+// Catálogo global (compartilhado pelas 7 unidades) de contas contábeis para classificar
+// entradas/saídas e alimentar a DRE. "tipo" = "A Pagar" | "A Receber".
+model PlanoConta {
+  id           Int      @id @default(autoincrement())
+  nome         String   @unique
+  tipo         String   @default("A Pagar")   // "A Pagar" | "A Receber"
+  codObrigacao String   @default("")
+  codProvisao  String   @default("")
+  tipoDespesa  String   @default("")           // "Fixa" | "Variavel" | ""
+  ativa        Boolean  @default(true)
+  fontes       FonteExterna[]
 }
