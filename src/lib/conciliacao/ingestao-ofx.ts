@@ -1,10 +1,12 @@
 import { parseOFX, ehPixRecebido } from '@/lib/conciliacao/ofx'
 import { salvarFontesExternas, type TransacaoExterna } from '@/lib/conciliacao/fontes-externas'
+import { conciliarPixUnidade } from '@/lib/conciliacao/motor'
+import { prisma } from '@/lib/prisma'
 
 // ─── Ingestão de extrato OFX → conciliação de Pix ────────────────────────────────
 // Lê o OFX exportado do banco (Itaú/Santander), separa os Pix RECEBIDOS (crédito),
-// grava como FonteExterna BANCO_PIX e dispara a conciliação mão-dupla contra os "PIX"
-// do Belle (conciliarPixDia dentro de conciliarDia). Idempotente por FITID.
+// grava como FonteExterna BANCO_PIX e dispara a conciliação mão-dupla contra o "PIX Conta
+// Corrente" do Belle (conciliarPixUnidade — janela de ±3 dias). Idempotente por FITID.
 
 export interface ResultadoOFX {
   unidadeSlug: string
@@ -30,6 +32,10 @@ export async function ingerirOFX(unidadeSlug: string, conteudoOFX: string): Prom
   }))
 
   const res = await salvarFontesExternas(unidadeSlug, registros)
+
+  // Pix casa na unidade inteira (janela ±3d), não por dia — roda depois de gravar as fontes.
+  const unidade = await prisma.unidade.findUnique({ where: { slug: unidadeSlug }, select: { id: true } })
+  if (unidade) await conciliarPixUnidade(unidade.id)
 
   const datas = pix.map((t) => t.data).sort()
   return {

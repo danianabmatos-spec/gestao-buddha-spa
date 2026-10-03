@@ -21,9 +21,10 @@ const ORIGEM_TOTALPASS = 'TOTALPASS'
 const ORIGEM_GYMPASS = 'GYMPASS'
 const FORMA_VOUCHER = 'Voucher'
 const ORIGEM_VOUCHER = 'VOUCHER_SITE'
-// Pix DIRETO (QR/chave) cai direto na conta → casa com o extrato do banco. "PIX Máquina"
-// (maquininha) liquida pela adquirente (cartão), NÃO entra aqui.
-const FORMAS_PIX = ['PIX']
+// Pix DIRETO (QR/chave) cai direto na conta → casa com o extrato do banco. No Belle essa
+// forma se chama "PIX Conta Corrente". "PIX Máquina" liquida pela adquirente (Rede) e
+// aparece no banco como "RECEBIMENTO REDE" (cartão), NÃO como Pix — por isso fica de fora.
+const FORMAS_PIX = ['PIX Conta Corrente']
 const ORIGEM_PIX = 'BANCO_PIX'
 const STATUS_ABERTOS = ['ABERTA', 'EM_TRATAMENTO', 'REPROCESSADA'] as const
 
@@ -284,11 +285,95 @@ async function manterDivergenciaLigada(d: {
   }
 }
 
-/** Pix (banco): casa Belle (forma 'PIX') × extrato do banco (FonteExterna BANCO_PIX), mão
- * dupla. Belle sem par no banco = SOBRA_NO_BELLE (lançou mas não caiu); banco sem par no
- * Belle = FALTA_NO_BELLE (caiu mas não lançou). Match por valor+dia. */
-export function conciliarPixDia(unidadeId: number, data: string): Promise<ResultadoMatchDia> {
-  return conciliarPorMatch(unidadeId, data, { formas: FORMAS_PIX, origem: ORIGEM_PIX, tipoBelleSemPar: 'SOBRA_NO_BELLE' })
+// O banco COMPENSA o Pix na data útil seguinte: um Pix recebido sex/sáb/dom "posta" na
+// segunda. O Belle registra na data real do atendimento. Por isso o match não pode ser por
+// dia exato — casamos por valor dentro de uma JANELA de ±3 dias (medido no extrato real:
+// ±0d=65%, ±1d=80%, ±3d=95%, ±5d=98% — ±3 pega o fim de semana sem abrir demais).
+export const JANELA_PIX_DIAS = 3
+const diasEntre = (a: string, b: string) => Math.abs((Date.parse(a) - Date.parse(b)) / 86_400_000)
+
+/**
+ * Pix (banco) × Belle — mão dupla, no escopo da UNIDADE INTEIRA (como voucher), NÃO por dia.
+ * Casa Belle (forma 'PIX Conta Corrente') com o extrato do banco (FonteExterna BANCO_PIX) por
+ * VALOR exato + data mais próxima dentro de ±JANELA_PIX_DIAS (compensação bancária).
+ *   - Belle sem par no banco → SOBRA_NO_BELLE (lançou e não caiu na conta).
+ *   - Banco sem par no Belle → FALTA_NO_BELLE (caiu na conta e não foi lançado).
+ * Sem NENHUM extrato ainda → Belle fica pendente e NÃO flaga (evita alarme falso). Roda pela
+ * ingestão de OFX (ingerirOFX), igual o voucher roda pela ingestão do WordPress.
+ */
+export async function conciliarPixUnidade(unidadeId: number): Promise<ResultadoMatchDia> {
+  const belle = (await prisma.movimentacaoBelle.findMany({
+    where: { unidadeId, formaPagamento: { in: FORMAS_PIX } },
+  })).filter((m) => (m.tipoMovimento ?? 'E').toUpperCase() !== 'S')
+  const fontes = await prisma.fonteExterna.findMany({ where: { unidadeId, origem: ORIGEM_PIX } })
+
+  const diasAfetados = new Set<string>()
+  for (const m of belle) diasAfetados.add(m.data)
+  for (const f of fontes) diasAfetados.add(f.data)
+
+  // Sem extrato → não dá pra afirmar nada: Belle pendente, fecha o que estava aberto.
+  if (fontes.length === 0) {
+    if (belle.length) {
+      await prisma.movimentacaoBelle.updateMany({
+        where: { unidadeId, formaPagamento: { in: FORMAS_PIX } }, data: { statusConcil: 'PENDENTE' },
+      })
+      await prisma.divergencia.updateMany({
+        where: { unidadeId, formaPagamento: { in: FORMAS_PIX }, status: { in: [...STATUS_ABERTOS] } },
+        data: { status: 'CONCILIADA', reprocessadaEm: new Date() },
+      })
+      for (const data of diasAfetados) await recalcularResumoDia(unidadeId, data)
+    }
+    return { temFonte: false, casados: 0, belleSemPar: 0, fonteSemPar: 0 }
+  }
+
+  // Casamento guloso: p/ cada Belle (do mais antigo), pega a fonte de MESMO valor com a data
+  // mais próxima dentro da janela. Cada fonte casa no máximo uma vez.
+  const fonteUsada = new Set<number>()
+  const movCasados: number[] = []
+  const fontesCasadas: number[] = []
+  for (const m of [...belle].sort((a, b) => a.data.localeCompare(b.data))) {
+    let melhor = -1, melhorDiff = Infinity
+    for (const f of fontes) {
+      if (fonteUsada.has(f.id)) continue
+      if (Math.abs(f.valor - m.valorBruto) > TOLERANCIA_CARTAO) continue
+      const dd = diasEntre(f.data, m.data)
+      if (dd <= JANELA_PIX_DIAS && dd < melhorDiff) { melhorDiff = dd; melhor = f.id }
+    }
+    if (melhor >= 0) {
+      fonteUsada.add(melhor); movCasados.push(m.id); fontesCasadas.push(melhor)
+      await prisma.movimentacaoBelle.update({ where: { id: m.id }, data: { statusConcil: 'CONCILIADA' } })
+      await prisma.fonteExterna.update({ where: { id: melhor }, data: { statusMatch: 'CASADA', movimentacaoId: m.id } })
+    }
+  }
+  await fecharDivergenciasLigadas(movCasados, fontesCasadas)
+
+  // Belle sem par → SOBRA_NO_BELLE (lançou, não caiu).
+  const casadosSet = new Set(movCasados)
+  let belleSemPar = 0
+  for (const m of belle.filter((x) => !casadosSet.has(x.id))) {
+    belleSemPar++
+    await prisma.movimentacaoBelle.update({ where: { id: m.id }, data: { statusConcil: 'DIVERGENTE' } })
+    await manterDivergenciaLigada({
+      unidadeId, data: m.data, tipo: 'SOBRA_NO_BELLE', formaPagamento: m.formaPagamento,
+      valorEsperado: m.valorBruto, valorEncontrado: 0, diferenca: Number((-m.valorBruto).toFixed(2)),
+      movimentacaoId: m.id,
+    })
+  }
+
+  // Banco sem par → FALTA_NO_BELLE (caiu, não lançou).
+  let fonteSemPar = 0
+  for (const f of fontes.filter((x) => !fonteUsada.has(x.id))) {
+    fonteSemPar++
+    await prisma.fonteExterna.update({ where: { id: f.id }, data: { statusMatch: 'SEM_PAR' } })
+    await manterDivergenciaLigada({
+      unidadeId, data: f.data, tipo: 'FALTA_NO_BELLE', formaPagamento: f.formaPagamento ?? 'Pix - Banco',
+      valorEsperado: 0, valorEncontrado: f.valor, diferenca: Number(f.valor.toFixed(2)),
+      fonteExternaId: f.id,
+    })
+  }
+
+  for (const data of diasAfetados) await recalcularResumoDia(unidadeId, data)
+  return { temFonte: true, casados: movCasados.length, belleSemPar, fonteSemPar }
 }
 
 /** Parceiro (TotalPass/Gympass): casa Belle × check-ins da plataforma. Sem check-in = SEM_CHECKIN. */
@@ -384,11 +469,10 @@ export async function conciliarVouchersUnidade(unidadeId: number): Promise<Resul
 export async function conciliarDia(unidadeId: number, data: string): Promise<void> {
   await conciliarDinheiroDia(unidadeId, data)
   await conciliarCartaoDia(unidadeId, data)
-  await conciliarPixDia(unidadeId, data)
   await conciliarParceiroDia(unidadeId, data, FORMA_TOTALPASS, ORIGEM_TOTALPASS)
   await conciliarParceiroDia(unidadeId, data, FORMA_GYMPASS, ORIGEM_GYMPASS)
-  // Voucher NÃO é por dia: casa por código na unidade inteira (cross-mês) —
-  // ver conciliarVouchersUnidade(), chamada pela ingestão de voucher.
+  // Pix e Voucher NÃO são por dia: casam na unidade inteira (janela/cross-mês) — ver
+  // conciliarPixUnidade() (ingestão de OFX) e conciliarVouchersUnidade() (ingestão WP).
   await recalcularResumoDia(unidadeId, data)
 }
 
