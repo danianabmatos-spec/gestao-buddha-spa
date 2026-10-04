@@ -31,8 +31,6 @@ import { cn } from '@/lib/utils'
 const executiveItems = [
   { href: '/radar-geral', label: 'Radar Geral', icon: Radar, func: 'radar-geral' },
   { href: '/inteligencia', label: 'Inteligência', icon: BrainCircuit, func: 'inteligencia' },
-  { href: '/reembolso', label: 'Reembolso Vouchers', icon: Ticket, func: 'reembolso' },
-  { href: '/nf-salao', label: 'Salão Parceiro', icon: Scale, func: 'nf-salao' },
 ]
 
 const unidadesDisponiveis = [
@@ -48,6 +46,9 @@ const unidadesDisponiveis = [
 const financeiroItems = [
   { href: '/entradas', label: 'Entradas a Classificar', icon: ListChecks, func: 'entradas' },
   { href: '/contas-a-pagar', label: 'Contas a Pagar', icon: Wallet, func: 'contas-pagar' },
+  { href: '/reembolso', label: 'Reembolso Vouchers', icon: Ticket, func: 'reembolso' },
+  { href: '/totalpass', label: 'Reembolso TotalPass', icon: HeartHandshake, func: 'totalpass' },
+  { href: '/nf-salao', label: 'Salão Parceiro', icon: Scale, func: 'nf-salao' },
   { href: '/dre', label: 'DRE', icon: BarChart3, func: 'dre' },
   { href: '/fluxo-caixa', label: 'Fluxo de Caixa', icon: Banknote, func: 'fluxo-caixa' },
   { href: '/plano-contas', label: 'Plano de Contas', icon: ListTree, func: 'plano-contas' },
