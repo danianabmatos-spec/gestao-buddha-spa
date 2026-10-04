@@ -47,6 +47,7 @@ export const FUNCIONALIDADES: Funcionalidade[] = [
   // ── Financeiro (migrado do app de Estoque) ──
   { chave: 'plano-contas', label: 'Plano de Contas', grupo: 'Financeiro', rotas: ['/plano-contas', '/api/plano-contas'], padrao: p(N, N, V, N, N) },
   { chave: 'entradas', label: 'Entradas a Classificar', grupo: 'Financeiro', rotas: ['/entradas', '/api/financeiro/entradas', '/api/financeiro/classificar'], padrao: p(N, N, E, N, N) },
+  { chave: 'contas-pagar', label: 'Contas a Pagar', grupo: 'Financeiro', rotas: ['/contas-a-pagar', '/api/financeiro/titulos'], padrao: p(N, N, E, N, N) },
   { chave: 'dre', label: 'DRE', grupo: 'Financeiro', rotas: ['/dre'], padrao: p(N, N, V, N, N) },
   { chave: 'fluxo-caixa', label: 'Fluxo de Caixa', grupo: 'Financeiro', rotas: ['/fluxo-caixa'], padrao: p(N, N, V, N, N) },
 

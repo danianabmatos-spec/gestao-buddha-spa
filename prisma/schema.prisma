@@ -1085,4 +1085,37 @@ model PlanoConta {
   tipoDespesa  String   @default("")           // "Fixa" | "Variavel" | ""
   ativa        Boolean  @default(true)
   fontes       FonteExterna[]
+  titulos      TituloPagar[]
+}
+
+// ─── Financeiro · Contas a Pagar (migrado do app de Estoque) ──────────────────────
+// Título a pagar por unidade. Alimenta a DRE (por competência) e o Fluxo de Caixa (por
+// vencimento/pagamento). Datas em texto "YYYY-MM-DD" (sem fuso). `origem` prepara a ponte
+// futura: títulos gerados pelo Estoque (compras/rouparia) chegam aqui como COMPRA/ROUPARIA.
+model TituloPagar {
+  id                  Int         @id @default(autoincrement())
+  unidadeId           Int
+  planoContaId        Int?
+  planoConta          PlanoConta? @relation(fields: [planoContaId], references: [id])
+  descricao           String      @default("")
+  fornecedorTexto     String      @default("")
+  valor               Float       @default(0)
+  parcela             Int         @default(1)
+  totalParcelas       Int         @default(1)
+  dataEmissao         String                        // "YYYY-MM-DD"
+  dataCompetencia     String?                       // "YYYY-MM-DD" (DRE)
+  dataVencimento      String?                       // "YYYY-MM-DD" (fluxo previsto)
+  dataPagamento       String?                       // "YYYY-MM-DD" (fluxo realizado)
+  status              String      @default("PREVISTO")  // PREVISTO | PAGO | CANCELADO
+  pagamentoAntecipado Boolean     @default(false)
+  formaPagamento      String      @default("")
+  observacao          String      @default("")
+  origem              String      @default("MANUAL")    // MANUAL | COMPRA | ROUPARIA
+  refExterna          String?                           // id do pedido/fatura na origem (idempotência)
+  criadoEm            DateTime    @default(now())
+  atualizadoEm        DateTime    @updatedAt
+
+  @@index([unidadeId, status])
+  @@index([unidadeId, dataVencimento])
+  @@index([unidadeId, dataCompetencia])
 }

@@ -47,6 +47,7 @@ const unidadesDisponiveis = [
 
 const financeiroItems = [
   { href: '/entradas', label: 'Entradas a Classificar', icon: ListChecks, func: 'entradas' },
+  { href: '/contas-a-pagar', label: 'Contas a Pagar', icon: Wallet, func: 'contas-pagar' },
   { href: '/dre', label: 'DRE', icon: BarChart3, func: 'dre' },
   { href: '/fluxo-caixa', label: 'Fluxo de Caixa', icon: Banknote, func: 'fluxo-caixa' },
   { href: '/plano-contas', label: 'Plano de Contas', icon: ListTree, func: 'plano-contas' },

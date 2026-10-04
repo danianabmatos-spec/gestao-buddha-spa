@@ -23,6 +23,35 @@ await db.execute(`
 `)
 await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS "PlanoConta_nome_key" ON "PlanoConta"("nome")`)
 
+// ── TituloPagar (contas a pagar) ──────────────────────────────────────────────
+await db.execute(`
+  CREATE TABLE IF NOT EXISTS "TituloPagar" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "unidadeId" INTEGER NOT NULL,
+    "planoContaId" INTEGER,
+    "descricao" TEXT NOT NULL DEFAULT '',
+    "fornecedorTexto" TEXT NOT NULL DEFAULT '',
+    "valor" REAL NOT NULL DEFAULT 0,
+    "parcela" INTEGER NOT NULL DEFAULT 1,
+    "totalParcelas" INTEGER NOT NULL DEFAULT 1,
+    "dataEmissao" TEXT NOT NULL,
+    "dataCompetencia" TEXT,
+    "dataVencimento" TEXT,
+    "dataPagamento" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'PREVISTO',
+    "pagamentoAntecipado" BOOLEAN NOT NULL DEFAULT 0,
+    "formaPagamento" TEXT NOT NULL DEFAULT '',
+    "observacao" TEXT NOT NULL DEFAULT '',
+    "origem" TEXT NOT NULL DEFAULT 'MANUAL',
+    "refExterna" TEXT,
+    "criadoEm" DATETIME NOT NULL DEFAULT (datetime('now')),
+    "atualizadoEm" DATETIME NOT NULL DEFAULT (datetime('now'))
+  )
+`)
+await db.execute(`CREATE INDEX IF NOT EXISTS "TituloPagar_unidadeId_status_idx" ON "TituloPagar"("unidadeId","status")`)
+await db.execute(`CREATE INDEX IF NOT EXISTS "TituloPagar_unidadeId_dataVencimento_idx" ON "TituloPagar"("unidadeId","dataVencimento")`)
+await db.execute(`CREATE INDEX IF NOT EXISTS "TituloPagar_unidadeId_dataCompetencia_idx" ON "TituloPagar"("unidadeId","dataCompetencia")`)
+
 // ── Colunas de classificação na FonteExterna (ALTER aditivo — ignora se já existe) ──
 for (const sql of [
   `ALTER TABLE "FonteExterna" ADD COLUMN "planoContaId" INTEGER`,
