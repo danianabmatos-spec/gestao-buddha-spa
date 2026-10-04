@@ -1,7 +1,7 @@
 import { Sidebar } from '@/components/layout/sidebar'
 import { MobileNav } from '@/components/layout/mobile-nav'
 
-export default function TotalPassLayout({ children }: { children: React.ReactNode }) {
+export default function ParceriasLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-[#F5F0EB]">
       <Sidebar />

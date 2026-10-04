@@ -47,7 +47,7 @@ export const FUNCIONALIDADES: Funcionalidade[] = [
   { chave: 'entradas', label: 'Entradas a Classificar', grupo: 'Financeiro', rotas: ['/entradas', '/api/financeiro/entradas', '/api/financeiro/classificar'], padrao: p(N, N, E, N, N) },
   { chave: 'contas-pagar', label: 'Contas a Pagar', grupo: 'Financeiro', rotas: ['/contas-a-pagar', '/api/financeiro/titulos'], padrao: p(N, N, E, N, N) },
   { chave: 'reembolso', label: 'Reembolso Vouchers', grupo: 'Financeiro', rotas: ['/reembolso', '/api/reembolso'], padrao: p(N, N, E, N, N) },
-  { chave: 'totalpass', label: 'Reembolso TotalPass', grupo: 'Financeiro', rotas: ['/totalpass', '/api/financeiro/totalpass'], padrao: p(N, N, V, N, N) },
+  { chave: 'parcerias', label: 'Reembolso de Parcerias', grupo: 'Financeiro', rotas: ['/parcerias', '/api/financeiro/parcerias'], padrao: p(N, N, V, N, N) },
   { chave: 'nf-salao', label: 'Salão Parceiro (NF)', grupo: 'Financeiro', rotas: ['/nf-salao', '/api/nf-salao'], padrao: p(N, N, E, N, N) },
   { chave: 'dre', label: 'DRE', grupo: 'Financeiro', rotas: ['/dre'], padrao: p(N, N, V, N, N) },
   { chave: 'fluxo-caixa', label: 'Fluxo de Caixa', grupo: 'Financeiro', rotas: ['/fluxo-caixa'], padrao: p(N, N, V, N, N) },

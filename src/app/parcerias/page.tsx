@@ -7,9 +7,11 @@ const MESES = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', '
 const brl = (n: number) => (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const diaBR = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
 
+const PARCERIAS = [{ chave: 'totalpass', nome: 'TotalPass' }, { chave: 'gympass', nome: 'Gympass' }]
+
 interface Atend { data: string; cliente: string; servico: string; responsavel: string }
 interface Linha { slug: string; nome: string; qtd: number; bruto: number; liquido: number; atendimentos: Atend[] }
-interface Dados { ano: number; mes: number; valores: { bruto: number; liquido: number }; pagamentoEm: string; linhas: Linha[]; totais: { qtd: number; bruto: number; liquido: number } }
+interface Dados { parceria: string; parceriaNome: string; ano: number; mes: number; valores: { bruto: number; liquido: number }; pagamentoEm: string; linhas: Linha[]; totais: { qtd: number; bruto: number; liquido: number } }
 
 // Mês de referência padrão = mês anterior (reembolso pago no dia 20 do mês seguinte).
 function mesRefPadrao() {
@@ -19,8 +21,9 @@ function mesRefPadrao() {
   return { ano, mes }
 }
 
-export default function TotalPassPage() {
+export default function ParceriasPage() {
   const ini = mesRefPadrao()
+  const [parceria, setParceria] = useState('totalpass')
   const [ano, setAno] = useState(ini.ano)
   const [mes, setMes] = useState(ini.mes)
   const [dados, setDados] = useState<Dados | null>(null)
@@ -29,14 +32,14 @@ export default function TotalPassPage() {
   const [aberta, setAberta] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
-    setCarregando(true); setErro(null)
+    setCarregando(true); setErro(null); setAberta(null)
     try {
-      const r = await fetch(`/api/financeiro/totalpass?ano=${ano}&mes=${mes}`)
+      const r = await fetch(`/api/financeiro/parcerias?parceria=${parceria}&ano=${ano}&mes=${mes}`)
       const j = await r.json()
       if (!r.ok || j.error) { setErro(j.error || 'Erro ao carregar'); setDados(null); return }
       setDados(j)
     } catch { setErro('Falha de conexão') } finally { setCarregando(false) }
-  }, [ano, mes])
+  }, [parceria, ano, mes])
   useEffect(() => { carregar() }, [carregar])
 
   const mudarMes = (d: number) => { let m = mes + d, a = ano; if (m < 1) { m = 12; a-- } else if (m > 12) { m = 1; a++ }; setMes(m); setAno(a) }
@@ -46,12 +49,22 @@ export default function TotalPassPage() {
     <div className="p-6 max-w-5xl">
       <div className="flex items-center gap-3 mb-1">
         <HeartHandshake className="text-[#7E0000]" size={24} />
-        <h1 className="text-2xl font-bold text-[#7E0000]">Reembolso TotalPass</h1>
+        <h1 className="text-2xl font-bold text-[#7E0000]">Reembolso de Parcerias</h1>
       </div>
-      <p className="text-sm text-[#392617]/60 mb-5">
-        Atendimentos TotalPass do mês — pagos no dia <b>20 do mês seguinte</b>.
-        {dados && <> Referência {MESES[dados.mes]}/{dados.ano} → pagamento em <b>{pag}</b>. R${dados.valores.bruto} bruto / R${dados.valores.liquido} líquido por atendimento.</>}
+      <p className="text-sm text-[#392617]/60 mb-4">
+        Atendimentos de parceria no mês — pagos no dia <b>20 do mês seguinte</b>.
+        {dados && <> Referência {MESES[dados.mes]}/{dados.ano} → pagamento em <b>{pag}</b>. R$ {brl(dados.valores.bruto).replace('R$', '').trim()} bruto / R$ {brl(dados.valores.liquido).replace('R$', '').trim()} líquido por atendimento.</>}
       </p>
+
+      {/* Chave de parceria */}
+      <div className="inline-flex rounded-lg border border-[#DDC7A4] overflow-hidden mb-4">
+        {PARCERIAS.map((p) => (
+          <button key={p.chave} onClick={() => setParceria(p.chave)}
+            className={`px-4 py-1.5 text-sm font-medium ${parceria === p.chave ? 'bg-[#7E0000] text-white' : 'bg-white text-[#392617] hover:bg-[#7E0000]/5'}`}>
+            {p.nome}
+          </button>
+        ))}
+      </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <div className="flex items-center gap-1">
@@ -67,7 +80,7 @@ export default function TotalPassPage() {
       {erro && <div className="bg-[#7E0000]/8 border border-[#7E0000]/20 text-[#7E0000] rounded-lg px-4 py-3 text-sm mb-4">{erro}</div>}
 
       {carregando ? <p className="text-sm text-[#392617]/50">Carregando…</p> : !dados || dados.linhas.length === 0 ? (
-        <p className="text-sm text-[#392617]/50">Sem atendimentos TotalPass neste mês.</p>
+        <p className="text-sm text-[#392617]/50">Sem atendimentos {dados?.parceriaNome ?? ''} neste mês.</p>
       ) : (
         <div className="rounded-xl border border-[#DDC7A4]/60 bg-white overflow-x-auto">
           <table className="w-full text-sm min-w-[560px]">
@@ -120,7 +133,7 @@ export default function TotalPassPage() {
                 </Fragment>
               ))}
               <tr className="border-t-2 border-[#7E0000]/30 font-bold text-[#7E0000]">
-                <td className="px-4 py-2.5">Total</td>
+                <td className="px-4 py-2.5">Total {dados.parceriaNome}</td>
                 <td className="px-4 py-2.5 text-center">{dados.totais.qtd}</td>
                 <td className="px-4 py-2.5 text-right">{brl(dados.totais.bruto)}</td>
                 <td className="px-4 py-2.5 text-right bg-[#D78B18]/15">{brl(dados.totais.liquido)}</td>

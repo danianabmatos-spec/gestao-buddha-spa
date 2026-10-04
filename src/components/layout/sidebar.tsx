@@ -47,7 +47,7 @@ const financeiroItems = [
   { href: '/entradas', label: 'Entradas a Classificar', icon: ListChecks, func: 'entradas' },
   { href: '/contas-a-pagar', label: 'Contas a Pagar', icon: Wallet, func: 'contas-pagar' },
   { href: '/reembolso', label: 'Reembolso Vouchers', icon: Ticket, func: 'reembolso' },
-  { href: '/totalpass', label: 'Reembolso TotalPass', icon: HeartHandshake, func: 'totalpass' },
+  { href: '/parcerias', label: 'Reembolso de Parcerias', icon: HeartHandshake, func: 'parcerias' },
   { href: '/nf-salao', label: 'Salão Parceiro', icon: Scale, func: 'nf-salao' },
   { href: '/dre', label: 'DRE', icon: BarChart3, func: 'dre' },
   { href: '/fluxo-caixa', label: 'Fluxo de Caixa', icon: Banknote, func: 'fluxo-caixa' },
