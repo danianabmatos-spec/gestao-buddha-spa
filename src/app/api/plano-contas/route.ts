@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-function podeEditar(perfil: string) { return perfil === 'DONA' || perfil === 'FINANCEIRO' }
+// Edição do plano de contas restrita aos proprietários (perfil DONA = Daniana + Felipe).
+function podeEditar(perfil: string) { return perfil === 'DONA' }
 const TIPOS = ['A Pagar', 'A Receber']
 const TIPOS_DESPESA = ['', 'Fixa', 'Variavel']
 

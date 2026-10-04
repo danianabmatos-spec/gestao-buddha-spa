@@ -31,8 +31,9 @@ export default function PlanoContasPage() {
 
   useEffect(() => {
     carregar()
+    // Edição só para os proprietários (perfil DONA = Daniana + Felipe).
     fetch('/api/auth/permissoes').then(r => r.ok ? r.json() : null).then(j => {
-      setPodeEditar(j?.permissoes?.['plano-contas'] === 'EDITAR')
+      setPodeEditar(j?.perfil === 'DONA')
     }).catch(() => {})
   }, [carregar])
 
