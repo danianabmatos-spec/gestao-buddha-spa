@@ -129,7 +129,6 @@ export function resolverClusterTotalPassCentral(sessoesMes: number): ClusterCent
 export interface ContextoDia {
   weekday: number          // 0=Dom … 6=Sáb
   dom: number              // dia do mês
-  primeiraTercaDom: number // dia do mês em que cai a 1ª terça-feira
 }
 
 export function contextoDiaBrasil(now: Date): ContextoDia {
@@ -143,10 +142,7 @@ export function contextoDiaBrasil(now: Date): ContextoDia {
   const MAP: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
   const weekday = MAP[wdStr] ?? 0
   const dom = parseInt(domStr, 10) || 1
-  // weekday do dia 1 do mês → dia da 1ª terça (Tue=2)
-  const wdDia1 = (((weekday - (dom - 1)) % 7) + 7) % 7
-  const primeiraTercaDom = ((2 - wdDia1 + 7) % 7) + 1
-  return { weekday, dom, primeiraTercaDom }
+  return { weekday, dom }
 }
 
 // Hash estável do telefone — base da distribuição (dia de início do cliente).
@@ -173,10 +169,16 @@ function ehDiaDistribuicao(telefone: string, ctx: ContextoDia, inicio: number, f
 // feito no dia exato.
 export function clusterEnviaHoje(cluster: ClusterCentral, telefone: string, ctx: ContextoDia): boolean {
   switch (cluster) {
-    case 'TOTALPASS_1_SESSAO':
     case 'TOTALPASS_2_SESSOES':
-      // Campanha do mês: da 1ª terça em diante, o mês todo, até ser concluída.
-      return ctx.dom >= ctx.primeiraTercaDom
+      // Ainda tem as 2 sessões do mês → 2 janelas de envio: dias 1–15 e 22–31.
+      // Seg→Sáb (domingo de folga). Carry-over dentro da janela até ser concluída;
+      // a recência (14d) impede 2º envio na mesma janela e libera na janela seguinte.
+      if (ctx.weekday === 0) return false
+      return (ctx.dom >= 1 && ctx.dom <= 15) || (ctx.dom >= 22 && ctx.dom <= 31)
+    case 'TOTALPASS_1_SESSAO':
+      // Já agendou 1, falta a última → janela única dias 20–28. Seg→Sáb.
+      if (ctx.weekday === 0) return false
+      return ctx.dom >= 20 && ctx.dom <= 28
     case 'PACOTE_VIGENTE':
       // Semanal: da segunda em diante (seg→sáb; domingo de folga), até ser concluída.
       return ctx.weekday >= 1
