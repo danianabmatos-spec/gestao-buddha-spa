@@ -209,8 +209,12 @@ export const MENSAGENS_CENTRAL: Record<ClusterCentral, string> = {
 
 function formatarValidade(d: Date | null): string {
   if (!d) return 'em breve'
+  // A validade é uma DATA de calendário (sem hora), guardada à meia-noite UTC
+  // (ex.: "2027-03-26T00:00:00Z"). Formatar em fuso local (São Paulo, −3) puxava
+  // para o dia anterior (25/03). Formata em UTC para preservar o dia correto do
+  // Belle. (Mesma correção já aplicada em mensagens.ts.)
   return new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
+    timeZone: 'UTC',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
