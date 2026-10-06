@@ -101,6 +101,15 @@ export async function GET(req: NextRequest) {
       .filter(([, texto]) => texto),
   ) as Partial<Record<ClusterCentral, string>>
 
+  // Só as colunas usadas no loop de montagem (ClienteScore tem 24 — puxar todas fazia o
+  // Prisma desserializar ~2k linhas largas e era o maior custo do endpoint, ~2s na maior
+  // unidade). Com select, a mesma query cai p/ ~0,6s.
+  const selScore = {
+    id: true, nomeCliente: true, telefone: true, unidadeSlug: true, ultimoContato: true,
+    temPacoteAtivo: true, temPacoteSuspenso: true, temAgendamentoFuturo: true,
+    dataVencimentoPacote: true, sessoesRestantes: true, ultimaSessao: true, totalSessoes: true,
+  } as const
+
   const [comPacote, frequente, totalpass, comAgenda, bloqueados, scoreTodos, tpTodos] = await Promise.all([
     // Pacote vigente / vencido / sentimos-falta (ex-pacote). Suspenso é excluído já aqui.
     prisma.clienteScore.findMany({
@@ -109,6 +118,7 @@ export async function GET(req: NextRequest) {
         temPacote: true, temAgendamentoFuturo: false, temPacoteSuspenso: false,
         ...naoRecente,
       },
+      select: selScore,
       take: 5000,
     }),
     // Frequente sem plano (3+ sessões avulsas).
@@ -118,6 +128,7 @@ export async function GET(req: NextRequest) {
         temPacote: false, temAgendamentoFuturo: false, isFrequenteSemPacote: true,
         ...naoRecente,
       },
+      select: selScore,
       take: 3000,
     }),
     prisma.clienteTotalPass.findMany({
