@@ -295,6 +295,12 @@ export async function getPlanosClientes(
   // quando o Report 196 traz N linhas por plano (uma por serviço).
   const saldoRealAplicado = new Set<string>()
 
+  // Restantes SEPARADAS por cliente: `ativas` (pacote vigente — validade futura) vs
+  // `inativas` (pacote VENCIDO com saldo não usado — base da oferta de renovação 20%).
+  // NUNCA somar as duas: senão a msg de pacote vigente promete sessões já vencidas
+  // (bug grave — o cliente contaria com sessões que não valem mais).
+  const restantesPorChave = new Map<string, { ativas: number; inativas: number }>()
+
   for (const row of allRows) {
     const status = String(row[3] || '').toLowerCase()
     // Exclui apenas cancelados — inclui aprovados, vencidos e qualquer outro status
@@ -328,9 +334,14 @@ export async function getPlanosClientes(
     const planoAtivo       = !suspenso && sessoesRestantes > 0 && !!validadeRaw && validadeRaw >= hoje0
     const chave            = clienteId != null ? `id:${clienteId}` : `nome:${nomeCliente.toLowerCase()}`
 
+    // Acumula restantes separando vigentes de vencidas (suspenso já é 0 e não entra).
+    const acc = restantesPorChave.get(chave) ?? { ativas: 0, inativas: 0 }
+    if (planoAtivo) acc.ativas += sessoesRestantes
+    else if (!suspenso) acc.inativas += sessoesRestantes
+    restantesPorChave.set(chave, acc)
+
     const existente = mapa.get(chave)
     if (existente) {
-      existente.sessoesRestantes += sessoesRestantes
       existente.sessoesVendidas  += sessoesVendidas
       // mantém a validade mais recente (só de planos utilizáveis)
       if (validade && (!existente.validade || validade > existente.validade)) {
@@ -346,12 +357,20 @@ export async function getPlanosClientes(
         status: String(row[3] || ''),
         dataVenda: parseData(row[4]),
         validade,
-        sessoesRestantes,
+        sessoesRestantes: 0, // preenchido após o loop (ativas se houver, senão vencidas)
         sessoesVendidas,
         temPlanoAtivo: planoAtivo,
         temPlanoSuspenso: suspenso,
       })
     }
+  }
+
+  // Sessões restantes EXIBÍVEIS: se o cliente tem pacote VIGENTE, conta só as sessões
+  // utilizáveis (ignora vencidas — nunca prometer sessões que ele não pode mais usar);
+  // sem pacote vigente, usa as de pacotes vencidos (base da oferta de renovação 20%).
+  for (const [chave, p] of mapa) {
+    const acc = restantesPorChave.get(chave) ?? { ativas: 0, inativas: 0 }
+    p.sessoesRestantes = acc.ativas > 0 ? acc.ativas : acc.inativas
   }
 
   return Array.from(mapa.values())
