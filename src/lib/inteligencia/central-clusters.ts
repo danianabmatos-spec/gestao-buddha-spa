@@ -87,15 +87,19 @@ export function resolverClusterCentral(c: CamposScore, nowMs: number): ClusterCe
   if (c.temAgendamentoFuturo) return null
   if (c.temPacoteSuspenso) return null
 
-  // 2) Pacote vigente — plano ativo de fato (sessão sobrando + validade futura).
-  if (c.temPacoteAtivo) return 'PACOTE_VIGENTE'
-
   const diasVenc = c.dataVencimentoPacote
     ? Math.floor((nowMs - new Date(c.dataVencimentoPacote).getTime()) / DIA_MS)
     : null
   const diasSessao = c.ultimaSessao
     ? Math.floor((nowMs - new Date(c.ultimaSessao).getTime()) / DIA_MS)
     : null
+
+  // 2) Pacote vigente — plano ativo E validade AINDA NÃO VENCIDA. NÃO confiar só na
+  //    flag temPacoteAtivo: ela pode estar velha se o registro ficou sem re-sync (ex.:
+  //    duplicata de nome no Belle que parou de ser atualizada) → senão um pacote JÁ
+  //    VENCIDO aparece como "vigente" (validade 01/10 sendo oferecida em 07/10).
+  //    diasVenc < 1 = validade é hoje ou futura.
+  if (c.temPacoteAtivo && (diasVenc === null || diasVenc < 1)) return 'PACOTE_VIGENTE'
 
   // 3) Pacote vencido há <1 ano, com sessões não usadas → renovar com 20%.
   //    Só depois de 30 dias da validade: até lá o cliente ainda usa as sessões
