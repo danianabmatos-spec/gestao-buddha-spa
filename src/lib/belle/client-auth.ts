@@ -33,6 +33,16 @@ async function autenticar(email: string, senha: string): Promise<string> {
   const data = await resp.json()
   const token: string = data.token
 
+  // O Belle às vezes responde 200 SEM token: pede renovação de 2 fatores
+  // (etapa RENOVAR_DOIS_FATORES) ou outro bloqueio de conta. Sem este tratamento,
+  // o app seguia com token vazio e só estourava 401 "Token inválido ou bloqueado"
+  // lá no relatório — erro críptico que escondia a unidade no Radar sem explicar
+  // o motivo. Aqui falhamos cedo, com mensagem clara. (ver Tatuapé, out/2026)
+  if (!token) {
+    const motivo = data?.message || data?.etapa || 'login sem token'
+    throw new Error(`Belle auth sem token (${email}): ${motivo}`)
+  }
+
   await fetch(`${BASE_URL}/Login/v1.0/admin/recuperar_dados?estabGeral=`, {
     headers: { ...HEADERS, Authorization: token },
   })
