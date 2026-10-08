@@ -95,24 +95,28 @@ function valorNoGrupo(data: BITotalizacao[], grupoLabel: string, metrica: string
   return item?.value ?? 0
 }
 
-// ─── "Recebido em Caixa" = fonte OFICIAL = Report 103 "Movimentação Detalhado" ───
-// Somamos as ENTRADAS por data de CONFIRMAÇÃO (filtro {id:2,value:2}), EXCLUINDO as
-// "Parcerias Comerciais" (TotalPass/Gympass têm coluna própria no Radar — incluí-las
-// aqui dobraria o Faturamento Total). Valor BRUTO (nas formas não-parceria, o Belle
-// devolve bruto == líquido; as taxas de cartão ficam na coluna Taxas, não no líquido).
-// É EXATAMENTE o número que a Daniana concilia no Belle. NÃO trocar por Report 184 /
-// Consolidado de Receitas: eles usam outra base de data e dão números ligeiramente
-// diferentes (foi a causa dos ajustes repetidos). Ver memória belle-recebido-em-caixa.
+// ─── FONTE OFICIAL = Report 103 "Movimentação Detalhado" por data de CONFIRMAÇÃO ───
+// A data de confirmação é a base PADRÃO de tudo no Belle — caixa E parcerias saem
+// daqui, numa chamada só. (Antes o caixa vinha do 184/Consolidado e as parcerias do
+// 183/Demonstrativo, ambos com outra base de data → pequenas divergências e ajustes
+// repetidos.) Filtro {id:2,value:2} = Confirmação.
+//   • caixa       = Σ ENTRADAS não-parceria, Valor BRUTO (bruto == líquido nessas
+//                   formas; taxas de cartão ficam na coluna Taxas, fora do caixa).
+//                   Exclui Parcerias (têm coluna própria — senão dobra o total).
+//   • totalPass   = grupo "Entrada - Parcerias Comerciais - TotalPass", Valor LÍQUIDO.
+//   • gympass     = grupo "Entrada - Parcerias Comerciais - Gympass",   Valor LÍQUIDO.
+// Ver memória belle-recebido-em-caixa.
 //
 // Detalhe crítico do Belle: `ignoreRecords:false` é OBRIGATÓRIO — com `true` o Belle
-// NÃO devolve `totalization_data` (vem vazio → caixa 0). `maxRecords:1` basta: a
+// NÃO devolve `totalization_data` (vem vazio → tudo 0). `maxRecords:1` basta: a
 // totalização é calculada sobre o PERÍODO inteiro, não só a página retornada.
-export async function somarEntradasCaixa103(
+export interface Movimentacao103 { caixa: number; totalPass: number; gympass: number }
+export async function getMovimentacao103(
   token: string,
   estab: string,
   dataIni: string,
   dataFim: string
-): Promise<number> {
+): Promise<Movimentacao103> {
   const filters = [
     { id: 2, value: 2 }, // Tipo Data = Confirmação
     { id: 3, operator: { id: 'BETWEEN', alias: 'BETWEEN', description: 'Entre', allow_multiple_values: '1' }, value: dataIni, value2: dataFim },
@@ -125,18 +129,33 @@ export async function somarEntradasCaixa103(
   })
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '')
-    throw new Error(`BI report 103 (caixa) falhou: HTTP ${resp.status} — ${txt.slice(0, 200)}`)
+    throw new Error(`BI report 103 (movimentação) falhou: HTTP ${resp.status} — ${txt.slice(0, 200)}`)
   }
   const j = (await resp.json()) as BIReportResponse
-  let caixa = 0
+  const metrica = (g: BITotalizacao, re: RegExp) => {
+    const t = (g.totais || []).find(x => re.test(String(x?.label || '')))
+    return typeof t?.value === 'number' ? t.value : (Number(t?.value) || 0)
+  }
+  let caixa = 0, totalPass = 0, gympass = 0
   for (const g of j.totalization_data || []) {
     const label = String(g?.label || '').trim()
-    if (!/^entrada/i.test(label)) continue          // só ENTRADAS (ignora Saídas / Total Geral)
-    if (/parcerias comerciais/i.test(label)) continue // TotalPass/Gympass têm coluna própria
-    const bruto = (g.totais || []).find(t => /valor bruto/i.test(String(t?.label || '')))
-    caixa += typeof bruto?.value === 'number' ? bruto.value : (Number(bruto?.value) || 0)
+    if (!/^entrada/i.test(label)) continue // só ENTRADAS (ignora Saídas / Total Geral)
+    if (/parcerias comerciais/i.test(label)) {
+      if (/totalpass/i.test(label)) totalPass += metrica(g, /valor l[íi]quido/i)
+      else if (/gympass/i.test(label)) gympass += metrica(g, /valor l[íi]quido/i)
+      continue // parcerias NÃO entram no caixa
+    }
+    caixa += metrica(g, /valor bruto/i)
   }
-  return caixa
+  return { caixa, totalPass, gympass }
+}
+
+// Compat: só o "Recebido em Caixa" (Report 103 por confirmação). Mantido porque o
+// NF Salão Parceiro (reembolso/belle-faturamento.ts) depende desta assinatura.
+export async function somarEntradasCaixa103(
+  token: string, estab: string, dataIni: string, dataFim: string
+): Promise<number> {
+  return (await getMovimentacao103(token, estab, dataIni, dataFim)).caixa
 }
 
 export interface FaturamentoMensal {
@@ -286,14 +305,15 @@ export async function getFaturamentoMensal(
   const reportIdReceitas = usaConsolidado ? 241130697 : (REPORT_IDS_RECEITAS[email] || 184)
 
   // Os relatórios são independentes → busca em PARALELO (antes eram sequenciais,
-  // ~3s cada = ~10s; em paralelo cai para ~1 relatório). O caixa vem do Report 103
-  // (Movimentação Detalhado, por confirmação) — fonte oficial; os demais campos
-  // (parcerias/bruto/desconto/a receber) seguem do 184/Consolidado.
-  const [receitasReport, demonstrativo, consolidado, caixaReal] = await Promise.all([
+  // ~3s cada = ~10s; em paralelo cai para ~1 relatório). O caixa E as parcerias
+  // (TotalPass/Gympass) vêm do Report 103 (Movimentação Detalhado, por CONFIRMAÇÃO)
+  // — fonte oficial, tudo na mesma base de data. O 183 fica só para vendasRecepcao;
+  // o 184/Consolidado para bruto/desconto/a receber/parcelasComerciais.
+  const [receitasReport, demonstrativo, consolidado, mov] = await Promise.all([
     buildReport(token, reportIdReceitas, estab, dataIni, dataFim, false),
     buildReport(token, 183, estab, dataIni, dataFim, false),
     buildReport(token, 241130694, estab, dataIni, dataFim, false),
-    somarEntradasCaixa103(token, estab, dataIni, dataFim),
+    getMovimentacao103(token, estab, dataIni, dataFim),
   ])
 
   let caixa = 0
@@ -324,16 +344,15 @@ export async function getFaturamentoMensal(
     totalAReceber = totalizacaoPorLabel(tot, 'total a receber')
   }
 
-  // Caixa OFICIAL: sobrescreve o valor do 184/Consolidado pelo do Report 103
-  // (Movimentação Detalhado por confirmação) — o único que bate com o Belle.
-  caixa = caixaReal
+  // Caixa e Parcerias OFICIAIS: Report 103 (Movimentação Detalhado por confirmação),
+  // única base que bate com o Belle. Sobrescreve o caixa do 184/Consolidado; TotalPass
+  // e Gympass saem daqui (não mais do 183, que usa outra base de data).
+  caixa = mov.caixa
+  const totalPass = mov.totalPass
+  const gympass = mov.gympass
 
-  // — Demonstrativo de Vendas (183) — TotalPass e Gympass (comum para todas)
+  // — Vendas Recepção = Vouchers Em Aberto + Planos + Produtos (Demonstrativo 183) —
   const dem = demonstrativo.totalization_data
-  const totalPass = valorNoGrupo(dem, 'Parcerias Comerciais - TotalPass', 'valor líquido')
-  const gympass = valorNoGrupo(dem, 'Parcerias Comerciais - Gympass', 'valor líquido')
-
-  // — Vendas Recepção = Vouchers Em Aberto + Planos + Produtos —
   const vouchers = valorNoGrupo(dem, 'Voucher - Em Aberto', 'valor líquido')
   const planosLiq = valorNoGrupo(dem, 'Plano - Aprovado', 'valor líquido')
   const produtosLiq = valorNoGrupo(dem, 'Produto - Fechado', 'valor líquido')

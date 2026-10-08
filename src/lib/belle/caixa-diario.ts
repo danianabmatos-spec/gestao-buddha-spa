@@ -1,6 +1,6 @@
 import { getToken, HEADERS, BASE_URL } from './client-auth'
 import { getUnidadeCredenciais } from './unidades-config'
-import { somarEntradasCaixa103 } from './bi'
+import { getMovimentacao103 } from './bi'
 import { prisma } from '@/lib/prisma'
 import { format, eachDayOfInterval, parseISO } from 'date-fns'
 
@@ -43,7 +43,7 @@ function totalizacaoPorLabel(data: any[], labelParcial: string): number {
 // Consolidado, que dava números ligeiramente diferentes.) Ver [[belle-recebido-em-caixa]].
 async function buscarCaixaDia(token: string, estab: string, data: string): Promise<number> {
   try {
-    return await somarEntradasCaixa103(token, estab, data, data)
+    return (await getMovimentacao103(token, estab, data, data)).caixa
   } catch {
     return 0
   }
