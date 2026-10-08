@@ -95,6 +95,50 @@ function valorNoGrupo(data: BITotalizacao[], grupoLabel: string, metrica: string
   return item?.value ?? 0
 }
 
+// ─── "Recebido em Caixa" = fonte OFICIAL = Report 103 "Movimentação Detalhado" ───
+// Somamos as ENTRADAS por data de CONFIRMAÇÃO (filtro {id:2,value:2}), EXCLUINDO as
+// "Parcerias Comerciais" (TotalPass/Gympass têm coluna própria no Radar — incluí-las
+// aqui dobraria o Faturamento Total). Valor BRUTO (nas formas não-parceria, o Belle
+// devolve bruto == líquido; as taxas de cartão ficam na coluna Taxas, não no líquido).
+// É EXATAMENTE o número que a Daniana concilia no Belle. NÃO trocar por Report 184 /
+// Consolidado de Receitas: eles usam outra base de data e dão números ligeiramente
+// diferentes (foi a causa dos ajustes repetidos). Ver memória belle-recebido-em-caixa.
+//
+// Detalhe crítico do Belle: `ignoreRecords:false` é OBRIGATÓRIO — com `true` o Belle
+// NÃO devolve `totalization_data` (vem vazio → caixa 0). `maxRecords:1` basta: a
+// totalização é calculada sobre o PERÍODO inteiro, não só a página retornada.
+export async function somarEntradasCaixa103(
+  token: string,
+  estab: string,
+  dataIni: string,
+  dataFim: string
+): Promise<number> {
+  const filters = [
+    { id: 2, value: 2 }, // Tipo Data = Confirmação
+    { id: 3, operator: { id: 'BETWEEN', alias: 'BETWEEN', description: 'Entre', allow_multiple_values: '1' }, value: dataIni, value2: dataFim },
+  ]
+  const resp = await fetch(`${BASE_URL}/BI/v1.0/report/build?estabGeral=${estab}`, {
+    method: 'POST',
+    headers: { ...HEADERS, Authorization: token },
+    body: JSON.stringify({ reportId: 103, sortColumn: null, sortOrder: 1, estab, ignoreRecords: false, offsetRecords: 0, maxRecords: 1, filters }),
+    signal: AbortSignal.timeout(90_000),
+  })
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '')
+    throw new Error(`BI report 103 (caixa) falhou: HTTP ${resp.status} — ${txt.slice(0, 200)}`)
+  }
+  const j = (await resp.json()) as BIReportResponse
+  let caixa = 0
+  for (const g of j.totalization_data || []) {
+    const label = String(g?.label || '').trim()
+    if (!/^entrada/i.test(label)) continue          // só ENTRADAS (ignora Saídas / Total Geral)
+    if (/parcerias comerciais/i.test(label)) continue // TotalPass/Gympass têm coluna própria
+    const bruto = (g.totais || []).find(t => /valor bruto/i.test(String(t?.label || '')))
+    caixa += typeof bruto?.value === 'number' ? bruto.value : (Number(bruto?.value) || 0)
+  }
+  return caixa
+}
+
 export interface FaturamentoMensal {
   periodo: { ini: string; fim: string }
   caixa: number
@@ -241,12 +285,15 @@ export async function getFaturamentoMensal(
   const usaConsolidado = UNIDADES_CONSOLIDADO.includes(email)
   const reportIdReceitas = usaConsolidado ? 241130697 : (REPORT_IDS_RECEITAS[email] || 184)
 
-  // Os 3 relatórios são independentes → busca em PARALELO (antes eram sequenciais,
-  // ~3s cada = ~10s; em paralelo cai para ~1 relatório).
-  const [receitasReport, demonstrativo, consolidado] = await Promise.all([
+  // Os relatórios são independentes → busca em PARALELO (antes eram sequenciais,
+  // ~3s cada = ~10s; em paralelo cai para ~1 relatório). O caixa vem do Report 103
+  // (Movimentação Detalhado, por confirmação) — fonte oficial; os demais campos
+  // (parcerias/bruto/desconto/a receber) seguem do 184/Consolidado.
+  const [receitasReport, demonstrativo, consolidado, caixaReal] = await Promise.all([
     buildReport(token, reportIdReceitas, estab, dataIni, dataFim, false),
     buildReport(token, 183, estab, dataIni, dataFim, false),
     buildReport(token, 241130694, estab, dataIni, dataFim, false),
+    somarEntradasCaixa103(token, estab, dataIni, dataFim),
   ])
 
   let caixa = 0
@@ -276,6 +323,10 @@ export async function getFaturamentoMensal(
     totalDesconto = totalizacaoPorLabel(tot, 'total desconto')
     totalAReceber = totalizacaoPorLabel(tot, 'total a receber')
   }
+
+  // Caixa OFICIAL: sobrescreve o valor do 184/Consolidado pelo do Report 103
+  // (Movimentação Detalhado por confirmação) — o único que bate com o Belle.
+  caixa = caixaReal
 
   // — Demonstrativo de Vendas (183) — TotalPass e Gympass (comum para todas)
   const dem = demonstrativo.totalization_data

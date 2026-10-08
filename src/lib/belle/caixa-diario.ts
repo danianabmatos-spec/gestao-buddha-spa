@@ -1,5 +1,6 @@
 import { getToken, HEADERS, BASE_URL } from './client-auth'
 import { getUnidadeCredenciais } from './unidades-config'
+import { somarEntradasCaixa103 } from './bi'
 import { prisma } from '@/lib/prisma'
 import { format, eachDayOfInterval, parseISO } from 'date-fns'
 
@@ -36,31 +37,16 @@ function totalizacaoPorLabel(data: any[], labelParcial: string): number {
   return item?.value ?? 0
 }
 
-async function buscarCaixaDia(token: string, email: string, estab: string, data: string): Promise<number> {
-  const usaConsolidado = UNIDADES_CONSOLIDADO.includes(email)
-  const reportId = usaConsolidado ? 241130697 : (REPORT_IDS_RECEITAS[email] || 184)
-  const resp = await fetch(`${BASE_URL}/BI/v1.0/report/build?estabGeral=${estab}`, {
-    method: 'POST',
-    headers: { ...HEADERS, Authorization: token },
-    body: JSON.stringify({
-      reportId, sortColumn: null, sortOrder: 1, estab, ignoreRecords: false,
-      filters: [{ id: 1, field: { type_id: 'data', description: 'Período' }, operator: { allow_multiple_values: true, description: 'Entre', id: null }, value: data, value2: data }],
-    }),
-    signal: AbortSignal.timeout(30_000),
-  })
-  if (!resp.ok) return 0
-  const resultado = await resp.json()
-  if (usaConsolidado) {
-    if (resultado.data && resultado.data.length > 0) {
-      const row = resultado.data[0] as any[]
-      const dadosReceitas = row[row.length - 1]
-      if (typeof dadosReceitas === 'object' && dadosReceitas !== null) {
-        return parseFloat(dadosReceitas.total_recebido || '0')
-      }
-    }
+// Caixa de UM dia = mesma fonte oficial do mensal: Report 103 (Movimentação
+// Detalhado) por data de CONFIRMAÇÃO, entradas − parcerias. Assim o gráfico diário
+// soma EXATAMENTE o "Recebido em Caixa" do Radar/dashboard. (Antes vinha do 184/
+// Consolidado, que dava números ligeiramente diferentes.) Ver [[belle-recebido-em-caixa]].
+async function buscarCaixaDia(token: string, estab: string, data: string): Promise<number> {
+  try {
+    return await somarEntradasCaixa103(token, estab, data, data)
+  } catch {
     return 0
   }
-  return totalizacaoPorLabel(resultado.totalization_data || [], 'total recebido em caixa')
 }
 
 // Recebido EM DINHEIRO no dia (para conferir o caixa físico). Nas unidades normais
@@ -143,7 +129,7 @@ export async function getCaixaDiario(unidade: string, dataIni: string, dataFim: 
       const batch = diasParaBuscar.slice(i, i + batchSize)
       const results = await Promise.all(batch.map(async (dia) => {
         const s = format(dia, 'yyyy-MM-dd')
-        const valor = Math.round(await buscarCaixaDia(token, credenciais.email, String(credenciais.estab), s))
+        const valor = Math.round(await buscarCaixaDia(token, String(credenciais.estab), s))
         return { s, valor }
       }))
       for (const { s, valor } of results) {
