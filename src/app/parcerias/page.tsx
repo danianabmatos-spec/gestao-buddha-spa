@@ -13,7 +13,7 @@ const GP = { bg: 'bg-[#D78B18]/[0.14]', txt: 'text-[#8a5a00]', badge: 'bg-[#D78B
 const TOT = { bg: 'bg-[#425F1D]/[0.08]', txt: 'text-[#425F1D]' }
 
 interface Atend { data: string; cliente: string; servico: string; responsavel: string }
-interface Bloco { qtd: number; bruto: number; liquido: number; atendimentos: Atend[] }
+interface Bloco { qtd: number; bruto: number; liquido: number; recebido: number; justificativa: string; conciliado: boolean; atendimentos: Atend[] }
 interface Linha { slug: string; nome: string; totalpass: Bloco; gympass: Bloco }
 interface Tot { qtd: number; bruto: number; liquido: number }
 interface Dados { ano: number; mes: number; parcerias: { chave: string; nome: string; bruto: number; liquido: number }[]; pagamentoEm: string; linhas: Linha[]; totais: { totalpass: Tot; gympass: Tot; geral: Tot } }
@@ -32,9 +32,12 @@ export default function ParceriasPage() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [aberta, setAberta] = useState<string | null>(null)
+  // Edição da validação: valor recebido + justificativa por `${slug}:${parceria}`.
+  const [edit, setEdit] = useState<Record<string, { recebido: string; justificativa: string }>>({})
+  const [salvando, setSalvando] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
-    setCarregando(true); setErro(null); setAberta(null)
+    setCarregando(true); setErro(null); setAberta(null); setEdit({})
     try {
       const r = await fetch(`/api/financeiro/parcerias?ano=${ano}&mes=${mes}`)
       const j = await r.json()
@@ -48,6 +51,24 @@ export default function ParceriasPage() {
   const pag = dados?.pagamentoEm ? `${dados.pagamentoEm.slice(8, 10)}/${dados.pagamentoEm.slice(5, 7)}/${dados.pagamentoEm.slice(0, 4)}` : ''
   const vTP = dados?.parcerias.find(p => p.chave === 'totalpass')
   const vGP = dados?.parcerias.find(p => p.chave === 'gympass')
+
+  // Valor em edição (recebido/justificativa) de uma parceria, com fallback no que veio do banco.
+  const valEdit = (slug: string, p: string, b: Bloco) =>
+    edit[`${slug}:${p}`] ?? { recebido: b.recebido ? String(b.recebido) : '', justificativa: b.justificativa }
+
+  const salvarConc = async (slug: string, parceria: 'totalpass' | 'gympass', b: Bloco) => {
+    const k = `${slug}:${parceria}`
+    const v = valEdit(slug, parceria, b)
+    setSalvando(k)
+    try {
+      const r = await fetch('/api/financeiro/parcerias', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ano, mes, slug, parceria, recebido: Number(String(v.recebido).replace(',', '.')) || 0, justificativa: v.justificativa }),
+      })
+      if (r.ok) await carregar()
+      else { const j = await r.json().catch(() => ({})); setErro(j.error || 'Erro ao salvar') }
+    } catch { setErro('Falha ao salvar') } finally { setSalvando(null) }
+  }
 
   // Detalhe combinado de uma unidade: atendimentos das 2 parcerias, com etiqueta, por data.
   const detalhe = (l: Linha) => [
@@ -127,6 +148,44 @@ export default function ParceriasPage() {
                     {aberta === l.slug && temAtd && (
                       <tr className="bg-[#F5F0EB]/60">
                         <td colSpan={10} className="px-4 py-2">
+                          {/* Validação: recebido de fato vs calculado, com justificativa da diferença */}
+                          <div className="mb-3 rounded-lg border border-[#DDC7A4]/60 bg-white p-3">
+                            <p className="text-[11px] uppercase tracking-wide text-[#392617]/50 mb-2">Validação — recebido de fato vs calculado</p>
+                            <div className="space-y-2">
+                              {([['totalpass', l.totalpass, TP, 'TotalPass'], ['gympass', l.gympass, GP, 'Gympass']] as const)
+                                .filter(([, b]) => b.qtd > 0)
+                                .map(([chave, b, cls, nome]) => {
+                                  const v = valEdit(l.slug, chave, b)
+                                  const rec = Number(String(v.recebido).replace(',', '.')) || 0
+                                  const dif = Math.round((rec - b.liquido) * 100) / 100
+                                  const k = `${l.slug}:${chave}`
+                                  const temRec = v.recebido !== '' && v.recebido != null
+                                  return (
+                                    <div key={chave} className="flex flex-wrap items-center gap-2 text-xs">
+                                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${cls.badge} w-[72px] text-center`}>{nome}</span>
+                                      <span className="text-[#392617]/60">Calculado <b className={cls.txt}>{brl(b.liquido)}</b></span>
+                                      <label className="flex items-center gap-1 text-[#392617]/60">Recebido
+                                        <input type="text" inputMode="decimal" value={v.recebido} placeholder="0,00"
+                                          onChange={(e) => setEdit((s) => ({ ...s, [k]: { ...v, recebido: e.target.value } }))}
+                                          className="w-24 rounded border border-[#DDC7A4] px-2 py-1 text-right text-[#392617]" />
+                                      </label>
+                                      <span className={!temRec ? 'text-[#392617]/40' : dif === 0 ? 'text-[#425F1D] font-medium' : 'text-[#7E0000] font-medium'}>
+                                        {!temRec ? 'Dif. —' : `Dif. ${dif > 0 ? '+' : ''}${brl(dif)}`}
+                                      </span>
+                                      <input type="text" value={v.justificativa}
+                                        onChange={(e) => setEdit((s) => ({ ...s, [k]: { ...v, justificativa: e.target.value } }))}
+                                        placeholder={temRec && dif !== 0 ? 'Justifique a diferença…' : 'Observação (opcional)'}
+                                        className="flex-1 min-w-[160px] rounded border border-[#DDC7A4] px-2 py-1 text-[#392617]" />
+                                      <button onClick={() => salvarConc(l.slug, chave, b)} disabled={salvando === k}
+                                        className="rounded-md bg-[#7E0000] text-white px-3 py-1 hover:bg-[#5c0000] disabled:opacity-50">
+                                        {salvando === k ? 'Salvando…' : 'Salvar'}
+                                      </button>
+                                      {b.conciliado && <span className="text-[#425F1D]" title="Validado">✓</span>}
+                                    </div>
+                                  )
+                                })}
+                            </div>
+                          </div>
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="text-left text-[#392617]/50">

@@ -1119,3 +1119,21 @@ model TituloPagar {
   @@index([unidadeId, dataVencimento])
   @@index([unidadeId, dataCompetencia])
 }
+
+// Validação/conciliação do reembolso de parcerias: o valor LÍQUIDO que de fato
+// entrou na conta (por parceria/unidade/mês) vs o calculado (atendimentos × flat),
+// com justificativa da diferença. Espelha o valorRecebido dos vouchers online.
+model ParceriaConciliacao {
+  id            Int      @id @default(autoincrement())
+  ano           Int
+  mes           Int
+  unidadeId     Int
+  parceria      String   // 'totalpass' | 'gympass'
+  recebido      Float    @default(0)
+  justificativa String   @default("")
+  conciliado    Boolean  @default(false)
+  atualizadoEm  DateTime @updatedAt
+
+  @@unique([ano, mes, unidadeId, parceria])
+  @@index([ano, mes])
+}
