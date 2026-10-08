@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession, unauthorized, unidadesPermitidas } from '@/lib/auth/guard'
 import { prisma } from '@/lib/prisma'
+import { PARCERIAS } from '@/lib/parcerias/reembolso'
 
 export const dynamic = 'force-dynamic'
 
 // Reembolso de parcerias: cada ATENDIMENTO do mês é pago no dia 20 do mês seguinte.
-// Valor FLAT por atendimento (não o do Belle), líquido já sem royalties+mkt. Controle
-// idêntico por parceria — só mudam os valores.
-const PARCERIAS = [
-  { chave: 'totalpass', nome: 'TotalPass', forma: 'Parcerias Comerciais - TotalPass', bruto: 225, liquido: 207 },
-  { chave: 'gympass', nome: 'Gympass', forma: 'Parcerias Comerciais - Gympass', bruto: 86.40, liquido: 79.48 },
-] as const
+// Valor FLAT por atendimento (não o do Belle), líquido já sem royalties+mkt. Os valores
+// vêm de @/lib/parcerias/reembolso (fonte única, compartilhada com o NF Salão Parceiro).
 
 const UNIDADES = [
   { slug: 'shopping-metropole', nome: 'Shopping Metrópole' },

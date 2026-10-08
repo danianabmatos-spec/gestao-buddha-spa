@@ -147,8 +147,8 @@ export default function NfSalaoPage() {
       const j = await lerJson(r);
       if (!r.ok || !j) throw new Error(msgErro(r, j));
       const c = j.competencia as Competencia; setComp(c); if (c?.existe) syncBaseForm(c);
-      const rz = j.resumoBase as { competLabel?: string; faturamentoCaixa?: number; reembolsoLabel?: string; reembolsoVoucher?: number; reembolsoZerado?: boolean } | undefined;
-      if (rz) setAviso(`Base puxada da Gestão — caixa de ${rz.competLabel}: ${brl(rz.faturamentoCaixa ?? 0)} · reembolso de ${rz.reembolsoLabel}: ${brl(rz.reembolsoVoucher ?? 0)}. Gympass, TotalPass e notas avulsas seguem manuais.${rz.reembolsoZerado ? " ⚠ Reembolso do mês anterior veio zerado — confira." : ""}`);
+      const rz = j.resumoBase as { competLabel?: string; faturamentoCaixa?: number; reembolsoLabel?: string; reembolsoVoucher?: number; reembolsoGympass?: number; reembolsoTotalpass?: number; reembolsoZerado?: boolean } | undefined;
+      if (rz) setAviso(`Base puxada da Gestão — caixa de ${rz.competLabel}: ${brl(rz.faturamentoCaixa ?? 0)} · voucher líq. ${rz.reembolsoLabel}: ${brl(rz.reembolsoVoucher ?? 0)} · Gympass ${brl(rz.reembolsoGympass ?? 0)} · TotalPass ${brl(rz.reembolsoTotalpass ?? 0)}. Só as notas avulsas são manuais.${rz.reembolsoZerado ? " ⚠ Voucher do mês anterior veio zerado — confira a conciliação." : ""}`);
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
     finally { setBusy(false); }
   };
@@ -177,7 +177,8 @@ export default function NfSalaoPage() {
       if (!r.ok || !j) throw new Error(msgErro(r, j));
       const c = j.competencia as Competencia; setComp(c); if (c?.existe) syncBaseForm(c);
       setRpsForm("");
-      setAviso(`Próximo RPS desta unidade definido em ${valor}.`);
+      const n = j.renumeradas as number | undefined;
+      setAviso(`Próximo RPS definido em ${valor}${n ? ` · ${n} nota(s) renumerada(s) a partir de ${valor}` : ""}.`);
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
     finally { setBusy(false); }
   };
@@ -325,8 +326,8 @@ export default function NfSalaoPage() {
               {([
                 { key: "faturamentoCaixa", l: "Faturamento em caixa", s: b.faturamentoFonte || "Belle", op: "+", tag: "gestão" },
                 { key: "reembolsoVoucher", l: "Reembolso de voucher", s: b.reembolsoFonte || "líquido (mês anterior)", op: "+", tag: "gestão" },
-                { key: "reembolsoGympass", l: "Gympass", s: "líquido recebido", op: "+", tag: "manual" },
-                { key: "reembolsoTotalpass", l: "TotalPass", s: "líquido recebido", op: "+", tag: "manual" },
+                { key: "reembolsoGympass", l: "Gympass", s: "parcerias (mês anterior)", op: "+", tag: "gestão" },
+                { key: "reembolsoTotalpass", l: "TotalPass", s: "parcerias (mês anterior)", op: "+", tag: "gestão" },
                 { key: "notasAvulsas", l: "Notas avulsas já emitidas", s: "abate da base", op: "−", tag: "manual" },
               ] as const).map((row) => (
                 <div key={row.key} className="flex items-center justify-between gap-3 py-2 border-b border-dashed border-[#E4D8C1]">

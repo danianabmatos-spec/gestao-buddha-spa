@@ -15,6 +15,7 @@ export interface TerapeutaFolha {
   diasCredito: number; // = F (crédito de dias PAGO no mês; 0 se não houve)
   nfCreditoNumero: string | null; // nº da NF de crédito (quando a Folha já tem)
   nfComissaoNumero: string | null;
+  rescisao?: boolean; // true = terapeuta em rescisão (NF do acerto entra na base)
 }
 
 export interface NotasTerapeutasFolha {

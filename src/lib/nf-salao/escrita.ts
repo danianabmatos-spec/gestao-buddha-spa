@@ -10,13 +10,19 @@ import {
 } from "@/lib/nf-salao/motor";
 import { UNIDADE_PILOTO, getCompetencia } from "@/lib/nf-salao/dados";
 import { getNotasTerapeutasFolha } from "@/lib/folha/notas-terapeutas";
-import { getFaturamentoCaixaMes } from "@/lib/reembolso/belle-faturamento";
-import { getVoucherReembolso } from "@/lib/reembolso/voucher-unidade";
+import { getFaturamentoCaixaConfirmacaoMes } from "@/lib/reembolso/belle-faturamento";
+import { getVoucherReembolsoConciliado } from "@/lib/reembolso/voucher-unidade";
+import { getParceriasReembolso } from "@/lib/parcerias/reembolso";
 import { slugPorId } from "@/lib/nf-salao/unidades";
 
 const normNome = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
 const soDigitos = (s: string) => (s || "").replace(/\D/g, "");
+
+// Alíquotas padrão (fixas p/ todas as unidades, exceto Metrópole que muda todo mês).
+// Pré-preenchidas ao abrir a competência; continuam editáveis.
+const ALIQUOTA_ISS_PADRAO = 2.39;
+const ALIQUOTA_TRIBUTOS_PADRAO = 3.67;
 
 const MESES_LONGO = [
   "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
@@ -78,8 +84,14 @@ async function recomputar(mesId: number) {
 export async function abrirCompetencia(ano: number, mes: number, unidadeId = UNIDADE_PILOTO) {
   const existente = await getMesRow(ano, mes, unidadeId);
   if (existente) return getCompetencia(ano, mes, unidadeId);
+  // Metrópole muda a alíquota todo mês → NÃO recebe padrão (fica 0 = pendência lembra de preencher).
+  const ehMetropole = slugPorId(unidadeId) === "shopping-metropole";
   await prisma.nfSalaoMes.create({
-    data: { unidadeId, ano, mes, status: "ABERTO" },
+    data: {
+      unidadeId, ano, mes, status: "ABERTO",
+      aliquotaIss: ehMetropole ? 0 : ALIQUOTA_ISS_PADRAO,
+      aliquotaTributos: ehMetropole ? 0 : ALIQUOTA_TRIBUTOS_PADRAO,
+    },
   });
   // garante o sequenciador de RPS da unidade
   await prisma.rpsSequencia.upsert({
@@ -130,8 +142,10 @@ export async function salvarBase(ano: number, mes: number, campos: BaseEdicao, u
 export interface ResumoBaseGestao {
   faturamentoCaixa: number;
   reembolsoVoucher: number;
+  reembolsoGympass: number;
+  reembolsoTotalpass: number;
   competLabel: string; // mês da competência (caixa)
-  reembolsoLabel: string; // mês anterior (reembolso de voucher)
+  reembolsoLabel: string; // mês anterior (reembolso de voucher + parcerias)
   reembolsoZerado: boolean; // não achou reembolso do mês anterior → veio 0
 }
 
@@ -140,8 +154,11 @@ export interface ResumoBaseGestao {
  *  - Faturamento em caixa do MÊS DA COMPETÊNCIA (Belle);
  *  - Reembolso de voucher do MÊS CIVIL ANTERIOR (módulo de reembolso) — regra fixa por
  *    causa do fechamento no dia 05, quando o voucher da própria competência ainda não chegou.
- * Gympass/TotalPass/notas avulsas continuam manuais. Grava a fonte de cada valor,
- * recalcula a base e o rateio via salvarBase. Não toca em nada quando o mês está FECHADO.
+ * Também puxa Gympass/TotalPass do módulo de parcerias (mesma regra M−1). Só as notas
+ * avulsas seguem manuais. Grava a fonte de cada valor, recalcula a base e o rateio via
+ * salvarBase. Não toca em nada quando o mês está FECHADO.
+ *   - Voucher: valor LÍQUIDO que entrou na conta (conciliação, ReembolsoUnidade.valorRecebido).
+ *   - Gympass/TotalPass: reembolso líquido de parcerias do mês anterior (atendimentos × flat).
  */
 export async function puxarBaseGestao(ano: number, mes: number, unidadeId = UNIDADE_PILOTO): Promise<{ competencia: Awaited<ReturnType<typeof getCompetencia>>; resumo: ResumoBaseGestao }> {
   const mesRow = await getMesRow(ano, mes, unidadeId);
@@ -155,11 +172,14 @@ export async function puxarBaseGestao(ano: number, mes: number, unidadeId = UNID
 
   let faturamentoCaixa: number;
   try {
-    faturamentoCaixa = await getFaturamentoCaixaMes(slug, ano, mes);
+    // Caixa por data de CONFIRMAÇÃO (Report 103) = o "Recebido em Caixa" do Radar Geral.
+    faturamentoCaixa = await getFaturamentoCaixaConfirmacaoMes(slug, ano, mes);
   } catch (e) {
     throw new Error(`Não consegui puxar o faturamento em caixa do Belle: ${e instanceof Error ? e.message : "erro"}`);
   }
-  const reembolsoVoucher = await getVoucherReembolso(slug, anoAnt, mesAnt);
+  // Mês anterior (M−1): voucher líquido da conciliação + parcerias (Gympass/TotalPass).
+  const reembolsoVoucher = await getVoucherReembolsoConciliado(slug, anoAnt, mesAnt);
+  const parcerias = await getParceriasReembolso(unidadeId, anoAnt, mesAnt);
 
   const competLabel = mesAnoLabel(ano, mes);
   const reembolsoLabel = mesAnoLabel(anoAnt, mesAnt);
@@ -169,8 +189,10 @@ export async function puxarBaseGestao(ano: number, mes: number, unidadeId = UNID
     {
       faturamentoCaixa,
       reembolsoVoucher,
-      faturamentoFonte: `Belle · caixa ${competLabel}`,
-      reembolsoFonte: `voucher líq. · ${reembolsoLabel}`,
+      reembolsoGympass: parcerias.gympass,
+      reembolsoTotalpass: parcerias.totalpass,
+      faturamentoFonte: `Recebido em caixa (confirmação) · ${competLabel}`,
+      reembolsoFonte: `conciliação (líq.) + parcerias · ${reembolsoLabel}`,
     },
     unidadeId,
   );
@@ -180,6 +202,8 @@ export async function puxarBaseGestao(ano: number, mes: number, unidadeId = UNID
     resumo: {
       faturamentoCaixa,
       reembolsoVoucher,
+      reembolsoGympass: parcerias.gympass,
+      reembolsoTotalpass: parcerias.totalpass,
       competLabel,
       reembolsoLabel,
       reembolsoZerado: reembolsoVoucher === 0,
@@ -399,27 +423,47 @@ export async function atribuirRpsTodas(ano: number, mes: number, unidadeId = UNI
 }
 
 /**
- * Define o "próximo RPS" da unidade (para semear a numeração inicial de cada unidade).
- * Trava anti-reuso: não aceita valor menor ou igual ao maior RPS já atribuído na unidade.
+ * Define o "próximo RPS" da unidade e RENUMERA as notas ainda não emitidas da competência
+ * atual a partir desse valor (ordem alfabética). Isso corrige o caso comum de o RPS ter
+ * sido atribuído cedo demais com a numeração errada. Notas já EMITIDAS (RPS definitivo na
+ * prefeitura) nunca mudam — e o novo valor não pode colidir com elas.
  */
-export async function definirProximoRps(valor: number, unidadeId = UNIDADE_PILOTO) {
+export async function definirProximoRps(ano: number, mes: number, valor: number, unidadeId = UNIDADE_PILOTO) {
   if (!Number.isInteger(valor) || valor < 1) {
     throw new Error("Informe um número de RPS válido (inteiro ≥ 1).");
   }
-  const maxRow = await prisma.nfSalaoTerapeuta.aggregate({
-    where: { unidadeId, rps: { not: null } },
+  const mesRow = await getMesRow(ano, mes, unidadeId);
+  if (!mesRow) throw new Error("Competência não encontrada.");
+  assertAberto(mesRow.status);
+
+  // Não pode colidir com RPS de notas JÁ EMITIDAS (definitivas na prefeitura).
+  const maxEmit = await prisma.nfSalaoTerapeuta.aggregate({
+    where: { unidadeId, status: "EMITIDA", rps: { not: null } },
     _max: { rps: true },
   });
-  const maiorUsado = maxRow._max.rps ?? 0;
-  if (valor <= maiorUsado) {
-    throw new Error(`O próximo RPS deve ser maior que ${maiorUsado} (já usado nesta unidade).`);
+  const maiorEmitido = maxEmit._max.rps ?? 0;
+  if (valor <= maiorEmitido) {
+    throw new Error(`O próximo RPS deve ser maior que ${maiorEmitido} (já emitido na prefeitura).`);
   }
-  await prisma.rpsSequencia.upsert({
-    where: { unidadeId },
-    update: { proximoRps: valor },
-    create: { unidadeId, proximoRps: valor },
+
+  // Renumera as notas PENDENTES desta competência (alfabética) a partir de `valor`.
+  const pend = await prisma.nfSalaoTerapeuta.findMany({
+    where: { nfSalaoMesId: mesRow.id, status: { not: "EMITIDA" } },
+    orderBy: { terapeutaNome: "asc" },
   });
-  return valor;
+  await prisma.$transaction(async (tx) => {
+    let prox = valor;
+    for (const t of pend) {
+      await tx.nfSalaoTerapeuta.update({ where: { id: t.id }, data: { rps: prox } });
+      prox++;
+    }
+    await tx.rpsSequencia.upsert({
+      where: { unidadeId },
+      update: { proximoRps: prox },
+      create: { unidadeId, proximoRps: prox },
+    });
+  });
+  return { renumeradas: pend.length, proximoRps: valor + pend.length };
 }
 
 export async function fecharMes(ano: number, mes: number, porNome: string | null, unidadeId = UNIDADE_PILOTO) {

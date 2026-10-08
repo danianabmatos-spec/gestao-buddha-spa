@@ -135,10 +135,10 @@ export async function POST(
           codVerificacao: body.codVerificacao,
         }, u.id);
         break;
-      case "definirRps":
-        await definirProximoRps(Number(body.valor), u.id);
-        competencia = await getCompetencia(p.a, p.m, u.id);
-        break;
+      case "definirRps": {
+        const r = await definirProximoRps(p.a, p.m, Number(body.valor), u.id);
+        return Response.json({ competencia: await getCompetencia(p.a, p.m, u.id), renumeradas: r.renumeradas });
+      }
       case "puxarFolha": {
         const r = await puxarDaFolha(p.a, p.m, u.id);
         return Response.json({ competencia: r.competencia, resumo: r.resumo });
