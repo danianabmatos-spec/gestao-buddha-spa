@@ -47,11 +47,26 @@ export async function POST(req: NextRequest) {
     tratadoPorNome: session.nome,
   }
 
+  // Tratativa NOVA (não é edição) de um caso de NPS → cai 1 no badge de pendentes do mês.
+  const jaExistia = await prisma.tratativaNps.findUnique({
+    where: { unidadeId_chaveCaso: { unidadeId: unidade.id, chaveCaso: String(chaveCaso) } },
+    select: { id: true },
+  })
+
   const tratativa = await prisma.tratativaNps.upsert({
     where: { unidadeId_chaveCaso: { unidadeId: unidade.id, chaveCaso: String(chaveCaso) } },
     update: dados,
     create: { unidadeId: unidade.id, chaveCaso: String(chaveCaso), ...dados },
   })
+
+  if (!jaExistia && origem === 'NPS') {
+    const d = new Date()
+    const mesRef = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    await prisma.npsPendentesCache.updateMany({
+      where: { unidadeId: unidade.id, mesRef, pendentes: { gt: 0 } },
+      data: { pendentes: { decrement: 1 } },
+    }).catch(() => {})
+  }
 
   return NextResponse.json({ ok: true, tratativa })
 }

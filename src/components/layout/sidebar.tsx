@@ -24,6 +24,7 @@ import {
   ListChecks,
   BarChart3,
   Banknote,
+  PhoneCall,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -69,6 +70,15 @@ export function Sidebar() {
   // Slugs das unidades que o usuário acessa (null = todas; undefined = carregando).
   const [unidadesUser, setUnidadesUser] = useState<string[] | null | undefined>(undefined)
   const [unidadesExpanded, setUnidadesExpanded] = useState<Record<string, boolean>>({})
+  // Badge do menu lateral: nº de NPS pendentes de tratativa por unidade (cache barato).
+  const [npsPendentes, setNpsPendentes] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    fetch('/api/rotinas/nps-pendentes')
+      .then(r => r.ok ? r.json() : null)
+      .then(j => setNpsPendentes(j?.pendentes ?? {}))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     fetch('/api/auth/permissoes')
@@ -159,6 +169,16 @@ export function Sidebar() {
                       {pode('rotina-do-dia') && (
                         <Link href={`/rotina-do-dia?unidade=${slug}`} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white">
                           <ClipboardList size={14} strokeWidth={1.8} /> Rotina do Dia
+                        </Link>
+                      )}
+                      {pode('rotina-do-dia') && (
+                        <Link href={`/nps?unidade=${slug}`} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white">
+                          <PhoneCall size={14} strokeWidth={1.8} /> <span className="flex-1">NPS a Tratar</span>
+                          {(npsPendentes[slug] ?? 0) > 0 && (
+                            <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#7E0000] text-white text-[10px] font-bold ring-1 ring-[#DDC7A4]/40">
+                              {npsPendentes[slug]}
+                            </span>
+                          )}
                         </Link>
                       )}
                       {menuOperacional.filter(i => pode(i.func)).map(({ href, label, icon: Icon }) => {

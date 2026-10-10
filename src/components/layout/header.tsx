@@ -1,7 +1,7 @@
 'use client'
 
 import { RefreshCw } from 'lucide-react'
-import { format, startOfMonth, startOfWeek, subDays, startOfYear, endOfMonth } from 'date-fns'
+import { format, startOfMonth, startOfWeek, subDays, startOfYear, endOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
 
@@ -17,7 +17,8 @@ interface HeaderProps {
 const ATALHOS = [
   { label: 'Hoje',        getRange: () => { const h = new Date(); return [h, h] as [Date, Date] } },
   { label: 'Esta semana', getRange: () => [startOfWeek(new Date(), { weekStartsOn: 1 }), new Date()] as [Date, Date] },
-  { label: 'Este mês',    getRange: () => [startOfMonth(new Date()), new Date()] as [Date, Date] }
+  { label: 'Este mês',    getRange: () => [startOfMonth(new Date()), new Date()] as [Date, Date] },
+  { label: 'Mês anterior', getRange: () => { const m = subMonths(new Date(), 1); return [startOfMonth(m), endOfMonth(m)] as [Date, Date] } }
 ]
 
 export function Header({ dataIni, dataFim, unidade, loading, onPeriodoChange, onRefresh }: HeaderProps) {

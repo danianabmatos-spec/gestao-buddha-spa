@@ -53,7 +53,7 @@ export const FUNCIONALIDADES: Funcionalidade[] = [
   { chave: 'fluxo-caixa', label: 'Fluxo de Caixa', grupo: 'Financeiro', rotas: ['/fluxo-caixa'], padrao: p(N, N, V, N, N) },
 
   // ── Unidade ──
-  { chave: 'rotina-do-dia', label: 'Rotina do Dia', grupo: 'Unidade', rotas: ['/rotina-do-dia', '/api/rotinas', '/api/tarefas-do-dia', '/api/erp/tarefas'], padrao: p(E, E, V, N, N) },
+  { chave: 'rotina-do-dia', label: 'Rotina do Dia', grupo: 'Unidade', rotas: ['/rotina-do-dia', '/nps', '/api/rotinas', '/api/tarefas-do-dia', '/api/erp/tarefas'], padrao: p(E, E, V, N, N) },
   { chave: 'dashboard', label: 'Dashboard da Unidade', grupo: 'Unidade', rotas: ['/dashboard', '/api/dashboard-unidade'], padrao: p(V, V, V, N, N) },
   { chave: 'historico', label: 'Histórico', grupo: 'Unidade', rotas: ['/dashboard/*/historico'], padrao: p(V, V, V, N, N) },
   { chave: 'terapeutas', label: 'Terapeutas (tabela)', grupo: 'Unidade', rotas: ['/terapeutas', '/dashboard/*/terapeutas', '/api/belle/terapeutas', '/api/terapeutas/atualizar'], padrao: p(V, N, V, V, N) },

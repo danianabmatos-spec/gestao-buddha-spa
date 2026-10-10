@@ -1137,3 +1137,17 @@ model ParceriaConciliacao {
   @@unique([ano, mes, unidadeId, parceria])
   @@index([ano, mes])
 }
+
+// Cache do nº de casos de NPS pendentes de tratativa (por unidade/mês), p/ o badge do
+// menu lateral. Atualizado quando a página de NPS abre (agir-hoje), ao salvar tratativa
+// e pelo cron diário. Lido pelo /api/rotinas/nps-pendentes.
+model NpsPendentesCache {
+  id           Int      @id @default(autoincrement())
+  unidadeId    Int
+  mesRef       String   // "YYYY-MM"
+  pendentes    Int      @default(0)
+  totalMes     Int      @default(0)
+  atualizadoEm DateTime @updatedAt
+
+  @@unique([unidadeId, mesRef])
+}

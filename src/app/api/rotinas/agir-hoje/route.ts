@@ -88,9 +88,21 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const npsAvaliacoes = npsCasos.map(anexarTratativa)
   const nps = npsRes.status === 'fulfilled'
-    ? { periodo: { inicio: inicioMes, fim: fimPeriodo }, totalRespostas: npsTotal, avaliacoes: npsCasos.map(anexarTratativa) }
+    ? { periodo: { inicio: inicioMes, fim: fimPeriodo }, totalRespostas: npsTotal, avaliacoes: npsAvaliacoes }
     : { periodo: { inicio: inicioMes, fim: fimPeriodo }, totalRespostas: 0, avaliacoes: [] as unknown[], erro: 'Não foi possível carregar o NPS do Belle agora.' }
+
+  // Atualiza o cache de pendentes (badge do menu lateral) — só quando é o mês corrente
+  // e o NPS carregou de fato. Fire-and-forget: não trava a resposta.
+  if (npsRes.status === 'fulfilled' && inicioMes.slice(0, 7) === mesAtual) {
+    const pendentes = npsAvaliacoes.filter((a) => !a.tratativa).length
+    prisma.npsPendentesCache.upsert({
+      where: { unidadeId_mesRef: { unidadeId: unidade.id, mesRef: mesAtual } },
+      create: { unidadeId: unidade.id, mesRef: mesAtual, pendentes, totalMes: npsCasos.length },
+      update: { pendentes, totalMes: npsCasos.length },
+    }).catch(() => {})
+  }
 
   const google = googleRes.status === 'fulfilled'
     ? { nota: googleBase.nota, totalAvaliacoes: googleBase.totalAvaliacoes, url: googleBase.url, mes: mesAtual, avaliacoes: googleCasos.map(anexarTratativa) }

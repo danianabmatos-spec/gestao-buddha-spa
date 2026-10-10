@@ -6,7 +6,6 @@ import {
   Plus, Send, CalendarDays, Loader2, CalendarRange, Pencil, X, Wallet,
 } from 'lucide-react'
 import CalendarioMes from '@/components/rotinas/calendario-mes'
-import AgirHoje from '@/components/rotinas/agir-hoje'
 
 // ─── Tipos (espelham /api/rotinas) ──────────────────────────────────────────────
 interface Tarefa {
@@ -182,9 +181,6 @@ export default function RotinaDoDiaPage() {
 
       {vista === 'dia' && !loading && resp && (
         <>
-          {/* Inteligência acionável do dia (só quando é hoje) */}
-          {!dataAtiva && <AgirHoje unidadeSlug={unidadeSlug} perfil={resp.perfil} />}
-
           {/* Resumo */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             <Cartao rotulo="Concluídas" valor={`${resp.resumo.concluidas}/${resp.resumo.total}`} cor="#425F1D" />

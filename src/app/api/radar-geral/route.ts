@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { RadarGeralData, IndicadoresUnidade } from '@/types/radar-geral'
 import { UNIDADES_CONFIG } from '@/types/radar-geral'
+import { SLUGS_COM_ACRESCIMO_7, ACRESCIMO_PCT } from '@/lib/reembolso/motor'
 
-// Voucher do site (por unidade) = valor de REEMBOLSO do mês, vindo do módulo de
-// reembolso (o único caminho autenticado que passa pelo Cloudflare do WordPress).
-// mapeado pela data do filtro (deriva ano/mês de dataIni).
+// Voucher do site (por unidade) = SUBTOTAL de reembolso do mês = Vouchers + 7% +
+// Omni + Cortesias (as 4 primeiras colunas da tela de Reembolso), vindo do módulo de
+// reembolso. O "+7%" é calculado (só nas 4 unidades que recebem), não fica no banco.
+// Mapeado pela data do filtro (deriva ano/mês de dataIni).
 async function getVoucherReembolsoPorUnidade(ano: number, mes: number): Promise<Record<string, number>> {
   const map: Record<string, number> = {}
   try {
@@ -13,9 +15,13 @@ async function getVoucherReembolsoPorUnidade(ano: number, mes: number): Promise<
     if (!mesRow) return map
     const linhas = await prisma.reembolsoUnidade.findMany({
       where: { reembolsoMesId: mesRow.id },
-      select: { vouchers: true, unidade: { select: { slug: true } } },
+      select: { vouchers: true, omnichannel: true, cortesiaReembolso: true, unidade: { select: { slug: true } } },
     })
-    for (const l of linhas) map[l.unidade.slug] = l.vouchers
+    for (const l of linhas) {
+      const slug = l.unidade.slug
+      const acrescimo7 = SLUGS_COM_ACRESCIMO_7.has(slug) ? l.vouchers * ACRESCIMO_PCT : 0
+      map[slug] = Math.round((l.vouchers + acrescimo7 + l.omnichannel + l.cortesiaReembolso) * 100) / 100
+    }
   } catch (e) {
     console.error('[radar-geral] falha ao ler voucher reembolso:', e)
   }

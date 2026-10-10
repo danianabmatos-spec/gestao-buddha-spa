@@ -264,6 +264,7 @@ export default function ReembolsoPage() {
                 <th className="text-right px-2 py-2.5 font-semibold">+7%</th>
                 <th className="text-right px-2 py-2.5 font-semibold">Omni</th>
                 <th className="text-right px-2 py-2.5 font-semibold">Cortesias</th>
+                <th className="text-right px-2 py-2.5 font-semibold bg-[#5c0000]" title="Vouchers + 7% + Omni + Cortesias">Subtotal</th>
                 <th className="text-right px-2 py-2.5 font-semibold">Compras</th>
                 <th className="text-right px-2 py-2.5 font-semibold">Treino</th>
                 <th className="text-right px-2 py-2.5 font-semibold">Royalties/Mkt</th>
@@ -294,6 +295,10 @@ export default function ReembolsoPage() {
                   <td className="text-right px-2 tabular-nums text-[#392617]/70">{brl(l.acrescimo7)}</td>
                   <td className="text-right px-2 tabular-nums text-[#392617]/70">{brl(l.omnichannel)}</td>
                   <td className="text-right px-2 tabular-nums text-[#392617]/70" title={`Usado: R$ ${brl(l.cortesiaUsada)}`}>{brl(l.cortesiaReembolso)}</td>
+                  {/* Subtotal — soma das 4 primeiras colunas (base do Voucher Site no Radar) */}
+                  <td className="text-right px-2 tabular-nums font-semibold text-[#7E0000] bg-[#7E0000]/[0.04]">
+                    {brl(l.vouchers + l.acrescimo7 + l.omnichannel + l.cortesiaReembolso)}
+                  </td>
                   {/* Compras — mostra o valor JÁ com desconto PEX; abre o editor de itens */}
                   <td className="text-right px-1">
                     <button onClick={() => { setComprasAberta(comprasOpen ? null : l.unidadeId); setNovo({ desc: '', val: '' }) }}
@@ -343,7 +348,7 @@ export default function ReembolsoPage() {
                 </tr>
                 {comprasOpen && (
                   <tr className="bg-[#FBF6EF]">
-                    <td colSpan={10} className="px-4 py-3">
+                    <td colSpan={11} className="px-4 py-3">
                       <div className="max-w-lg">
                         <div className="font-semibold text-xs text-[#392617] mb-2">Compras de {l.nome} — memória de cálculo</div>
                         {l.comprasItens.length === 0 && <p className="text-xs text-[#392617]/50 mb-2">Nenhum item lançado ainda.</p>}
@@ -374,7 +379,7 @@ export default function ReembolsoPage() {
                 )}
                 {l.isHigienopolis && royOpen && (
                   <tr className="bg-[#FBF6EF]">
-                    <td colSpan={10} className="px-4 py-3">
+                    <td colSpan={11} className="px-4 py-3">
                       <div className="max-w-lg">
                         <div className="font-semibold text-xs text-[#392617] mb-2">Royalties / Mkt de {l.nome} — memória de cálculo</div>
                         <div className="flex items-center gap-2 text-xs">
@@ -400,7 +405,7 @@ export default function ReembolsoPage() {
                 )}
                 {treinoOpen && (
                   <tr className="bg-[#FBF6EF]">
-                    <td colSpan={10} className="px-4 py-3">
+                    <td colSpan={11} className="px-4 py-3">
                       <div className="max-w-lg">
                         <div className="font-semibold text-xs text-[#392617] mb-2">Treinamentos de {l.nome} — terapeutas (R$ 1.000 cada)</div>
                         {l.treinamentoItens.length === 0 && <p className="text-xs text-[#392617]/50 mb-2">Nenhuma terapeuta lançada ainda.</p>}
@@ -438,6 +443,7 @@ export default function ReembolsoPage() {
                 <td className="text-right px-2 tabular-nums">{brl(t?.acrescimo7 ?? 0)}</td>
                 <td className="text-right px-2 tabular-nums">{brl(t?.omnichannel ?? 0)}</td>
                 <td className="text-right px-2 tabular-nums">{brl(t?.cortesiaReembolso ?? 0)}</td>
+                <td className="text-right px-2 tabular-nums text-[#7E0000] bg-[#7E0000]/[0.04]">{brl((t?.vouchers ?? 0) + (t?.acrescimo7 ?? 0) + (t?.omnichannel ?? 0) + (t?.cortesiaReembolso ?? 0))}</td>
                 <td className="text-right px-2 tabular-nums">{brl(t?.comprasEfetiva ?? 0)}</td>
                 <td className="text-right px-2 tabular-nums">{brl(t?.treinamentoEfetivo ?? 0)}</td>
                 <td className="text-right px-2 tabular-nums">{brl(t?.royaltiesMkt ?? 0)}</td>

@@ -7,6 +7,19 @@ import { RefreshCw, AlertTriangle } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import type { RadarGeralData } from '@/types/radar-geral'
 import { UNIDADES_CONFIG } from '@/types/radar-geral'
+import { getMetasUnidade } from '@/lib/metas/config'
+
+// Status da meta (mesmas faixas/cores da tela de Metas e Premiações).
+function statusMeta(pct: number): { label: string; cor: string } {
+  if (pct < 70) return { label: 'Crítico', cor: '#7E0000' }
+  if (pct < 86) return { label: 'Fraco', cor: '#D78B18' }
+  if (pct < 100) return { label: 'Atenção', cor: '#B8860B' }
+  if (pct < 111) return { label: 'No ritmo', cor: '#8BC34A' }
+  if (pct < 121) return { label: 'Muito bom', cor: '#689F38' }
+  return { label: 'Excelente', cor: '#33691E' }
+}
+
+interface MetaUnidade { u: number; r: number; h: number }
 
 export default function RadarGeralPage() {
   const hoje = new Date()
@@ -17,6 +30,16 @@ export default function RadarGeralPage() {
   const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null)
   const [atualizando, setAtualizando] = useState(false)
   const [pontos, setPontos] = useState<Record<string, number>>({})
+  const [metas, setMetas] = useState<Record<string, MetaUnidade>>({})
+
+  // Visão de MÊS: os status de meta só aparecem quando o período é um mês (começa no
+  // dia 1 e fecha no mesmo mês). Em período solto (semana, intervalo custom), esconde.
+  const mesmoMes = dataIni.getDate() === 1 && dataIni.getMonth() === dataFim.getMonth() && dataIni.getFullYear() === dataFim.getFullYear()
+  const anoM = dataIni.getFullYear()
+  const mesM = dataIni.getMonth() + 1
+  const diasNoMes = new Date(anoM, mesM, 0).getDate()
+  const diasDecorridos = dataFim.getDate()
+  const mesCompleto = anoM < hoje.getFullYear() || (anoM === hoje.getFullYear() && mesM < hoje.getMonth() + 1) || diasDecorridos >= diasNoMes
 
   const buscarDados = useCallback(async (ini: Date, fim: Date) => {
     setLoading(true)
@@ -69,6 +92,28 @@ export default function RadarGeralPage() {
       .catch(() => setPontos({}))
   }, [dataFim])
 
+  // Metas do mês (Folha, com fallback no config) — base dos status no Radar. Só busca
+  // quando é visão de mês; em período solto zera (não mostra bolinha).
+  useEffect(() => {
+    if (!mesmoMes) { setMetas({}); return }
+    fetch(`/api/metas-folha?ano=${anoM}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((folha) => {
+        const m: Record<string, MetaUnidade> = {}
+        for (const cfg of UNIDADES_CONFIG) {
+          const fm = folha?.porSlug?.[cfg.slug]?.metas?.find((x: { mes: number }) => x.mes === mesM)
+          const c = getMetasUnidade(cfg.slug, anoM)?.metas.find((x) => x.mes === mesM)
+          m[cfg.slug] = {
+            u: fm ? fm.metaFaturamento : (c?.metaUnidade ?? 0),
+            r: fm ? fm.metaRecepcao : (c?.metaRecepcao ?? 0),
+            h: fm ? fm.metaHoras : (c?.metaHoras ?? 0),
+          }
+        }
+        setMetas(m)
+      })
+      .catch(() => setMetas({}))
+  }, [anoM, mesM, mesmoMes])
+
   const handlePeriodoChange = (ini: Date, fim: Date) => {
     setDataIni(ini)
     setDataFim(fim)
@@ -89,6 +134,17 @@ export default function RadarGeralPage() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(valor)
+  }
+
+  // Bolinha de status da meta (projeção do mês vs meta). Retorna null quando não é visão
+  // de mês ou a meta não está configurada (aí não polui).
+  const statusDot = (realizado: number, meta: number | undefined, formato: 'moeda' | 'horas') => {
+    if (!mesmoMes || !meta || meta <= 0) return null
+    const projecao = mesCompleto ? realizado : (diasDecorridos > 0 ? (realizado / diasDecorridos) * diasNoMes : 0)
+    const s = statusMeta((projecao / meta) * 100)
+    const fmt = (v: number) => (formato === 'horas' ? `${v.toFixed(0)}h` : formatReal(v))
+    const titulo = `Meta ${fmt(meta)} · Realizado ${fmt(realizado)} (${Math.round((realizado / meta) * 100)}%) · Projeção ${fmt(projecao)} → ${s.label}`
+    return <span title={titulo} aria-label={s.label} className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle shrink-0" style={{ backgroundColor: s.cor }} />
   }
 
   const formatRealDetalhado = (valor: number) => {
@@ -197,7 +253,7 @@ export default function RadarGeralPage() {
                         .filter(u => u.status === 'ativo')
                         .map((unidade) => (
                           <td key={unidade.slug} className="px-4 py-4 text-sm text-center font-semibold text-[#392617]">
-                            {formatReal(unidade.faturamento.caixa)}
+                            {statusDot(unidade.faturamento.caixa, metas[unidade.slug]?.u, 'moeda')}{formatReal(unidade.faturamento.caixa)}
                           </td>
                         ))}
                       <td className="px-4 py-4 text-sm text-center font-bold text-[#7E0000]">
@@ -214,7 +270,7 @@ export default function RadarGeralPage() {
                         .filter(u => u.status === 'ativo')
                         .map((unidade) => (
                           <td key={unidade.slug} className="px-4 py-4 text-sm text-center font-semibold text-[#392617]">
-                            {formatReal(unidade.vendasRecepcao)}
+                            {statusDot(unidade.vendasRecepcao, metas[unidade.slug]?.r, 'moeda')}{formatReal(unidade.vendasRecepcao)}
                           </td>
                         ))}
                       <td className="px-4 py-4 text-sm text-center font-bold text-[#7E0000]">
@@ -324,7 +380,7 @@ export default function RadarGeralPage() {
                         .filter(u => u.status === 'ativo')
                         .map((unidade) => (
                           <td key={unidade.slug} className="px-4 py-4 text-sm text-center font-semibold text-[#425F1D]">
-                            {unidade.horasAtendimento.toFixed(1)}h
+                            {statusDot(unidade.horasAtendimento, metas[unidade.slug]?.h, 'horas')}{unidade.horasAtendimento.toFixed(1)}h
                           </td>
                         ))}
                       <td className="px-4 py-4 text-sm text-center font-bold text-[#7E0000]">
@@ -404,6 +460,28 @@ export default function RadarGeralPage() {
               <p>• Horas: Horas de atendimento</p>
             </div>
           </div>
+          {mesmoMes && (
+            <div className="mt-4 pt-3 border-t border-[#DDC7A4]/40">
+              <p className="font-semibold text-xs text-[#392617]/70 mb-2">
+                Status da meta <span className="font-normal">(bolinha ao lado de Recebido em Caixa, Vendas da Recepção e Horas — projeção do mês vs meta)</span>:
+              </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-[#392617]/80">
+                {[
+                  { c: '#7E0000', l: 'Crítico', f: '< 70%' },
+                  { c: '#D78B18', l: 'Fraco', f: '70-85%' },
+                  { c: '#B8860B', l: 'Atenção', f: '86-99%' },
+                  { c: '#8BC34A', l: 'No ritmo', f: '100-110%' },
+                  { c: '#689F38', l: 'Muito bom', f: '111-120%' },
+                  { c: '#33691E', l: 'Excelente', f: '> 120%' },
+                ].map((s) => (
+                  <span key={s.l} className="inline-flex items-center gap-1.5">
+                    <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: s.c }} />
+                    <b className="font-medium">{s.l}</b> <span className="text-[#392617]/50">{s.f}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </>
