@@ -25,3 +25,8 @@ export const idPorSlug = (slug: string): number | null =>
 
 export const nomePorId = (id: number): string | null =>
   UNIDADES_NF.find((u) => u.id === id)?.nome ?? null;
+
+// Metrópole (São Bernardo do Campo) emite NFS-e direto na prefeitura, SEM a etapa de
+// RPS (Recibo Provisório). As demais usam RPS sequencial interno. Ponto único de verdade.
+export const unidadeUsaRps = (id: number): boolean =>
+  slugPorId(id) !== "shopping-metropole";

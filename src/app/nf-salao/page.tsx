@@ -198,6 +198,11 @@ export default function NfSalaoPage() {
   // Pendências que impedem o fechamento (todas, menos "RPS não atribuído" — o fechar resolve).
   const bloqueantes = comp ? comp.pendencias.filter((p) => p.codigo !== "rps") : [];
   const podeFechar = bloqueantes.length === 0;
+  // Higienópolis (Lucro Presumido): coluna de tributo + quadro de referência. SÓ ela.
+  const ehHigi = unidade === "higienopolis";
+  // Metrópole emite NFS-e direto, sem RPS — esconde toda a UI de RPS. SÓ ela.
+  const ehMetropole = unidade === "shopping-metropole";
+  const temRps = !ehMetropole;
 
   return (
     <div className="p-5 md:p-8 max-w-[1200px] w-full mx-auto">
@@ -220,7 +225,7 @@ export default function NfSalaoPage() {
             comp.status === "ABERTO" ? (
               <button disabled={busy || !podeFechar}
                 title={podeFechar ? "" : `Resolva as ${bloqueantes.length} pendência(s) antes de fechar`}
-                onClick={() => { if (confirm("Fechar a competência? O RPS será atribuído automaticamente (ordem alfabética) a quem ainda não tem, e o mês fica travado para edição.")) acao({ acao: "fechar" }); }}
+                onClick={() => { if (confirm(temRps ? "Fechar a competência? O RPS será atribuído automaticamente (ordem alfabética) a quem ainda não tem, e o mês fica travado para edição." : "Fechar a competência? O mês fica travado para edição.")) acao({ acao: "fechar" }); }}
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-[#425F1D] hover:bg-[#374f18] px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
                 <Lock className="w-4 h-4" /> Fechar mês
               </button>
@@ -326,8 +331,8 @@ export default function NfSalaoPage() {
               {([
                 { key: "faturamentoCaixa", l: "Faturamento em caixa", s: b.faturamentoFonte || "Belle", op: "+", tag: "gestão" },
                 { key: "reembolsoVoucher", l: "Reembolso de voucher", s: b.reembolsoFonte || "líquido (mês anterior)", op: "+", tag: "gestão" },
-                { key: "reembolsoGympass", l: "Gympass", s: "parcerias (mês anterior)", op: "+", tag: "gestão" },
-                { key: "reembolsoTotalpass", l: "TotalPass", s: "parcerias (mês anterior)", op: "+", tag: "gestão" },
+                { key: "reembolsoGympass", l: "Gympass", s: "parcerias — recebido (mês ant.)", op: "+", tag: "gestão" },
+                { key: "reembolsoTotalpass", l: "TotalPass", s: "parcerias — recebido (mês ant.)", op: "+", tag: "gestão" },
                 { key: "notasAvulsas", l: "Notas avulsas já emitidas", s: "abate da base", op: "−", tag: "manual" },
               ] as const).map((row) => (
                 <div key={row.key} className="flex items-center justify-between gap-3 py-2 border-b border-dashed border-[#E4D8C1]">
@@ -367,26 +372,58 @@ export default function NfSalaoPage() {
               )}
             </div>
 
-            <div className="grid grid-rows-4 gap-3">
+            <div className={`grid gap-3 ${temRps ? "grid-rows-4" : "grid-rows-3"}`}>
               <Kpi label="Total que o salão vai emitir" value={brl(b.valorBase)} accent />
               <Kpi label="Notas do salão (1 por terapeuta)" value={String(comp.terapeutas.length)} />
               <Kpi label="Soma das NFs das terapeutas (ΣP)" value={brl(comp.totais.somaTerapeutas)} />
-              <div className="border rounded-2xl px-4 flex items-center justify-between gap-2 border-[#E4D8C1] bg-white">
-                <span className="text-[12.5px] text-[#6b5645]">Próximo RPS da unidade</span>
-                {editavel ? (
-                  <div className="flex items-center gap-1.5">
-                    <input value={rpsForm} onChange={(e) => setRpsForm(e.target.value.replace(/\D/g, ""))} inputMode="numeric"
-                      placeholder={comp.proximoRps != null ? String(comp.proximoRps) : "—"}
-                      className="w-20 text-right tabular-nums rounded-md border border-[#E4D8C1] px-2 py-1 text-sm" />
-                    <button disabled={busy || !rpsForm} onClick={definirRps} title="Definir o próximo RPS desta unidade"
-                      className="text-xs font-semibold text-[#7E0000] border border-[#E4D8C1] bg-white hover:bg-[#f6ecdb] px-2 py-1.5 rounded-md disabled:opacity-40">Definir</button>
-                  </div>
-                ) : (
-                  <span className="text-xl font-bold tabular-nums text-[#392617]">{comp.proximoRps != null ? String(comp.proximoRps) : "—"}</span>
-                )}
-              </div>
+              {temRps && (
+                <div className="border rounded-2xl px-4 flex items-center justify-between gap-2 border-[#E4D8C1] bg-white">
+                  <span className="text-[12.5px] text-[#6b5645]">Próximo RPS da unidade</span>
+                  {editavel ? (
+                    <div className="flex items-center gap-1.5">
+                      <input value={rpsForm} onChange={(e) => setRpsForm(e.target.value.replace(/\D/g, ""))} inputMode="numeric"
+                        placeholder={comp.proximoRps != null ? String(comp.proximoRps) : "—"}
+                        className="w-20 text-right tabular-nums rounded-md border border-[#E4D8C1] px-2 py-1 text-sm" />
+                      <button disabled={busy || !rpsForm} onClick={definirRps} title="Definir o próximo RPS desta unidade"
+                        className="text-xs font-semibold text-[#7E0000] border border-[#E4D8C1] bg-white hover:bg-[#f6ecdb] px-2 py-1.5 rounded-md disabled:opacity-40">Definir</button>
+                    </div>
+                  ) : (
+                    <span className="text-xl font-bold tabular-nums text-[#392617]">{comp.proximoRps != null ? String(comp.proximoRps) : "—"}</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Quadro de referência da emissão — SÓ Higienópolis (NFS-e Nacional). */}
+          {ehHigi && (
+            <div className="bg-white border border-[#E4D8C1] rounded-2xl p-5 mb-6">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#7E0000] mb-3">Dados para a emissão · NFS-e Nacional (Higienópolis)</div>
+              <div className="grid sm:grid-cols-2 gap-x-8 gap-y-2.5">
+                <InfoHigi k="Classificação Tributária Principal" v="000001 — Situações tributadas integralmente pelo IBS e CBS" />
+                <InfoHigi k="Indicador de Operação" v="30101 — Serviço prestado fisicamente sobre a pessoa ou fruído presencialmente" />
+                <InfoHigi k="Código NBS" v="126029000 — Serviços de tratamento de beleza e bem-estar físico não classificados" />
+                <InfoHigi k="Município da prestação (IBGE)" v="3550308 — São Paulo" />
+                <InfoHigi k="Prestação do serviço" v="No País" />
+                <InfoHigi k="Alíquota dos tributos aproximados" v="8,65%" />
+              </div>
+            </div>
+          )}
+
+          {/* Quadro de referência da emissão — SÓ Metrópole (prefeitura de São Bernardo). */}
+          {ehMetropole && (
+            <div className="bg-white border border-[#E4D8C1] rounded-2xl p-5 mb-6">
+              <div className="text-xs font-bold uppercase tracking-wider text-[#7E0000] mb-3">Dados para a emissão · Discriminação do Serviço (Shopping Metrópole — São Bernardo)</div>
+              <div className="grid sm:grid-cols-2 gap-x-8 gap-y-2.5">
+                <InfoHigi k="Código do Serviço / Atividade" v="6.02/6.02/101011/1351" />
+                <InfoHigi k="Alíquota (%)" v={`${comp.aliquotaIss.toFixed(2).replace(".", ",")}%`} />
+                <InfoHigi k="NBS" v="1.2602.90.00" />
+                <InfoHigi k="Código Indicador da Operação" v="030101" />
+                <InfoHigi k="Código de Situação Tributária · CST-IBS/CBS" v="000" />
+                <InfoHigi k="Classificação Tributária" v="000001" />
+              </div>
+            </div>
+          )}
 
           {/* Tabela */}
           <div className="bg-white border border-[#E4D8C1] rounded-2xl overflow-hidden mb-4">
@@ -395,17 +432,19 @@ export default function NfSalaoPage() {
               <div className="text-[11px] uppercase tracking-wide text-[#8a7866]">valor da nota = base × % de contribuição</div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[960px] border-collapse">
+              <table className="w-full min-w-[1080px] border-collapse">
                 <thead>
                   <tr className="bg-[#7E0000] text-[#f6ead6] text-[11px] uppercase tracking-wide">
                     <th className="text-left font-semibold px-3 py-2.5">Terapeuta</th>
                     <th className="text-right font-semibold px-3 py-2.5">Comissão · G</th>
                     <th className="text-right font-semibold px-3 py-2.5">Dias créd. · F</th>
+                    <th className="text-left font-semibold px-3 py-2.5">NF terapeuta</th>
                     <th className="text-right font-semibold px-3 py-2.5">Valor dela · P</th>
                     <th className="text-right font-semibold px-3 py-2.5">%</th>
                     <th className="text-right font-semibold px-3 py-2.5">Valor da NF · M</th>
                     <th className="text-right font-semibold px-3 py-2.5">Base ISS · O</th>
-                    <th className="text-right font-semibold px-3 py-2.5">RPS</th>
+                    {ehHigi && <th className="text-right font-semibold px-3 py-2.5">Tributo 8,65%</th>}
+                    {temRps && <th className="text-right font-semibold px-3 py-2.5">RPS</th>}
                     <th className="text-right font-semibold px-3 py-2.5">NF</th>
                     <th className="px-2 py-2.5"></th>
                   </tr>
@@ -415,7 +454,7 @@ export default function NfSalaoPage() {
                     <NfRow key={t.id} t={t} editavel={!!editavel} busy={busy}
                       aberta={aberta === t.id} onToggle={() => setAberta((a) => (a === t.id ? null : t.id))}
                       onCopy={() => copiar(t)} copiado={copiado === t.id}
-                      aliquotaIss={comp.aliquotaIss} aliquotaTributos={comp.aliquotaTributos}
+                      aliquotaIss={comp.aliquotaIss} aliquotaTributos={comp.aliquotaTributos} ehHigi={ehHigi} temRps={temRps}
                       onSalvar={(d) => acao({ acao: "editTerapeuta", id: t.id, terapeuta: d })}
                       onRemover={() => { if (confirm(`Remover ${t.terapeutaNome} desta competência?`)) acao({ acao: "removerTerapeuta", id: t.id }); }}
                       onEmitir={(d) => acao({ acao: "emitir", id: t.id, ...d })}
@@ -427,11 +466,13 @@ export default function NfSalaoPage() {
                     <td className="text-left px-3 py-3 text-[#7E0000] uppercase text-xs tracking-wide">Totais</td>
                     <td className="text-right px-3 py-3 tabular-nums">{brl(comp.totais.comissao)}</td>
                     <td className="text-right px-3 py-3 tabular-nums text-[#B5791A]">{brl(comp.totais.diasCredito)}</td>
+                    <td></td>
                     <td className="text-right px-3 py-3 tabular-nums">{brl(comp.totais.somaTerapeutas)}</td>
                     <td className="text-right px-3 py-3 tabular-nums">100%</td>
                     <td className="text-right px-3 py-3 tabular-nums text-[#B5791A]">{brl(comp.totais.somaNotas)}</td>
                     <td className="text-right px-3 py-3 tabular-nums">{brl(comp.totais.somaBaseCalculo)}</td>
-                    <td colSpan={3}></td>
+                    {ehHigi && <td className="text-right px-3 py-3 tabular-nums text-[#7E0000]">{brl(comp.totais.somaNotas * comp.aliquotaTributos / 100)}</td>}
+                    <td colSpan={temRps ? 3 : 2}></td>
                   </tr>
                 </tfoot>
               </table>
@@ -449,9 +490,11 @@ export default function NfSalaoPage() {
                   <button onClick={() => setAddOpen(true)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#7E0000] border border-dashed border-[#c9b79a] bg-white hover:bg-[#f6ecdb] px-3 py-2 rounded-lg">
                     <Plus className="w-4 h-4" /> Adicionar manual
                   </button>
-                  <button disabled={busy} onClick={atribuirRps} title="Dá o próximo RPS (ordem alfabética) a quem ainda não tem" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#7E0000] border border-[#E4D8C1] bg-white hover:bg-[#f6ecdb] px-3 py-2 rounded-lg disabled:opacity-50">
-                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Stamp className="w-4 h-4" />} Atribuir RPS a todas
-                  </button>
+                  {temRps && (
+                    <button disabled={busy} onClick={atribuirRps} title="Dá o próximo RPS (ordem alfabética) a quem ainda não tem" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#7E0000] border border-[#E4D8C1] bg-white hover:bg-[#f6ecdb] px-3 py-2 rounded-lg disabled:opacity-50">
+                      {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Stamp className="w-4 h-4" />} Atribuir RPS a todas
+                    </button>
+                  )}
                   <span className="text-xs text-[#8a7866]">A Folha traz nome, CNPJ, comissão, nº da NF e os dias de crédito pagos no mês (aprovados na Folha).</span>
                 </div>
               ) : (
@@ -484,10 +527,10 @@ const brl2 = (n: number) => "R$ " + (n || 0).toLocaleString("pt-BR", { minimumFr
 const pnum = (s: string): number => { const t = String(s ?? "").trim(); if (!t) return 0; const n = t.includes(",") ? Number(t.replace(/\./g, "").replace(",", ".")) : Number(t); return isNaN(n) ? 0 : n; };
 
 function NfRow({
-  t, editavel, busy, aberta, onToggle, onCopy, copiado, aliquotaIss, aliquotaTributos, onSalvar, onRemover, onEmitir,
+  t, editavel, busy, aberta, onToggle, onCopy, copiado, aliquotaIss, aliquotaTributos, ehHigi, temRps, onSalvar, onRemover, onEmitir,
 }: {
   t: Terapeuta; editavel: boolean; busy: boolean; aberta: boolean; onToggle: () => void; onCopy: () => void;
-  copiado: boolean; aliquotaIss: number; aliquotaTributos: number;
+  copiado: boolean; aliquotaIss: number; aliquotaTributos: number; ehHigi: boolean; temRps: boolean;
   onSalvar: (d: Record<string, unknown>) => void; onRemover: () => void; onEmitir: (d: Record<string, unknown>) => void;
 }) {
   const [f, setF] = useState({ comissao: String(t.comissao), diasCredito: String(t.diasCredito), cnpjMei: t.cnpjMei, nfComissaoNumero: t.nfComissaoNumero ?? "", nfCreditoNumero: t.nfCreditoNumero ?? "" });
@@ -506,17 +549,24 @@ function NfRow({
         </td>
         <td className="text-right px-3 py-2.5 tabular-nums text-[#6b5645]">{brl2(t.comissao)}</td>
         <td className={`text-right px-3 py-2.5 tabular-nums ${t.diasCredito > 0 ? "text-[#B5791A] font-semibold" : "text-[#b9a992]"}`}>{brl2(t.diasCredito)}</td>
+        <td className="px-3 py-2.5 text-[11px] tabular-nums whitespace-nowrap">
+          <div className="flex flex-col leading-tight">
+            <span><span className="text-[#a3927c]">com.</span> <b className="text-[#392617]">{t.nfComissaoNumero || "—"}</b></span>
+            {t.diasCredito > 0 && <span><span className="text-[#a3927c]">créd.</span> <b className="text-[#392617]">{t.nfCreditoNumero || "—"}</b></span>}
+          </div>
+        </td>
         <td className="text-right px-3 py-2.5 tabular-nums text-[#392617]">{brl2(t.valorTerapeuta)}</td>
         <td className="text-right px-3 py-2.5 tabular-nums">{pctFmt(t.pct)}</td>
         <td className="text-right px-3 py-2.5 tabular-nums font-bold text-[#B5791A]">{brl2(t.valorNota)}</td>
         <td className="text-right px-3 py-2.5 tabular-nums text-[#6b5645]">{brl2(t.baseCalculo)}</td>
-        <td className="text-right px-3 py-2.5 tabular-nums font-bold text-[#7E0000]">{t.rps ?? "—"}</td>
+        {ehHigi && <td className="text-right px-3 py-2.5 tabular-nums font-semibold text-[#7E0000]">{brl2(t.valorNota * aliquotaTributos / 100)}</td>}
+        {temRps && <td className="text-right px-3 py-2.5 tabular-nums font-bold text-[#7E0000]">{t.rps ?? "—"}</td>}
         <td className="text-right px-3 py-2.5 tabular-nums">{t.nfSalaoNumero ?? "—"}</td>
         <td className="px-2 py-2.5"></td>
       </tr>
       {aberta && (
         <tr className="bg-[#fbfaf7]">
-          <td colSpan={10} className="px-4 py-4">
+          <td colSpan={10 + (ehHigi ? 1 : 0) + (temRps ? 1 : 0)} className="px-4 py-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -543,20 +593,20 @@ function NfRow({
                       <button disabled={busy} onClick={onRemover} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#7E0000] border border-[#E4D8C1] bg-white hover:bg-[#f8e9e9] px-2.5 py-1.5 rounded-lg disabled:opacity-50"><Trash2 className="w-3.5 h-3.5" /> Remover</button>
                     </div>
                     <div className="border-t border-[#E4D8C1] pt-3">
-                      <div className="text-xs font-bold uppercase tracking-wide text-[#7E0000] mb-2 flex items-center gap-1.5"><Stamp className="w-3.5 h-3.5" /> Registrar emissão {t.rps == null && "(vai atribuir o próximo RPS)"}</div>
+                      <div className="text-xs font-bold uppercase tracking-wide text-[#7E0000] mb-2 flex items-center gap-1.5"><Stamp className="w-3.5 h-3.5" /> Registrar emissão {temRps && t.rps == null && "(vai atribuir o próximo RPS)"}</div>
                       <div className="grid grid-cols-2 gap-2 mb-2">
                         <label className="text-xs text-[#6b5645]">Nº da NF emitida<input value={emit.nfSalaoNumero} onChange={(e) => setEmit({ ...emit, nfSalaoNumero: e.target.value })} className="mt-1 block w-full rounded-md border border-[#E4D8C1] px-2 py-1 text-sm tabular-nums" /></label>
                         <label className="text-xs text-[#6b5645]">Código de verificação<input value={emit.codVerificacao} onChange={(e) => setEmit({ ...emit, codVerificacao: e.target.value })} className="mt-1 block w-full rounded-md border border-[#E4D8C1] px-2 py-1 text-sm" /></label>
                       </div>
                       <button disabled={busy} onClick={() => onEmitir({ nfSalaoNumero: emit.nfSalaoNumero, codVerificacao: emit.codVerificacao })}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#425F1D] hover:bg-[#374f18] px-2.5 py-1.5 rounded-lg disabled:opacity-50"><Stamp className="w-3.5 h-3.5" /> {t.rps == null ? "Atribuir RPS e registrar" : "Salvar emissão"}</button>
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#425F1D] hover:bg-[#374f18] px-2.5 py-1.5 rounded-lg disabled:opacity-50"><Stamp className="w-3.5 h-3.5" /> {temRps && t.rps == null ? "Atribuir RPS e registrar" : "Salvar emissão"}</button>
                     </div>
                   </>
                 ) : (
                   <>
                     <FieldRow k="Código do serviço (SP)" v="08516 · 06.02.01" />
                     <FieldRow k="Alíquota ISS / tributos" v={`${aliquotaIss.toFixed(2).replace(".", ",")}% / ${aliquotaTributos.toFixed(2).replace(".", ",")}%`} />
-                    <FieldRow k="RPS (sequencial interno)" v={t.rps != null ? String(t.rps) : "—"} />
+                    {temRps && <FieldRow k="RPS (sequencial interno)" v={t.rps != null ? String(t.rps) : "—"} />}
                     <FieldRow k="NF da terapeuta — comissão" v={t.nfComissaoNumero ?? "—"} />
                     <FieldRow k="NF da terapeuta — dias de crédito" v={t.nfCreditoNumero ?? "—"} />
                     <FieldRow k="Valor da terapeuta · P (dedução)" v={brl2(t.valorTerapeuta)} />
@@ -590,6 +640,15 @@ function AddTerapeutaForm({ busy, onAdd, onCancel }: { busy: boolean; onAdd: (d:
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-[#7E0000] hover:bg-[#5c0000] px-3 py-2 rounded-lg disabled:opacity-50"><Plus className="w-4 h-4" /> Adicionar</button>
         <button onClick={onCancel} className="text-sm font-semibold text-[#6b5645] px-3 py-2 rounded-lg hover:bg-[#f6ecdb]">Cancelar</button>
       </div>
+    </div>
+  );
+}
+
+function InfoHigi({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex flex-col py-1 border-b border-dashed border-[#efe6d5] last:border-0">
+      <span className="text-[11px] uppercase tracking-wide text-[#8a7866]">{k}</span>
+      <span className="text-[#392617] font-medium text-sm">{v}</span>
     </div>
   );
 }

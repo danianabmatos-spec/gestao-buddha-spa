@@ -1,7 +1,7 @@
-// Reembolso de parcerias (TotalPass / Gympass) — fonte única dos valores líquidos.
-// Cada ATENDIMENTO do mês (1 por belleMovId, excluindo estornos 'S') vale um valor FLAT
-// líquido (já sem royalties+mkt), pago no dia 20 do mês seguinte. A página /parcerias e o
-// módulo NF Salão Parceiro consomem daqui, pra não divergir os valores.
+// Parcerias (TotalPass / Gympass) — fonte única. Os valores FLAT (calculado = atendimentos
+// × líquido) ficam aqui p/ a página /parcerias mostrar o "Calculado". Já o NF Salão Parceiro
+// usa o RECEBIDO DE FATO (conciliação de parcerias, ParceriaConciliacao.recebido) — o que de
+// fato caiu na conta, não o calculado.
 import { prisma } from "@/lib/prisma";
 
 export const PARCERIAS = [
@@ -9,30 +9,24 @@ export const PARCERIAS = [
   { chave: "gympass", nome: "Gympass", forma: "Parcerias Comerciais - Gympass", bruto: 86.4, liquido: 79.48 },
 ] as const;
 
-const cent = (n: number) => Math.round(n * 100) / 100;
-
 /**
- * Valor LÍQUIDO de reembolso de Gympass e TotalPass de uma unidade num mês (por data de
- * confirmação na MovimentacaoBelle). Conta atendimentos distintos × valor líquido flat.
+ * Valor RECEBIDO DE FATO de Gympass e TotalPass de uma unidade num mês — da conciliação de
+ * parcerias (ParceriaConciliacao.recebido, o que de fato entrou na conta). 0 enquanto não
+ * conciliado. É o que o NF Salão Parceiro soma na base.
  */
 export async function getParceriasReembolso(
   unidadeId: number,
   ano: number,
   mes: number,
 ): Promise<{ gympass: number; totalpass: number }> {
-  const prefixo = `${ano}-${String(mes).padStart(2, "0")}`;
   const out: { gympass: number; totalpass: number } = { gympass: 0, totalpass: 0 };
-  for (const p of PARCERIAS) {
-    const movs = await prisma.movimentacaoBelle.findMany({
-      where: { unidadeId, formaPagamento: p.forma, data: { startsWith: prefixo } },
-      select: { belleMovId: true, tipoMovimento: true },
-    });
-    const ids = new Set<string>();
-    for (const m of movs) {
-      if ((m.tipoMovimento ?? "E").toUpperCase() === "S") continue; // ignora estorno
-      ids.add(m.belleMovId);
-    }
-    out[p.chave as "gympass" | "totalpass"] = cent(ids.size * p.liquido);
+  const conc = await prisma.parceriaConciliacao.findMany({
+    where: { unidadeId, ano, mes },
+    select: { parceria: true, recebido: true },
+  });
+  for (const r of conc) {
+    if (r.parceria === "gympass") out.gympass = r.recebido ?? 0;
+    else if (r.parceria === "totalpass") out.totalpass = r.recebido ?? 0;
   }
   return out;
 }

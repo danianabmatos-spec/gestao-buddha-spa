@@ -113,6 +113,32 @@ export function montarDiscriminacao(d: DiscriminacaoInput): string {
   ].join("\n");
 }
 
+// ── HIGIENÓPOLIS (Lucro Presumido) — formato próprio, SÓ para esta unidade. ─────────
+// Alíquota de tributos aproximados fixa (NFS-e Nacional).
+export const ALIQUOTA_TRIBUTOS_HIGIENOPOLIS = 8.65;
+
+export interface DiscriminacaoHigienopolisInput {
+  mesAno: string; // ex.: "Setembro/2026" (título)
+  valorNota: number; // M = valor total dos serviços (= O + P)
+  baseCalculo: number; // O = valor do salão parceiro (base do ISS)
+  valorTerapeuta: number; // P = valor do profissional parceiro (valor dela)
+  razaoSocialSalao: string; // ex.: "Higienópolis Wellness Center Ltda."
+  cnpjSalao: string; // CNPJ do salão (empresa)
+  terapeutaNome: string;
+  cnpjMei: string;
+  aliquotaTributos: number; // 8.65
+}
+
+/** Discriminação da NF do Higienópolis (Lucro Presumido). Formato distinto das demais. */
+export function montarDiscriminacaoHigienopolis(d: DiscriminacaoHigienopolisInput): string {
+  return [
+    `Serviços de Massagem e Estética Realizados no mês de ${d.mesAno}`,
+    `Valor total dos Serviços: ${fmtBRL(d.valorNota)}`,
+    `Salão Parceiro: ${d.razaoSocialSalao} - CNPJ ${d.cnpjSalao} - ${fmtBRL(d.baseCalculo)} - Profissional Parceiro: ${d.terapeutaNome} - CNPJ - ${d.cnpjMei} - ${fmtBRL(d.valorTerapeuta)}`,
+    `Alíquota dos tributos aproximados será de ${fmtPct(d.aliquotaTributos)}%`,
+  ].join("\n");
+}
+
 export interface ConferenciaResultado {
   ok: boolean;
   somaNotas: number; // ΣM — deve bater com a base

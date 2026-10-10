@@ -3,6 +3,7 @@
 // que a tela consome. Piloto: Anália Franco (unidadeId 2).
 import { prisma } from "@/lib/prisma";
 import { round2, fmtBRL } from "@/lib/nf-salao/motor";
+import { unidadeUsaRps } from "@/lib/nf-salao/unidades";
 
 export const UNIDADE_PILOTO = 2; // Anália Franco / Sol Central
 
@@ -161,6 +162,7 @@ export async function getCompetencia(
   };
 
   // Pendências: o que falta pra fechar/emitir com segurança. Erros pesam mais que avisos.
+  const usaRps = unidadeUsaRps(unidadeId); // Metrópole emite NFS-e direto, sem RPS.
   const pendencias: Pendencia[] = [];
   if (mesRow) {
     if ((mesRow.aliquotaIss ?? 0) <= 0 || (mesRow.aliquotaTributos ?? 0) <= 0) {
@@ -185,7 +187,7 @@ export async function getCompetencia(
       if (t.diasCredito > 0 && !t.nfCreditoNumero) {
         pendencias.push({ nivel: "aviso", codigo: "nf_credito", escopo: "terapeuta", terapeutaId: t.id, terapeutaNome: nome, mensagem: "Nº da NF de dias de crédito ainda não veio da Folha." });
       }
-      if (t.rps == null) {
+      if (usaRps && t.rps == null) {
         pendencias.push({ nivel: "aviso", codigo: "rps", escopo: "terapeuta", terapeutaId: t.id, terapeutaNome: nome, mensagem: "RPS ainda não atribuído." });
       }
     }
@@ -202,7 +204,7 @@ export async function getCompetencia(
     base,
     terapeutas,
     totais,
-    proximoRps: seq?.proximoRps ?? null,
+    proximoRps: usaRps ? (seq?.proximoRps ?? null) : null,
     pendencias,
   };
 }

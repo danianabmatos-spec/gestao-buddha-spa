@@ -6,14 +6,16 @@ import {
   calcularBase,
   calcularRateio,
   montarDiscriminacao,
+  montarDiscriminacaoHigienopolis,
+  ALIQUOTA_TRIBUTOS_HIGIENOPOLIS,
   type BaseInput,
 } from "@/lib/nf-salao/motor";
-import { UNIDADE_PILOTO, getCompetencia } from "@/lib/nf-salao/dados";
+import { UNIDADE_PILOTO, getCompetencia, getEmpresaDaUnidade } from "@/lib/nf-salao/dados";
 import { getNotasTerapeutasFolha } from "@/lib/folha/notas-terapeutas";
 import { getFaturamentoCaixaConfirmacaoMes } from "@/lib/reembolso/belle-faturamento";
 import { getVoucherReembolsoConciliado } from "@/lib/reembolso/voucher-unidade";
 import { getParceriasReembolso } from "@/lib/parcerias/reembolso";
-import { slugPorId } from "@/lib/nf-salao/unidades";
+import { slugPorId, unidadeUsaRps } from "@/lib/nf-salao/unidades";
 
 const normNome = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
@@ -29,6 +31,11 @@ const MESES_LONGO = [
   "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO",
 ];
 const mesAnoLabel = (ano: number, mes: number) => `${MESES_LONGO[mes - 1]}/${ano}`;
+// Mês em formato título (ex.: "Setembro/2026") — usado na discriminação do Higienópolis.
+const mesAnoLabelTitulo = (ano: number, mes: number) => {
+  const m = MESES_LONGO[mes - 1];
+  return `${m.charAt(0)}${m.slice(1).toLowerCase()}/${ano}`;
+};
 
 async function getMesRow(ano: number, mes: number, unidadeId = UNIDADE_PILOTO) {
   return prisma.nfSalaoMes.findUnique({
@@ -57,6 +64,11 @@ async function recomputar(mesId: number) {
     })),
   );
   const label = mesAnoLabel(mesRow.ano, mesRow.mes);
+  // Higienópolis (Lucro Presumido) usa discriminação PRÓPRIA (com dados do salão). Só ela.
+  const slug = slugPorId(mesRow.unidadeId);
+  const ehHigienopolis = slug === "higienopolis";
+  const empresa = ehHigienopolis && slug ? await getEmpresaDaUnidade(slug) : null;
+  const labelTitulo = mesAnoLabelTitulo(mesRow.ano, mesRow.mes);
   await prisma.$transaction(
     ter.map((t, i) =>
       prisma.nfSalaoTerapeuta.update({
@@ -66,14 +78,26 @@ async function recomputar(mesId: number) {
           pct: calc[i].pct,
           valorNota: calc[i].valorNota,
           baseCalculo: calc[i].baseCalculo,
-          discriminacao: montarDiscriminacao({
-            mesAno: label,
-            terapeutaNome: t.terapeutaNome,
-            cnpjMei: t.cnpjMei,
-            valorTerapeuta: calc[i].valorTerapeuta,
-            aliquotaIss: mesRow.aliquotaIss,
-            aliquotaTributos: mesRow.aliquotaTributos,
-          }),
+          discriminacao: ehHigienopolis
+            ? montarDiscriminacaoHigienopolis({
+                mesAno: labelTitulo,
+                valorNota: calc[i].valorNota,
+                baseCalculo: calc[i].baseCalculo,
+                valorTerapeuta: calc[i].valorTerapeuta,
+                razaoSocialSalao: empresa?.razaoSocial ?? "",
+                cnpjSalao: empresa?.cnpj ?? "",
+                terapeutaNome: t.terapeutaNome,
+                cnpjMei: t.cnpjMei,
+                aliquotaTributos: mesRow.aliquotaTributos,
+              })
+            : montarDiscriminacao({
+                mesAno: label,
+                terapeutaNome: t.terapeutaNome,
+                cnpjMei: t.cnpjMei,
+                valorTerapeuta: calc[i].valorTerapeuta,
+                aliquotaIss: mesRow.aliquotaIss,
+                aliquotaTributos: mesRow.aliquotaTributos,
+              }),
         },
       }),
     ),
@@ -84,13 +108,18 @@ async function recomputar(mesId: number) {
 export async function abrirCompetencia(ano: number, mes: number, unidadeId = UNIDADE_PILOTO) {
   const existente = await getMesRow(ano, mes, unidadeId);
   if (existente) return getCompetencia(ano, mes, unidadeId);
-  // Metrópole muda a alíquota todo mês → NÃO recebe padrão (fica 0 = pendência lembra de preencher).
-  const ehMetropole = slugPorId(unidadeId) === "shopping-metropole";
+  // Alíquotas padrão por unidade: Metrópole muda todo mês → 0 (pendência lembra de preencher);
+  // Higienópolis (Lucro Presumido) → tributos 8,65% / ISS 0; demais → 2,39% / 3,67%.
+  const slugUn = slugPorId(unidadeId);
+  const ehMetropole = slugUn === "shopping-metropole";
+  const ehHigienopolis = slugUn === "higienopolis";
   await prisma.nfSalaoMes.create({
     data: {
       unidadeId, ano, mes, status: "ABERTO",
-      aliquotaIss: ehMetropole ? 0 : ALIQUOTA_ISS_PADRAO,
-      aliquotaTributos: ehMetropole ? 0 : ALIQUOTA_TRIBUTOS_PADRAO,
+      aliquotaIss: ehHigienopolis || ehMetropole ? 0 : ALIQUOTA_ISS_PADRAO,
+      aliquotaTributos: ehHigienopolis
+        ? ALIQUOTA_TRIBUTOS_HIGIENOPOLIS
+        : ehMetropole ? 0 : ALIQUOTA_TRIBUTOS_PADRAO,
     },
   });
   // garante o sequenciador de RPS da unidade
@@ -286,7 +315,8 @@ export async function emitirNota(
 
   await prisma.$transaction(async (tx) => {
     let rps = ter.rps;
-    if (rps == null) {
+    // Metrópole emite NFS-e direto, sem RPS — registra a NF sem numerar.
+    if (rps == null && unidadeUsaRps(unidadeId)) {
       const seq = await tx.rpsSequencia.upsert({
         where: { unidadeId },
         update: {},
@@ -483,7 +513,8 @@ export async function fecharMes(ano: number, mes: number, porNome: string | null
     );
   }
   // Tudo certo → atribui RPS pra todas (ordem alfabética) e trava o mês.
-  await _atribuirRpsPendentes(mesRow.id, unidadeId);
+  // Metrópole emite NFS-e direto, sem RPS — só trava.
+  if (unidadeUsaRps(unidadeId)) await _atribuirRpsPendentes(mesRow.id, unidadeId);
   await prisma.nfSalaoMes.update({
     where: { id: mesRow.id },
     data: { status: "FECHADO", fechadoEm: new Date(), fechadoPorNome: porNome },
