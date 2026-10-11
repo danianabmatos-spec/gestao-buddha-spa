@@ -9,6 +9,8 @@ interface Terapeuta {
   percServicosFidelizados: number
   nps: number
   categoria: string | null            // categoria atual (RH): BRONZE/PRATA/OURO/DIAMANTE
+  categoriaVinculo?: boolean           // true = categoria veio de vínculo manual
+  rhVinculado?: string | null          // nome do R&S vinculado manualmente (se houver)
   recomendacaoCliente: number | null
   horasTreinamento: number | null
   avaliacaoColegas: number | null
@@ -21,6 +23,7 @@ interface Pesos {
 interface Faixas { minDiamante: number; minOuro: number; minPrata: number }
 interface Resposta {
   periodo: string; podeVerRestrito: boolean; podeGerenciarPesos?: boolean; pesos: Pesos; faixas: Faixas; terapeutas: Terapeuta[]
+  rhTerapeutas?: { nome: string; categoria: string }[]  // lista do R&S p/ o seletor de vínculo
   atualizadoEm?: string | null; atualizadoPor?: string | null
 }
 
@@ -105,6 +108,15 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
   }, [mesSelecionado, unidadeSlug, datasPeriodo])
 
   useEffect(() => { carregar() }, [carregar])
+
+  // Vincula (ou desvincula, rhNome='') manualmente um terapeuta do Belle ao R&S.
+  const vincularRH = async (belleNome: string, rhNome: string) => {
+    await fetch('/api/terapeutas/vincular-rh', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ belleNome, rhNome }),
+    })
+    await carregar()
+  }
 
   // "Atualizar agora" = ÚNICA ação que consulta o Belle (e regrava o cache).
   const atualizarAgora = async () => {
@@ -322,11 +334,21 @@ export function TerapeutasView({ unidadeSlug }: { unidadeSlug: string }) {
                     <tr key={`${t.profissional}-${i}`} className="hover:bg-[#DDC7A4]/10 transition-colors">
                       <td className="px-4 py-3">
                         <div className="text-sm font-medium text-[#392617]">{t.profissional}</div>
-                        {t.categoria && (
-                          <span className={`inline-block mt-0.5 text-[10px] px-1.5 py-0.5 rounded ${CAT_COR[capitaliza(t.categoria)] ?? 'bg-[#DDC7A4] text-[#392617]'}`}>
-                            {capitaliza(t.categoria)}
+                        {t.categoria ? (
+                          <span className={`inline-flex items-center gap-0.5 mt-0.5 text-[10px] px-1.5 py-0.5 rounded ${CAT_COR[capitaliza(t.categoria)] ?? 'bg-[#DDC7A4] text-[#392617]'}`}
+                            title={t.categoriaVinculo ? `Vínculo manual ao R&S: ${t.rhVinculado ?? ''}` : undefined}>
+                            {capitaliza(t.categoria)}{t.categoriaVinculo ? ' 🔗' : ''}
                           </span>
-                        )}
+                        ) : podeRestrito && (resp?.rhTerapeutas?.length ?? 0) > 0 ? (
+                          <select value="" onChange={e => { if (e.target.value) vincularRH(t.profissional, e.target.value) }}
+                            title="Sem categoria do R&S — vincular manualmente ao colaborador certo"
+                            className="mt-0.5 block max-w-[190px] text-[10px] border border-[#D78B18] text-[#7E0000] bg-[#D78B18]/10 rounded px-1 py-0.5">
+                            <option value="">⚠ vincular R&S…</option>
+                            {resp!.rhTerapeutas!.map(r => (
+                              <option key={r.nome} value={r.nome}>{r.nome} — {capitaliza(r.categoria)}</option>
+                            ))}
+                          </select>
+                        ) : null}
                       </td>
                       <Ind nota={n.prod} bruto={`${t.horasAtendimento.toFixed(1)}h`} />
                       <Ind nota={n.fid} bruto={`${t.percServicosFidelizados.toFixed(1)}%`} />

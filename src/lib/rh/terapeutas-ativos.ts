@@ -100,7 +100,11 @@ export async function getNaoTerapeutasRH(): Promise<Set<string> | null> {
 // `resolve(nomeNormalizado)` casa EXATO e, se falhar, por SUBCONJUNTO único — o Belle
 // costuma trazer o nome mais curto que o RH (ex.: Belle "Lucilene Moraes" × RH "Lucilene
 // de Moraes Nascimento"). null se RH off.
-export interface CategoriaResolver { resolve: (nomeNorm: string) => string | null }
+export interface CategoriaResolver {
+  resolve: (nomeNorm: string) => string | null
+  porRhNome: (rhNorm: string) => string | null       // categoria pelo nome EXATO do R&S (vínculo manual)
+  rhLista: { nome: string; categoria: string }[]     // terapeutas do R&S com categoria (p/ o seletor)
+}
 let cacheCat: { at: number; resolver: CategoriaResolver } | null = null
 
 export async function getCategoriasTerapeutasRH(): Promise<CategoriaResolver | null> {
@@ -119,13 +123,13 @@ export async function getCategoriasTerapeutasRH(): Promise<CategoriaResolver | n
           AND cg.nome ILIKE 'Terapeuta%'`,
     )
     const exato = new Map<string, string>()
-    const lista: { norm: string; tokens: string[]; cat: string }[] = []
+    const lista: { norm: string; nome: string; tokens: string[]; cat: string }[] = []
     for (const r of rows) {
       if (!r.categoria) continue
       const norm = normalizarNome(r.nome)
       const cat = String(r.categoria)
       if (!exato.has(norm)) exato.set(norm, cat) // 1ª ocorrência vence (duplicado no RH é raro)
-      lista.push({ norm, tokens: norm.split(' ').filter(Boolean), cat })
+      lista.push({ norm, nome: r.nome, tokens: norm.split(' ').filter(Boolean), cat })
     }
     const resolver: CategoriaResolver = {
       resolve(nomeNorm) {
@@ -146,6 +150,15 @@ export async function getCategoriasTerapeutasRH(): Promise<CategoriaResolver | n
         const distintos = new Set(top.map((x) => x.e.norm))
         return distintos.size === 1 ? top[0].e.cat : null
       },
+      porRhNome(rhNorm) {
+        return exato.get(rhNorm) ?? null
+      },
+      rhLista: (() => {
+        const vistos = new Set<string>()
+        const out: { nome: string; categoria: string }[] = []
+        for (const e of lista) if (!vistos.has(e.norm)) { vistos.add(e.norm); out.push({ nome: e.nome, categoria: e.cat }) }
+        return out.sort((a, b) => a.nome.localeCompare(b.nome))
+      })(),
     }
     cacheCat = { at: agora, resolver }
     return resolver

@@ -44,20 +44,34 @@ export async function GET(req: NextRequest) {
     let belleTerapeutas: TerapeutaBelle[] = []
     if (cache?.dados) { try { belleTerapeutas = JSON.parse(cache.dados) } catch { belleTerapeutas = [] } }
 
-    const [categoriasRH, avaliacoes, pesosRow, faixasRow] = await Promise.all([
+    const [categoriasRH, avaliacoes, pesosRow, faixasRow, vinculosRows] = await Promise.all([
       getCategoriasTerapeutasRH(),
       prisma.terapeutaAvaliacao.findMany({ where: { unidadeSlug: unidade, periodo } }),
       prisma.terapeutaPesos.findUnique({ where: { unidadeSlug: unidade } }),
       prisma.terapeutaCategoriaFaixa.findUnique({ where: { chave: 'global' } }),
+      prisma.$queryRawUnsafe<{ belleNomeNorm: string; rhNome: string }[]>(
+        `SELECT "belleNomeNorm", "rhNome" FROM "TerapeutaVinculoRH"`,
+      ).catch(() => [] as { belleNomeNorm: string; rhNome: string }[]),
     ])
     const avPorChave = new Map(avaliacoes.map(a => [a.terapeutaChave, a]))
+    // Vínculos manuais (nome do Belle → nome do R&S), p/ quando o automático não casa.
+    const vinculos = new Map((vinculosRows ?? []).map(v => [v.belleNomeNorm, v.rhNome]))
 
     const terapeutas = belleTerapeutas.map(t => {
       const chave = normalizarNome(t.profissional)
       const av = avPorChave.get(chave)
+      let categoria = categoriasRH?.resolve(chave) ?? null
+      const rhVinculado = vinculos.get(chave) ?? null
+      let categoriaVinculo = false
+      if (!categoria && rhVinculado) {
+        categoria = categoriasRH?.porRhNome(normalizarNome(rhVinculado)) ?? null
+        categoriaVinculo = !!categoria
+      }
       return {
         ...t,
-        categoria: categoriasRH?.resolve(chave) ?? null,
+        categoria,
+        categoriaVinculo,   // true = veio de vínculo manual
+        rhVinculado,        // nome do R&S escolhido (ou null)
         recomendacaoCliente: av?.recomendacaoCliente ?? null,
         horasTreinamento: av?.horasTreinamento ?? null,
         avaliacaoColegas: av?.avaliacaoColegas ?? null,
@@ -76,6 +90,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       periodo, podeVerRestrito, podeGerenciarPesos, pesos, faixas, terapeutas,
+      // Lista de terapeutas do R&S (nome + categoria) p/ o seletor de vínculo manual
+      // (só p/ quem pode ver o restrito — DONA/RH/FINANCEIRO).
+      rhTerapeutas: podeVerRestrito ? (categoriasRH?.rhLista ?? []) : [],
       atualizadoEm: cache?.atualizadoEm ?? null,
       atualizadoPor: cache?.atualizadoPor ?? null,
     })
