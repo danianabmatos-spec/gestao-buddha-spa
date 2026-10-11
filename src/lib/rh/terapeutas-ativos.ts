@@ -54,12 +54,14 @@ export async function getNaoTerapeutasRH(): Promise<Set<string> | null> {
 
   try {
     // INNER JOIN: quem não tem cargo definido fica FORA da denylist (fail-safe → aparece).
+    // "Terapeuta" casa por PREFIXO (Terapeuta, Terapeuta Bronze/Prata/Ouro/Diamante),
+    // alinhado à definição de terapeuta no RH (cargo que começa com "Terapeuta").
     const { rows } = await p.query<{ nome: string }>(
       `SELECT c.nome
          FROM colaboradores c
          JOIN cargos cg ON cg.id = c."cargoId"
         WHERE c.ativo = true
-          AND cg.nome <> 'Terapeuta'`,
+          AND cg.nome NOT ILIKE 'Terapeuta%'`,
     )
     const nomes = new Set(rows.map((r) => normalizarNome(r.nome)))
     cache = { at: agora, nomes }
@@ -70,13 +72,16 @@ export async function getNaoTerapeutasRH(): Promise<Set<string> | null> {
   }
 }
 
-// Categoria atual (Bronze/Prata/Ouro/Diamante) por terapeuta ativo, do RH.
-// Map: nome normalizado → categoria (string do enum CategoriaTerapeuta). null se RH off.
-let cacheCat: { at: number; map: Map<string, string> } | null = null
+// Resolvedor de categoria (Bronze/Prata/Ouro/Diamante) por terapeuta ativo, do RH.
+// `resolve(nomeNormalizado)` casa EXATO e, se falhar, por SUBCONJUNTO único — o Belle
+// costuma trazer o nome mais curto que o RH (ex.: Belle "Lucilene Moraes" × RH "Lucilene
+// de Moraes Nascimento"). null se RH off.
+export interface CategoriaResolver { resolve: (nomeNorm: string) => string | null }
+let cacheCat: { at: number; resolver: CategoriaResolver } | null = null
 
-export async function getCategoriasTerapeutasRH(): Promise<Map<string, string> | null> {
+export async function getCategoriasTerapeutasRH(): Promise<CategoriaResolver | null> {
   const agora = Date.now()
-  if (cacheCat && agora - cacheCat.at < TTL_MS) return cacheCat.map
+  if (cacheCat && agora - cacheCat.at < TTL_MS) return cacheCat.resolver
 
   const p = getPool()
   if (!p) return null
@@ -87,16 +92,34 @@ export async function getCategoriasTerapeutasRH(): Promise<Map<string, string> |
          FROM colaboradores c
          JOIN cargos cg ON cg.id = c."cargoId"
         WHERE c.ativo = true
-          AND cg.nome = 'Terapeuta'`,
+          AND cg.nome ILIKE 'Terapeuta%'`,
     )
-    const map = new Map<string, string>()
+    const exato = new Map<string, string>()
+    const lista: { norm: string; tokens: string[]; cat: string }[] = []
     for (const r of rows) {
-      if (r.categoria) map.set(normalizarNome(r.nome), String(r.categoria))
+      if (!r.categoria) continue
+      const norm = normalizarNome(r.nome)
+      const cat = String(r.categoria)
+      if (!exato.has(norm)) exato.set(norm, cat) // 1ª ocorrência vence (duplicado no RH é raro)
+      lista.push({ norm, tokens: norm.split(' ').filter(Boolean), cat })
     }
-    cacheCat = { at: agora, map }
-    return map
+    const resolver: CategoriaResolver = {
+      resolve(nomeNorm) {
+        const exata = exato.get(nomeNorm)
+        if (exata) return exata
+        // Fuzzy: nome do Belle é subconjunto do nome do RH (mesmo 1º nome + todos os
+        // tokens presentes) e ÚNICO. Evita falso positivo exigindo ≥2 tokens e unicidade.
+        const bt = nomeNorm.split(' ').filter(Boolean)
+        if (bt.length < 2) return null
+        const cands = lista.filter((e) => e.tokens[0] === bt[0] && bt.every((t) => e.tokens.includes(t)))
+        const normsDistintos = new Set(cands.map((c) => c.norm))
+        return normsDistintos.size === 1 ? cands[0].cat : null
+      },
+    }
+    cacheCat = { at: agora, resolver }
+    return resolver
   } catch (err) {
     console.error('[rh] falha ao ler categorias dos terapeutas:', err instanceof Error ? err.message : err)
-    return cacheCat?.map ?? null
+    return cacheCat?.resolver ?? null
   }
 }
