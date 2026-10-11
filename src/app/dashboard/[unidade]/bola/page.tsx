@@ -17,11 +17,15 @@ interface FilaItem {
   detalhe: { ate?: string; cliente?: string | null; inicio?: string } | null
 }
 interface Disponivel { cod: string; terapeutaId: number; nome: string; escalada: boolean }
-interface PainelResp { unidade: string; data: string; agora: string; fila: FilaItem[]; disponiveis: Disponivel[] }
+interface Cliente {
+  codConsulta: number | string; hora: string; cliente: string
+  servicoNome: string; servicoCod: number; duracaoMin: number; salaNome: string
+  generoPref: 'F' | 'M' | null; preferencial: boolean; preferencialCod: string | null; preferencialNome: string | null
+}
+interface PainelResp { unidade: string; data: string; agora: string; fila: FilaItem[]; disponiveis: Disponivel[]; clientes: Cliente[] }
 interface Ordem { nome: string; rodadas: number; elegivel: boolean; motivo: string }
 interface Escolha { escolhida: { id: string; nome: string } | null; salaBelle: string | null; motivo: string; ordem: Ordem[] }
 
-const DURACOES = [20, 30, 45, 50, 60, 75, 90]
 const MARSALA = '#7E0000'
 const FLORA = '#425F1D'
 const DOURADO = '#D78B18'
@@ -55,10 +59,8 @@ export default function BolaPage() {
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
-  // form "chegou cliente"
-  const [servicoNome, setServicoNome] = useState('Relaxante 60')
-  const [duracao, setDuracao] = useState(60)
-  const [genero, setGenero] = useState<'' | 'F' | 'M'>('')
+  // cliente selecionado (da agenda do Belle) + decisão
+  const [clienteSel, setClienteSel] = useState<Cliente | null>(null)
   const [escolha, setEscolha] = useState<Escolha | null>(null)
   const [passando, setPassando] = useState(false)
   const [passe, setPasse] = useState<{ mensagem: string; enviado: boolean; motivo: string } | null>(null)
@@ -99,31 +101,39 @@ export default function BolaPage() {
     if (r.ok) carregar()
   }, [unidadeSlug, carregar])
 
-  const chegouCliente = useCallback(async () => {
-    setEscolha(null); setPasse(null)
+  // decide a próxima da vez para um cliente NÃO preferencial (usa serviço/duração/gênero do agendamento)
+  const decidirCliente = useCallback(async (c: Cliente) => {
     const r = await fetch(`/api/bola/painel?unidade=${unidadeSlug}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agora: agora || undefined, servicoNome, duracaoMin: duracao, generoPref: genero || undefined }),
+      body: JSON.stringify({ agora: agora || undefined, servicoCod: c.servicoCod, servicoNome: c.servicoNome, duracaoMin: c.duracaoMin, generoPref: c.generoPref || undefined, salaNome: c.salaNome }),
     })
     const j = await r.json()
     if (r.ok) setEscolha(j)
-  }, [unidadeSlug, agora, servicoNome, duracao, genero])
+  }, [unidadeSlug, agora])
+
+  // recepção toca no cliente que chegou
+  const selecionarCliente = useCallback((c: Cliente) => {
+    setClienteSel(c); setEscolha(null); setPasse(null)
+    if (!c.preferencial) decidirCliente(c) // preferencial = terapeuta fixa (verde), sem decisão
+  }, [decidirCliente])
 
   const passarBola = useCallback(async () => {
-    if (!escolha?.escolhida) return
+    if (!clienteSel) return
+    const terapeutaCod = clienteSel.preferencial ? clienteSel.preferencialCod : escolha?.escolhida?.id
+    if (!terapeutaCod) return
     setPassando(true); setPasse(null)
     try {
       const r = await fetch(`/api/bola/passar?unidade=${unidadeSlug}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agora: agora || undefined, servicoNome, duracaoMin: duracao, generoPref: genero || undefined, terapeutaCod: escolha.escolhida.id }),
+        body: JSON.stringify({ agora: agora || undefined, terapeutaCod, servicoCod: clienteSel.servicoCod, servicoNome: clienteSel.servicoNome, duracaoMin: clienteSel.duracaoMin, salaNome: clienteSel.salaNome, clienteNome: clienteSel.cliente }),
       })
       const j = await r.json()
       if (r.ok) { setPasse({ mensagem: j.mensagem, enviado: !!j.whatsapp?.enviado, motivo: j.whatsapp?.motivo || '' }); carregar() }
       else setPasse({ mensagem: j.error || 'Erro ao passar a bola', enviado: false, motivo: 'erro' })
     } finally { setPassando(false) }
-  }, [escolha, unidadeSlug, agora, servicoNome, duracao, genero, carregar])
+  }, [clienteSel, escolha, unidadeSlug, agora, carregar])
 
   const naBola = painel ? idxNaBola(painel.fila) : -1
 
@@ -207,76 +217,76 @@ export default function BolaPage() {
           </div>
         </div>
 
-        {/* CHEGOU CLIENTE */}
+        {/* CHEGOU CLIENTE — lista da agenda do Belle */}
         <div className="border rounded-xl p-4">
-          <h2 className="font-semibold mb-3">Chegou cliente</h2>
-          <div className="flex flex-col gap-3">
-            <label className="text-sm">
-              <span className="text-muted-foreground">Terapia</span>
-              <input value={servicoNome} onChange={(e) => setServicoNome(e.target.value)}
-                className="mt-1 w-full border rounded-md px-2 py-1.5 text-sm" />
-            </label>
-            <div className="flex gap-3">
-              <label className="text-sm flex-1">
-                <span className="text-muted-foreground">Duração</span>
-                <select value={duracao} onChange={(e) => setDuracao(Number(e.target.value))}
-                  className="mt-1 w-full border rounded-md px-2 py-1.5 text-sm">
-                  {DURACOES.map((d) => <option key={d} value={d}>{d} min</option>)}
-                </select>
-              </label>
-              <label className="text-sm flex-1">
-                <span className="text-muted-foreground">Preferência</span>
-                <select value={genero} onChange={(e) => setGenero(e.target.value as '' | 'F' | 'M')}
-                  className="mt-1 w-full border rounded-md px-2 py-1.5 text-sm">
-                  <option value="">Indiferente</option>
-                  <option value="F">Feminina</option>
-                  <option value="M">Masculino</option>
-                </select>
-              </label>
-            </div>
-            <Button onClick={chegouCliente} style={{ background: MARSALA }} className="text-white">
-              Ver próxima da bola
-            </Button>
-          </div>
+          <h2 className="font-semibold mb-1">Chegou cliente</h2>
+          <p className="text-xs text-muted-foreground mb-3">Toque no cliente que chegou — o sistema decide a vez.</p>
 
-          {escolha && (
-            <div className="mt-4 border-t pt-3">
-              {escolha.escolhida ? (
-                <>
-                  <div className="text-xs uppercase tracking-wide text-[#8a5a0c] font-bold">próxima da vez</div>
-                  <div className="text-xl font-semibold" style={{ color: MARSALA }}>{escolha.escolhida.nome}</div>
-                  {escolha.salaBelle && <div className="text-sm text-muted-foreground">Sala: {escolha.salaBelle}</div>}
-                </>
-              ) : (
-                <div className="text-sm font-medium text-[#7E0000]">{escolha.motivo}</div>
-              )}
-              <ul className="mt-3 flex flex-col gap-1 text-xs">
-                {escolha.ordem.map((c, i) => (
-                  <li key={i} className={c.elegivel ? '' : 'text-muted-foreground'}>
-                    {c.nome === escolha.escolhida?.nome ? '✔' : c.elegivel ? '·' : '✗'} {c.nome} · {c.rodadas}r
-                    {c.motivo ? ` — ${c.motivo}` : ''}
-                  </li>
-                ))}
-              </ul>
+          {clienteSel && (
+            <div className="mb-3 rounded-lg border p-3" style={{ borderColor: DOURADO, background: '#FBF6EC' }}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-semibold text-sm">{clienteSel.hora} · {clienteSel.cliente}</div>
+                <button onClick={() => { setClienteSel(null); setEscolha(null); setPasse(null) }} className="text-muted-foreground hover:text-[#7E0000]"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="text-xs text-muted-foreground">{clienteSel.servicoNome} · {clienteSel.duracaoMin}min{clienteSel.salaNome ? ` · Sala ${clienteSel.salaNome}` : ''}</div>
 
-              {escolha.escolhida && !passe && (
+              {clienteSel.preferencial ? (
+                <div className="mt-2">
+                  <div className="text-xs uppercase tracking-wide font-bold" style={{ color: FLORA }}>preferencial (verde)</div>
+                  <div className="text-xl font-semibold" style={{ color: MARSALA }}>{clienteSel.preferencialNome}</div>
+                  <div className="text-xs text-muted-foreground">Cliente pediu essa terapeuta — vai direto com ela.</div>
+                </div>
+              ) : escolha ? (
+                <div className="mt-2">
+                  {escolha.escolhida ? (
+                    <>
+                      <div className="text-xs uppercase tracking-wide text-[#8a5a0c] font-bold">próxima da vez</div>
+                      <div className="text-xl font-semibold" style={{ color: MARSALA }}>{escolha.escolhida.nome}</div>
+                    </>
+                  ) : <div className="text-sm font-medium text-[#7E0000]">{escolha.motivo}</div>}
+                  <ul className="mt-2 flex flex-col gap-1 text-xs">
+                    {escolha.ordem.map((c, i) => (
+                      <li key={i} className={c.elegivel ? '' : 'text-muted-foreground'}>
+                        {c.nome === escolha.escolhida?.nome ? '✔' : c.elegivel ? '·' : '✗'} {c.nome} · {c.rodadas}r{c.motivo ? ` — ${c.motivo}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : <div className="mt-2 text-xs text-muted-foreground">decidindo…</div>}
+
+              {!passe && (clienteSel.preferencial || escolha?.escolhida) && (
                 <button onClick={passarBola} disabled={passando}
-                  className="mt-3 w-full text-white rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60"
-                  style={{ background: MARSALA }}>
+                  className="mt-3 w-full text-white rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60" style={{ background: MARSALA }}>
                   {passando ? 'Passando…' : 'Passar a bola e avisar o grupo'}
                 </button>
               )}
               {passe && (
-                <div className="mt-3 rounded-lg border p-3" style={{ borderColor: DOURADO, background: '#FBF6EC' }}>
+                <div className="mt-3 rounded-lg border p-3 bg-white" style={{ borderColor: DOURADO }}>
                   <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: '#8a5a0c' }}>mensagem no grupo</div>
                   <pre className="text-[13px] whitespace-pre-wrap mt-1" style={{ color: MARSALA, fontFamily: 'inherit' }}>{passe.mensagem}</pre>
-                  <div className="text-[11px] text-muted-foreground mt-2">
-                    {passe.enviado ? '✓ enviado ao grupo' : `dry-run (envio desligado): ${passe.motivo}`}
-                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-2">{passe.enviado ? '✓ enviado ao grupo' : `dry-run (envio desligado): ${passe.motivo}`}</div>
                 </div>
               )}
             </div>
           )}
+
+          <div className="flex flex-col gap-1.5 max-h-[520px] overflow-y-auto">
+            {painel && painel.clientes.length === 0 && <p className="text-sm text-muted-foreground">Nenhum cliente na agenda hoje.</p>}
+            {painel?.clientes.map((c) => (
+              <button key={String(c.codConsulta) + c.hora} onClick={() => selecionarCliente(c)}
+                className="text-left border rounded-lg px-3 py-2 hover:bg-[#7E0000]/5 transition-colors"
+                style={clienteSel && String(clienteSel.codConsulta) === String(c.codConsulta) ? { borderColor: DOURADO } : undefined}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs tabular-nums text-muted-foreground w-10 shrink-0">{c.hora}</span>
+                  <span className="text-sm font-medium flex-1 min-w-0 truncate">{c.cliente}</span>
+                  {c.preferencial && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'rgba(66,95,29,.14)', color: FLORA }}>🟢 {c.preferencialNome?.split(' ')[0]}</span>}
+                  {c.generoPref === 'F' && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'rgba(126,0,0,.08)', color: MARSALA }}>♀ feminina</span>}
+                  {c.generoPref === 'M' && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'rgba(126,0,0,.08)', color: MARSALA }}>♂ masculino</span>}
+                </div>
+                <div className="text-xs text-muted-foreground ml-12">{c.servicoNome}{c.salaNome ? ` · ${c.salaNome}` : ''}</div>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

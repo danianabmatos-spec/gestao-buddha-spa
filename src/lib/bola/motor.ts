@@ -237,14 +237,8 @@ export function escolherProxima(
           motivo: `reservada p/ preferencial ${pref.cliente} às ${minToHHMM(pref.inicioMin)}`,
         };
       }
-      // passa do fim do turno?
-      if (e.turnoFimMin !== null && agoraMin + pedido.duracaoMin > e.turnoFimMin) {
-        return {
-          ...base,
-          elegivel: false,
-          motivo: `turno acaba ${minToHHMM(e.turnoFimMin)}`,
-        };
-      }
+      // Obs: NÃO exclui por fim de turno — no modelo recepção a presença é a fila
+      // (a recepção tira quem sai). O turno do Belle é só uma dica, não trava.
       return { ...base, elegivel: true, motivo: "" };
     });
 

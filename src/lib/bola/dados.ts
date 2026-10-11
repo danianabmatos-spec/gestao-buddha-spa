@@ -55,12 +55,28 @@ export interface DisponivelBola {
   escalada: boolean // tem turno hoje no Belle (só uma dica visual)
 }
 
+/** Cliente da agenda do Belle — a recepção toca quando ele chega. */
+export interface ClienteDemanda {
+  codConsulta: number | string
+  hora: string // hrIni
+  cliente: string
+  servicoNome: string
+  servicoCod: number
+  duracaoMin: number
+  salaNome: string
+  generoPref: 'F' | 'M' | null // de Tipo Obs; null = indiferente
+  preferencial: boolean // verde no Belle → terapeuta fixa
+  preferencialCod: string | null // cod da terapeuta preferencial
+  preferencialNome: string | null
+}
+
 export interface EstadoBolaCompleto {
   unidade: string
   data: string
   agoraMin: number
   estado: EstadoTerapeuta[]
   disponiveis: DisponivelBola[] // terapeutas que a recepção pode adicionar à fila
+  clientes: ClienteDemanda[] // clientes da agenda do Belle (recepção toca ao chegar)
   // guardado para o escolher()
   _terapeutas: TerapeutaBola[]
   _preferenciaisFuturos: PreferencialFuturo[]
@@ -182,12 +198,36 @@ export async function montarEstadoBola(
     .map((t) => ({ cod: t.id, terapeutaId: codParaId[t.id], nome: t.nome, escalada: turnoCods.has(t.id) }))
     .sort((a, b) => Number(b.escalada) - Number(a.escalada) || a.nome.localeCompare(b.nome))
 
+  // Clientes da agenda do Belle (a recepção toca quando o cliente chega). Serviço,
+  // duração, sala, gênero (Tipo Obs) e preferencial (verde) já vêm daqui.
+  const clientes: ClienteDemanda[] = belle.agendamentos
+    .filter((a) => a.cod_profissional !== 'Banho' && !CANCELADOS.has(a.status) && (a.nom_paciente || '').trim())
+    .map((a) => {
+      const pref = ehPref(a)
+      const cod = String(a.cod_profissional)
+      return {
+        codConsulta: a.cod_consulta ?? '',
+        hora: a.hrIni,
+        cliente: (a.nom_paciente || '').trim(),
+        servicoNome: a.lbServ || 'Atendimento',
+        servicoCod: a.arrServ?.[0]?.cod_servico ?? 0,
+        duracaoMin: Math.max(0, hhmmToMin(a.hrFim) - hhmmToMin(a.hrIni)),
+        salaNome: a.sala || '',
+        generoPref: generoDoObs(a.tipo_obs_lbl),
+        preferencial: pref,
+        preferencialCod: pref ? cod : null,
+        preferencialNome: pref ? (porCod[cod]?.nome ?? a.nom_usuario ?? null) : null,
+      }
+    })
+    .sort((a, b) => hhmmToMin(a.hora) - hhmmToMin(b.hora))
+
   return {
     unidade: unidadeSlug,
     data,
     agoraMin,
     estado,
     disponiveis,
+    clientes,
     _terapeutas: terapeutas,
     _preferenciaisFuturos: preferenciaisFuturos,
     _porCod: porCod,

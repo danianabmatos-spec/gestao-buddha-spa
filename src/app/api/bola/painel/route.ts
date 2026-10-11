@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
             : null,
     })),
     disponiveis: base.disponiveis, // terapeutas do dia que a recepção pode marcar chegada
+    clientes: base.clientes, // clientes da agenda do Belle (recepção toca ao chegar)
   })
 }
 
