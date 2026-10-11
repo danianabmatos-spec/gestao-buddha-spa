@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       const av = avPorChave.get(chave)
       return {
         ...t,
-        categoria: categoriasRH?.get(chave) ?? null,
+        categoria: categoriasRH?.resolve(chave) ?? null,
         recomendacaoCliente: av?.recomendacaoCliente ?? null,
         horasTreinamento: av?.horasTreinamento ?? null,
         avaliacaoColegas: av?.avaliacaoColegas ?? null,
