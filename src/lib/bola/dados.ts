@@ -47,11 +47,20 @@ function generoDoObs(lbl: string | null): 'F' | 'M' | null {
 
 const CANCELADOS = new Set(['Cancelado', 'Faltou', 'Bloqueado', 'Reserva'])
 
+/** Terapeuta do dia que ainda NÃO está na bola — a recepção pode marcar a chegada. */
+export interface DisponivelBola {
+  cod: string // cod_profissional do Belle
+  terapeutaId: number // id do nosso Terapeuta (p/ gravar o check-in)
+  nome: string
+  escalada: boolean // tem turno hoje no Belle (só uma dica visual)
+}
+
 export interface EstadoBolaCompleto {
   unidade: string
   data: string
   agoraMin: number
   estado: EstadoTerapeuta[]
+  disponiveis: DisponivelBola[] // terapeutas que a recepção pode adicionar à fila
   // guardado para o escolher()
   _terapeutas: TerapeutaBola[]
   _preferenciaisFuturos: PreferencialFuturo[]
@@ -164,11 +173,21 @@ export async function montarEstadoBola(
   const codParaId: Record<string, number> = {}
   for (const [id, cod] of idParaCod) codParaId[cod] = id
 
+  // Terapeutas que a recepção pode "marcar chegada": cadastradas e ainda NÃO na fila.
+  // Escaladas (turno hoje) primeiro — só dica visual; a recepção decide quem entra.
+  const filaCods = new Set(fila.map((f) => f.terapeutaId))
+  const turnoCods = new Set(turnos.map((t) => t.terapeutaId))
+  const disponiveis: DisponivelBola[] = terapeutas
+    .filter((t) => codParaId[t.id] != null && !filaCods.has(t.id))
+    .map((t) => ({ cod: t.id, terapeutaId: codParaId[t.id], nome: t.nome, escalada: turnoCods.has(t.id) }))
+    .sort((a, b) => Number(b.escalada) - Number(a.escalada) || a.nome.localeCompare(b.nome))
+
   return {
     unidade: unidadeSlug,
     data,
     agoraMin,
     estado,
+    disponiveis,
     _terapeutas: terapeutas,
     _preferenciaisFuturos: preferenciaisFuturos,
     _porCod: porCod,

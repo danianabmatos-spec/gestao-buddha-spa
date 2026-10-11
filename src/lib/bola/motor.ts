@@ -83,7 +83,6 @@ export const CONFIG_PADRAO: ConfigBola = {
 
 export type StatusBola =
   | { tipo: "LIVRE" }
-  | { tipo: "FORA_DE_TURNO" }
   | { tipo: "EM_ATENDIMENTO"; ateMin: number; cliente?: string; servico?: string }
   | { tipo: "RESERVADA"; preferencialInicioMin: number; cliente: string };
 
@@ -126,7 +125,8 @@ function proximoPreferencial(
 }
 
 /**
- * Estado da bola: só terapeutas com turno aberto hoje E que fizeram check-in.
+ * Estado da bola: para cada terapeuta NA FILA (recepção inseriu ou deu "Cheguei"),
+ * calcula rodadas + status (LIVRE / EM_ATENDIMENTO / RESERVADA).
  */
 export function computarEstado(
   agoraMin: number,
@@ -152,33 +152,28 @@ export function computarEstado(
         (a) => a.fimMin - a.inicioMin > config.duracaoMantemVezMax
       ).length;
 
+      // Presença = estar na fila (a recepção inseriu, ou a própria terapeuta deu
+      // "Cheguei"). O turno NÃO exclui mais — vira só info de fim de turno (regra de
+      // não chocar o fim do expediente, aplicada no escolherProxima).
       let status: StatusBola;
-
-      // fora do turno de hoje (não escalada) ou turno ainda não começou / já acabou
-      if (!turno || agoraMin < turno.inicioMin || agoraMin >= turno.fimMin) {
-        status = { tipo: "FORA_DE_TURNO" };
+      const atual = meus.find((a) => a.inicioMin <= agoraMin && agoraMin < a.fimMin);
+      if (atual) {
+        status = {
+          tipo: "EM_ATENDIMENTO",
+          ateMin: atual.fimMin,
+          cliente: atual.cliente,
+          servico: atual.servico,
+        };
       } else {
-        const atual = meus.find(
-          (a) => a.inicioMin <= agoraMin && agoraMin < a.fimMin
-        );
-        if (atual) {
+        const pref = proximoPreferencial(c.terapeutaId, agoraMin, preferenciais);
+        if (pref && pref.inicioMin - agoraMin < config.reservaAntecedenciaMin) {
           status = {
-            tipo: "EM_ATENDIMENTO",
-            ateMin: atual.fimMin,
-            cliente: atual.cliente,
-            servico: atual.servico,
+            tipo: "RESERVADA",
+            preferencialInicioMin: pref.inicioMin,
+            cliente: pref.cliente,
           };
         } else {
-          const pref = proximoPreferencial(c.terapeutaId, agoraMin, preferenciais);
-          if (pref && pref.inicioMin - agoraMin < config.reservaAntecedenciaMin) {
-            status = {
-              tipo: "RESERVADA",
-              preferencialInicioMin: pref.inicioMin,
-              cliente: pref.cliente,
-            };
-          } else {
-            status = { tipo: "LIVRE" };
-          }
+          status = { tipo: "LIVRE" };
         }
       }
 
@@ -218,10 +213,7 @@ export function escolherProxima(
   preferenciais: PreferencialFuturo[]
 ): ResultadoBola {
   const candidatas: Candidata[] = estados
-    .filter(
-      (e) =>
-        e.status.tipo !== "EM_ATENDIMENTO" && e.status.tipo !== "FORA_DE_TURNO"
-    )
+    .filter((e) => e.status.tipo !== "EM_ATENDIMENTO")
     .map((e) => {
       const base = {
         terapeuta: e.terapeuta,

@@ -3,19 +3,21 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { RefreshCw, ArrowLeft, Clock } from 'lucide-react'
+import { RefreshCw, ArrowLeft, Clock, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getUnidadeNome } from '@/lib/belle/unidades-config'
 
 interface FilaItem {
   terapeutaId: string
+  terapeutaIdDb: number | null
   nome: string
   chegada: string
   rodadas: number
-  status: 'LIVRE' | 'EM_ATENDIMENTO' | 'RESERVADA' | 'FORA_DE_TURNO'
+  status: 'LIVRE' | 'EM_ATENDIMENTO' | 'RESERVADA'
   detalhe: { ate?: string; cliente?: string | null; inicio?: string } | null
 }
-interface PainelResp { unidade: string; data: string; agora: string; fila: FilaItem[] }
+interface Disponivel { cod: string; terapeutaId: number; nome: string; escalada: boolean }
+interface PainelResp { unidade: string; data: string; agora: string; fila: FilaItem[]; disponiveis: Disponivel[] }
 interface Ordem { nome: string; rodadas: number; elegivel: boolean; motivo: string }
 interface Escolha { escolhida: { id: string; nome: string } | null; salaBelle: string | null; motivo: string; ordem: Ordem[] }
 
@@ -42,8 +44,6 @@ function Chip({ item }: { item: FilaItem }) {
     return <span className={base} style={{ background: '#F3EEE3', color: '#7C6A58' }}>em atendimento{item.detalhe?.ate ? ` · até ${item.detalhe.ate}` : ''}</span>
   if (item.status === 'RESERVADA')
     return <span className={base} style={{ background: 'rgba(215,139,24,.14)', color: '#8a5a0c' }}>reservada · preferencial {item.detalhe?.inicio}</span>
-  if (item.status === 'FORA_DE_TURNO')
-    return <span className={base} style={{ background: '#EFEBE2', color: '#9C8E7C' }}>fora de turno</span>
   return <span className={base} style={{ background: 'rgba(66,95,29,.12)', color: FLORA }}>livre</span>
 }
 
@@ -80,6 +80,24 @@ export default function BolaPage() {
     const t = setTimeout(() => { carregar() }, 0)
     return () => clearTimeout(t)
   }, [carregar])
+
+  // Recepção marca a chegada de uma terapeuta (entra no fim da fila) / remove quem saiu.
+  const marcarChegada = useCallback(async (terapeutaId: number) => {
+    const r = await fetch(`/api/bola/fila?unidade=${unidadeSlug}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ terapeutaId }),
+    })
+    if (r.ok) carregar()
+  }, [unidadeSlug, carregar])
+
+  const removerDaFila = useCallback(async (terapeutaId: number | null) => {
+    if (!terapeutaId) return
+    const r = await fetch(`/api/bola/fila?unidade=${unidadeSlug}`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ terapeutaId }),
+    })
+    if (r.ok) carregar()
+  }, [unidadeSlug, carregar])
 
   const chegouCliente = useCallback(async () => {
     setEscolha(null); setPasse(null)
@@ -139,20 +157,36 @@ export default function BolaPage() {
       {erro && <div className="rounded-md bg-[#7E0000]/10 text-[#7E0000] px-3 py-2 text-sm mb-4">{erro}</div>}
 
       <div className="grid md:grid-cols-[1.1fr_.9fr] gap-6 items-start">
-        {/* FILA */}
+        {/* FILA + marcar chegada */}
         <div>
+          {/* Terapeutas de hoje — a recepção marca a chegada na ordem */}
+          {painel && painel.disponiveis.length > 0 && (
+            <div className="mb-4">
+              <h2 className="font-semibold mb-2">Terapeutas de hoje</h2>
+              <p className="text-xs text-muted-foreground mb-2">Toque pra marcar a chegada (entra na fila na ordem).</p>
+              <div className="flex flex-wrap gap-1.5">
+                {painel.disponiveis.map((d) => (
+                  <button key={d.cod} onClick={() => marcarChegada(d.terapeutaId)}
+                    className="inline-flex items-center gap-1 text-xs rounded-full border px-2.5 py-1 hover:bg-[#425F1D]/5 transition-colors"
+                    style={{ borderColor: d.escalada ? 'rgba(66,95,29,.4)' : 'var(--border)', color: '#392617' }}
+                    title={d.escalada ? 'Escalada hoje' : 'Não escalada no Belle (mas presente)'}>
+                    <Plus className="w-3 h-3" style={{ color: FLORA }} /> {d.nome}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <h2 className="font-semibold mb-2">A fila</h2>
           {painel && painel.fila.length === 0 && (
-            <p className="text-sm text-muted-foreground">Ninguém fez check-in ainda hoje.</p>
+            <p className="text-sm text-muted-foreground">Ninguém na bola ainda — marque a chegada acima.</p>
           )}
           <div className="flex flex-col gap-2">
             {painel?.fila.map((f, i) => (
               <div key={f.terapeutaId}
                 className="flex items-center gap-3 border rounded-xl px-3 py-2.5"
                 style={i === naBola ? { borderColor: DOURADO, boxShadow: '0 4px 14px rgba(126,0,0,.08)' } : undefined}>
-                <div className="w-6 text-center text-muted-foreground tabular-nums">
-                  {f.status === 'FORA_DE_TURNO' ? '—' : i + 1}
-                </div>
+                <div className="w-6 text-center text-muted-foreground tabular-nums">{i + 1}</div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{f.nome}</div>
                   <div className="text-xs text-muted-foreground">
@@ -164,6 +198,10 @@ export default function BolaPage() {
                 {i === naBola
                   ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full text-white" style={{ background: MARSALA }}>na bola</span>
                   : <Chip item={f} />}
+                <button onClick={() => removerDaFila(f.terapeutaIdDb)} title="Tirar da fila (saiu)"
+                  className="text-muted-foreground hover:text-[#7E0000] transition-colors shrink-0">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             ))}
           </div>

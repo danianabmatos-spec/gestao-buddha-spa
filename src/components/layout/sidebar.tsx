@@ -203,8 +203,8 @@ export function Sidebar() {
                           <Scale size={14} strokeWidth={1.8} /> Conciliação
                         </Link>
                       )}
-                      {/* Controle da Bola — piloto (só Tatuapé por enquanto) */}
-                      {slug === 'tatuape-gomescardim' && (
+                      {/* Controle da Bola — piloto (Tatuapé e Perdizes) */}
+                      {['tatuape-gomescardim', 'perdizes'].includes(slug) && (
                         <Link href={`/dashboard/${slug}/bola`} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white">
                           <Target size={14} strokeWidth={1.8} /> Controle da Bola
                         </Link>

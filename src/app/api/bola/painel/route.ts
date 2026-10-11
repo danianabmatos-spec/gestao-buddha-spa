@@ -28,7 +28,8 @@ export async function GET(req: NextRequest) {
     data: base.data,
     agora: minToHHMM(base.agoraMin),
     fila: base.estado.map((e) => ({
-      terapeutaId: e.terapeuta.id,
+      terapeutaId: e.terapeuta.id, // cod do Belle
+      terapeutaIdDb: base._codParaId[e.terapeuta.id] ?? null, // id do nosso Terapeuta (p/ remover)
       nome: e.terapeuta.nome,
       chegada: minToHHMM(e.chegadaMin),
       rodadas: e.rodadas,
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
             ? { inicio: minToHHMM(e.status.preferencialInicioMin), cliente: e.status.cliente }
             : null,
     })),
+    disponiveis: base.disponiveis, // terapeutas do dia que a recepção pode marcar chegada
   })
 }
 
