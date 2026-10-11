@@ -35,6 +35,30 @@ export function normalizarNome(nome: string): string {
     .trim()
 }
 
+// Distância de edição (Levenshtein) — p/ tolerar grafia (ex.: Nakandakari↔Nakandakare).
+function distEdicao(a: string, b: string): number {
+  const m = a.length, n = b.length
+  if (!m) return n
+  if (!n) return m
+  let prev = Array.from({ length: n + 1 }, (_, j) => j)
+  for (let i = 1; i <= m; i++) {
+    const cur = [i]
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+    }
+    prev = cur
+  }
+  return prev[n]
+}
+
+// Dois tokens de nome são "equivalentes" se iguais, prefixo um do outro, ou a 1 letra
+// de diferença (só em tokens longos, p/ não casar nomes curtos diferentes).
+function tokenEquiv(a: string, b: string): boolean {
+  if (a === b) return true
+  if (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a))) return true
+  return Math.min(a.length, b.length) >= 5 && distEdicao(a, b) <= 1
+}
+
 // Cache em memória (o quadro de terapeutas muda raramente).
 let cache: { at: number; nomes: Set<string> } | null = null
 const TTL_MS = 10 * 60 * 1000
@@ -107,13 +131,20 @@ export async function getCategoriasTerapeutasRH(): Promise<CategoriaResolver | n
       resolve(nomeNorm) {
         const exata = exato.get(nomeNorm)
         if (exata) return exata
-        // Fuzzy: nome do Belle é subconjunto do nome do RH (mesmo 1º nome + todos os
-        // tokens presentes) e ÚNICO. Evita falso positivo exigindo ≥2 tokens e unicidade.
+        // Fuzzy por PONTUAÇÃO: conta quantos tokens do Belle têm equivalente no RH
+        // (igual/prefixo/1 letra). Casa o ÚNICO melhor, exigindo o 1º nome equivalente,
+        // ≥2 tokens e no máximo 1 token "sobrando" (tolera grafia e 1 sobrenome trocado).
+        // Empate → sem etiqueta (nunca casa errado). Cobre subconjunto também.
         const bt = nomeNorm.split(' ').filter(Boolean)
         if (bt.length < 2) return null
-        const cands = lista.filter((e) => e.tokens[0] === bt[0] && bt.every((t) => e.tokens.includes(t)))
-        const normsDistintos = new Set(cands.map((c) => c.norm))
-        return normsDistintos.size === 1 ? cands[0].cat : null
+        const pontuados = lista
+          .map((e) => ({ e, s: bt.filter((b) => e.tokens.some((t) => tokenEquiv(b, t))).length, fn: e.tokens.length > 0 && tokenEquiv(bt[0], e.tokens[0]) }))
+          .filter((x) => x.fn && x.s >= 2 && x.s >= bt.length - 1)
+        if (!pontuados.length) return null
+        const max = Math.max(...pontuados.map((x) => x.s))
+        const top = pontuados.filter((x) => x.s === max)
+        const distintos = new Set(top.map((x) => x.e.norm))
+        return distintos.size === 1 ? top[0].e.cat : null
       },
     }
     cacheCat = { at: agora, resolver }
