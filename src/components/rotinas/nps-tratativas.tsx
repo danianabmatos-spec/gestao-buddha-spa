@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Loader2, PhoneCall, CheckCircle2, AlertTriangle, Gift, SmilePlus, Tag,
-  User, CalendarDays, Flower2, ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight,
 } from 'lucide-react'
 
 // ─── Tipos (espelham /api/rotinas/agir-hoje — bloco NPS) ────────────────────────
@@ -45,7 +45,13 @@ export default function NpsTratativas({ unidadeSlug }: { unidadeSlug: string | n
   const [resp, setResp] = useState<ApiResp | null>(null)
   const [loading, setLoading] = useState(true)
   const [slug, setSlug] = useState<string | null>(unidadeSlug)
-  const [tratadosAberto, setTratadosAberto] = useState(false)
+  const [expandido, setExpandido] = useState<string | null>(null)
+  // Filtros por coluna.
+  const [fCliente, setFCliente] = useState('')
+  const [fProf, setFProf] = useState('')
+  const [fServ, setFServ] = useState('')
+  const [fClass, setFClass] = useState('')   // '' | detrator | neutro
+  const [fStatus, setFStatus] = useState('') // '' | pendente | tratado
 
   const carregar = useCallback(async (s: string | null) => {
     setLoading(true)
@@ -63,12 +69,30 @@ export default function NpsTratativas({ unidadeSlug }: { unidadeSlug: string | n
 
   const podeTratar = resp?.perfil === 'DONA' || resp?.perfil === 'COORDENACAO'
   const nps = resp?.nps
-  const pendentes = (nps?.avaliacoes ?? []).filter((a) => !a.tratativa)
-  const tratados = (nps?.avaliacoes ?? []).filter((a) => a.tratativa)
+  const todos = useMemo(() => nps?.avaliacoes ?? [], [nps])
+  const pendentesCount = todos.filter((a) => !a.tratativa).length
+
+  const norm = (s: string | null | undefined) => (s ?? '').toLowerCase()
+  const filtrados = useMemo(() => todos.filter((a) => {
+    if (fCliente && !norm(a.cliente).includes(norm(fCliente))) return false
+    if (fProf && !norm(a.profissional).includes(norm(fProf))) return false
+    if (fServ && !norm(a.servicos).includes(norm(fServ))) return false
+    if (fClass === 'detrator' && !ehDetrator(a.classificacao)) return false
+    if (fClass === 'neutro' && ehDetrator(a.classificacao)) return false
+    if (fStatus === 'pendente' && a.tratativa) return false
+    if (fStatus === 'tratado' && !a.tratativa) return false
+    return true
+  }).sort((a, b) => {
+    const pa = a.tratativa ? 1 : 0, pb = b.tratativa ? 1 : 0
+    if (pa !== pb) return pa - pb                       // pendentes primeiro
+    return (b.data || '').localeCompare(a.data || '')   // mais recentes
+  }), [todos, fCliente, fProf, fServ, fClass, fStatus])
+
+  const inputCls = 'w-full rounded border border-white/30 bg-white/90 text-[#392617] px-1.5 py-0.5 text-[11px] font-normal placeholder:text-[#392617]/40 focus:outline-none'
 
   return (
-    <div className="p-4 sm:p-6 w-full max-w-5xl mx-auto">
-      <div className="mb-5">
+    <div className="p-4 sm:p-6 w-full max-w-6xl mx-auto">
+      <div className="mb-4">
         <h1 className="text-2xl font-bold text-[#7E0000] flex items-center gap-2">
           <PhoneCall size={24} /> NPS a Tratar
           {resp?.unidadeAtual?.nome && (
@@ -77,8 +101,8 @@ export default function NpsTratativas({ unidadeSlug }: { unidadeSlug: string | n
         </h1>
         {nps && !nps.erro && (
           <p className="text-sm text-[#392617]/60 mt-1">
-            Clientes para contatar — NPS de {nomeMes(nps.periodo.inicio)} ·{' '}
-            {nps.totalRespostas ?? 0} resposta{(nps.totalRespostas ?? 0) === 1 ? '' : 's'} no mês
+            NPS de {nomeMes(nps.periodo.inicio)} · {nps.totalRespostas ?? 0} resposta{(nps.totalRespostas ?? 0) === 1 ? '' : 's'} no mês ·{' '}
+            <b className="text-[#7E0000]">{pendentesCount} pendente{pendentesCount === 1 ? '' : 's'}</b> de {todos.length}
           </p>
         )}
       </div>
@@ -89,94 +113,102 @@ export default function NpsTratativas({ unidadeSlug }: { unidadeSlug: string | n
         <p className="text-sm text-[#392617]/50">Não foi possível carregar o NPS.</p>
       ) : nps.erro ? (
         <p className="text-sm text-[#7E0000]/80 flex items-center gap-1.5"><AlertTriangle size={14} /> {nps.erro}</p>
+      ) : todos.length === 0 ? (
+        <div className="flex items-center gap-2 text-[13px] text-[#425F1D] bg-[#425F1D]/10 rounded-lg px-3 py-2">
+          <CheckCircle2 size={15} /> Nenhum detrator ou neutro neste mês. Satisfação alta! 🎉
+        </div>
       ) : (
-        <>
-          {/* ── Pendentes ── */}
-          <section className="mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <h2 className="text-sm font-bold text-[#7E0000] uppercase tracking-wide">Pendentes de tratativa</h2>
-              <span className="text-xs font-bold text-white bg-[#7E0000] rounded-full px-2 py-0.5">{pendentes.length}</span>
-            </div>
-            {pendentes.length === 0 ? (
-              <div className="flex items-center gap-2 text-[13px] text-[#425F1D] bg-[#425F1D]/10 rounded-lg px-3 py-2">
-                <CheckCircle2 size={15} /> Nenhum cliente pendente de tratativa neste mês. Satisfação alta! 🎉
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {pendentes.map((a, i) => (
-                  <CasoNps key={a.chaveCaso || i} a={a} unidadeSlug={resp.unidadeAtual.slug} podeTratar={!!podeTratar} onSalvo={() => carregar(slug)} />
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* ── Já tratados no mês (lista) ── */}
-          {tratados.length > 0 && (
-            <section>
-              <button onClick={() => setTratadosAberto((v) => !v)}
-                className="flex items-center gap-2 mb-2 text-sm font-bold text-[#425F1D] uppercase tracking-wide">
-                {tratadosAberto ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                Já tratados no mês
-                <span className="text-xs font-bold text-white bg-[#425F1D] rounded-full px-2 py-0.5 normal-case">{tratados.length}</span>
-              </button>
-              {tratadosAberto && (
-                <div className="rounded-xl border border-[#DDC7A4] bg-white divide-y divide-[#DDC7A4]/50 overflow-hidden">
-                  {tratados.map((a, i) => <TratadoRow key={a.chaveCaso || i} a={a} />)}
-                </div>
-              )}
-            </section>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
-// ─── Caso pendente (card com formulário) ────────────────────────────────────────
-function CasoNps({ a, unidadeSlug, podeTratar, onSalvo }: { a: AvaliacaoNPS; unidadeSlug: string; podeTratar: boolean; onSalvo: () => void }) {
-  return (
-    <div className="rounded-xl bg-white border border-[#DDC7A4] p-3">
-      <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
-        <span className="text-sm font-semibold text-[#392617]">{a.cliente}</span>
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white"
-          style={{ backgroundColor: ehDetrator(a.classificacao) ? '#7E0000' : '#D78B18' }}>
-          {a.classificacao}{a.nota != null ? ` · ${a.nota}/10` : ''}
-        </span>
-        {a.profissional && <MetaChip icon={<User size={11} />} cor="#D78B18" texto={a.profissional} />}
-        {a.servicos && <MetaChip icon={<Flower2 size={11} />} cor="#425F1D" texto={a.servicos} />}
-        {a.data && <MetaChip icon={<CalendarDays size={11} />} cor="#7E0000" texto={dataBR(a.data)} />}
-      </div>
-      {a.comentario
-        ? <p className="text-[13px] text-[#392617]/80 mt-1.5 italic">“{a.comentario}”</p>
-        : <p className="text-[13px] text-[#392617]/40 mt-1.5 italic">sem comentário</p>}
-      <BlocoTratativa unidadeSlug={unidadeSlug} podeTratar={podeTratar} onSalvo={onSalvo}
-        caso={{ chaveCaso: a.chaveCaso, cliente: a.cliente, classificacao: a.classificacao, nota: a.nota, comentario: a.comentario }} />
-    </div>
-  )
-}
-
-// ─── Linha de caso já tratado (expansível → mostra a tratativa) ─────────────────
-function TratadoRow({ a }: { a: AvaliacaoNPS }) {
-  const [aberto, setAberto] = useState(false)
-  const t = a.tratativa!
-  return (
-    <div>
-      <button onClick={() => setAberto((v) => !v)} className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-[#FBF6EF]">
-        <CheckCircle2 size={15} className="text-[#425F1D] shrink-0" />
-        <span className="text-sm font-medium text-[#392617] shrink-0">{a.cliente}</span>
-        <span className="text-xs text-[#392617]/55 truncate flex-1">
-          {[a.profissional, a.servicos, dataBR(a.data)].filter(Boolean).join(' · ')}
-        </span>
-        {aberto ? <ChevronDown size={15} className="text-[#392617]/40 shrink-0" /> : <ChevronRight size={15} className="text-[#392617]/40 shrink-0" />}
-      </button>
-      {aberto && (
-        <div className="px-3 pb-3 pl-10">
-          <p className="text-[10px] font-semibold uppercase text-[#425F1D]">Tratativa{t.por ? ` · ${t.por}` : ''}</p>
-          <p className="text-[13px] text-[#392617]/80 mt-0.5">{t.acaoTomada}</p>
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
-            {t.tipoProblema && <Chip icon={<Tag size={10} />} texto={t.tipoProblema} />}
-            {t.cortesiaConcedida != null && <Chip icon={<Gift size={10} />} texto={`Cortesia: ${t.cortesiaConcedida ? 'Sim' : 'Não'}`} />}
-            {t.clienteSatisfeito && <Chip icon={<SmilePlus size={10} />} texto={`Satisfeito: ${t.clienteSatisfeito}`} />}
+        <div className="rounded-xl border border-[#DDC7A4] bg-white overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[920px]">
+              <thead>
+                <tr className="bg-[#7E0000] text-white text-xs">
+                  <th className="w-6"></th>
+                  <th className="px-3 py-2 text-left font-semibold">Cliente</th>
+                  <th className="px-3 py-2 text-left font-semibold">Classificação</th>
+                  <th className="px-2 py-2 text-center font-semibold">Nota</th>
+                  <th className="px-3 py-2 text-left font-semibold">Terapeuta</th>
+                  <th className="px-3 py-2 text-left font-semibold">Serviço</th>
+                  <th className="px-2 py-2 text-center font-semibold">Data</th>
+                  <th className="px-3 py-2 text-center font-semibold">Status</th>
+                </tr>
+                {/* linha de filtros */}
+                <tr className="bg-[#5c0000]">
+                  <th></th>
+                  <th className="px-2 py-1"><input value={fCliente} onChange={(e) => setFCliente(e.target.value)} placeholder="filtrar…" className={inputCls} /></th>
+                  <th className="px-2 py-1">
+                    <select value={fClass} onChange={(e) => setFClass(e.target.value)} className={inputCls}>
+                      <option value="">Todas</option><option value="detrator">Detrator</option><option value="neutro">Neutro</option>
+                    </select>
+                  </th>
+                  <th></th>
+                  <th className="px-2 py-1"><input value={fProf} onChange={(e) => setFProf(e.target.value)} placeholder="filtrar…" className={inputCls} /></th>
+                  <th className="px-2 py-1"><input value={fServ} onChange={(e) => setFServ(e.target.value)} placeholder="filtrar…" className={inputCls} /></th>
+                  <th></th>
+                  <th className="px-2 py-1">
+                    <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className={inputCls}>
+                      <option value="">Todos</option><option value="pendente">Pendente</option><option value="tratado">Tratado</option>
+                    </select>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#DDC7A4]/30">
+                {filtrados.map((a, i) => {
+                  const pend = !a.tratativa
+                  const chave = a.chaveCaso || String(i)
+                  const aberta = expandido === chave
+                  const det = ehDetrator(a.classificacao)
+                  return (
+                    <Fragment key={chave}>
+                      <tr className="hover:bg-[#FBF6EF] cursor-pointer" onClick={() => setExpandido(aberta ? null : chave)}>
+                        <td className="px-1 text-center text-[#7E0000]">{aberta ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</td>
+                        <td className="px-3 py-2 font-medium text-[#392617] whitespace-nowrap">{a.cliente}</td>
+                        <td className="px-3 py-2">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white whitespace-nowrap" style={{ backgroundColor: det ? '#7E0000' : '#D78B18' }}>
+                            {a.classificacao}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 text-center font-semibold text-[#392617]">{a.nota ?? '—'}</td>
+                        <td className="px-3 py-2 text-[#392617]/80 whitespace-nowrap">{a.profissional || '—'}</td>
+                        <td className="px-3 py-2 text-[#392617]/80 whitespace-nowrap">{a.servicos || '—'}</td>
+                        <td className="px-2 py-2 text-center text-[#392617]/70 whitespace-nowrap">{dataBR(a.data)}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full text-white whitespace-nowrap" style={{ backgroundColor: pend ? '#D78B18' : '#425F1D' }}>
+                            {pend ? 'Pendente' : 'Tratado'}
+                          </span>
+                        </td>
+                      </tr>
+                      {aberta && (
+                        <tr className="bg-[#F5F0EB]/60">
+                          <td colSpan={8} className="px-4 py-3">
+                            {a.comentario
+                              ? <p className="text-[13px] text-[#392617]/80 italic mb-1">“{a.comentario}”</p>
+                              : <p className="text-[13px] text-[#392617]/40 italic mb-1">sem comentário</p>}
+                            {pend ? (
+                              <BlocoTratativa unidadeSlug={resp.unidadeAtual.slug} podeTratar={!!podeTratar} onSalvo={() => carregar(slug)}
+                                caso={{ chaveCaso: a.chaveCaso, cliente: a.cliente, classificacao: a.classificacao, nota: a.nota, comentario: a.comentario }} />
+                            ) : a.tratativa ? (
+                              <div className="mt-1">
+                                <p className="text-[10px] font-semibold uppercase text-[#425F1D]">Tratativa{a.tratativa.por ? ` · ${a.tratativa.por}` : ''}</p>
+                                <p className="text-[13px] text-[#392617]/80 mt-0.5">{a.tratativa.acaoTomada}</p>
+                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                  {a.tratativa.tipoProblema && <Chip icon={<Tag size={10} />} texto={a.tratativa.tipoProblema} />}
+                                  {a.tratativa.cortesiaConcedida != null && <Chip icon={<Gift size={10} />} texto={`Cortesia: ${a.tratativa.cortesiaConcedida ? 'Sim' : 'Não'}`} />}
+                                  {a.tratativa.clienteSatisfeito && <Chip icon={<SmilePlus size={10} />} texto={`Satisfeito: ${a.tratativa.clienteSatisfeito}`} />}
+                                </div>
+                              </div>
+                            ) : null}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+                {filtrados.length === 0 && (
+                  <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-[#392617]/50">Nenhum caso com esses filtros.</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -252,7 +284,4 @@ function BlocoTratativa({ unidadeSlug, podeTratar, onSalvo, caso }: {
 
 function Chip({ icon, texto }: { icon: React.ReactNode; texto: string }) {
   return <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#392617] bg-[#DDC7A4]/40 rounded-full px-2 py-0.5">{icon} {texto}</span>
-}
-function MetaChip({ icon, texto, cor }: { icon: React.ReactNode; texto: string; cor: string }) {
-  return <span className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5" style={{ backgroundColor: `${cor}16`, color: cor }}>{icon} {texto}</span>
 }
