@@ -3,12 +3,26 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
+// Unidade padrão de quem enxerga TODAS (Dona/Financeiro/RH). Quem tem escopo de
+// unidade(s) é mandado pra PRIMEIRA que acessa — senão caía fixo no Shopping
+// Metrópole e a recepção de outra unidade via tela em branco (rota bloqueada).
+const UNIDADE_PADRAO = 'shopping-metropole'
+
 export default function DashboardPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Redireciona para Shopping Metrópole por padrão
-    router.push('/dashboard/shopping-metropole')
+    let cancelado = false
+    fetch('/api/auth/permissoes', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelado) return
+        const unidades: string[] | null = j?.unidades ?? null
+        const destino = unidades && unidades.length > 0 ? unidades[0] : UNIDADE_PADRAO
+        router.replace(`/dashboard/${destino}`)
+      })
+      .catch(() => { if (!cancelado) router.replace(`/dashboard/${UNIDADE_PADRAO}`) })
+    return () => { cancelado = true }
   }, [router])
 
   return (
