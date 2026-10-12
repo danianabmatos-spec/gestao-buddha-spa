@@ -416,7 +416,13 @@ export async function ingerirAtendimentos(
 
   // Vendas (pacote/voucher/produto) com desconto/cortesia — não são atendimento, vão
   // pra coluna "Vendas c/ desconto" a justificar. Reaproveita o Report 2421 já buscado.
-  await ingerirVendasDesconto(unidadeId, rep2421, dataIniISO, dataFimISO)
+  // ISOLADO: uma falha aqui (ex.: SQLITE_BUSY) NUNCA pode abortar a ingestão de
+  // atendimentos nem o motor de conciliação (F2) abaixo — só perde este passo.
+  try {
+    await ingerirVendasDesconto(unidadeId, rep2421, dataIniISO, dataFimISO)
+  } catch (e) {
+    console.error(`[atendimentos] vendas c/ desconto ${unidadeSlug}:`, e instanceof Error ? e.message : e)
+  }
 
   // Motor F2: cruza os A_VERIFICAR com a Parte 1 e gera divergências, por dia tocado.
   for (const data of diasTocados) {
