@@ -10,9 +10,11 @@ import {
 interface Terapeuta {
   id: number; terapeutaNome: string; cnpjMei: string; comissao: number; diasCredito: number;
   valorTerapeuta: number; pct: number; valorNota: number; baseCalculo: number; rps: number | null;
-  nfSalaoNumero: string | null; nfComissaoNumero: string | null; nfCreditoNumero: string | null;
+  nfSalaoNumero: string | null; chaveAcesso: string | null; nfComissaoNumero: string | null; nfCreditoNumero: string | null;
   codVerificacao?: string | null; discriminacao: string; status: string;
 }
+interface ItemEmissao { notaId: number; terapeutaNome: string; ok: boolean; chaveAcesso?: string; numeroNfse?: string | null; erro?: string; }
+interface ResultadoEmissao { ambiente: string; total: number; emitidas: number; jaEmitidas: number; falhas: number; itens: ItemEmissao[]; }
 interface Base {
   faturamentoCaixa: number; reembolsoVoucher: number; reembolsoGympass: number;
   reembolsoTotalpass: number; notasAvulsas: number; valorBase: number;
@@ -81,6 +83,7 @@ export default function NfSalaoPage() {
   const [unidade, setUnidade] = useState("analia-franco");
   const [empresa, setEmpresa] = useState<{ razaoSocial: string; cnpj: string; inscricaoMunicipal: string; nomeFantasia: string } | null>(null);
   const [rpsForm, setRpsForm] = useState("");
+  const [emitResult, setEmitResult] = useState<ResultadoEmissao | null>(null);
 
   const editavel = comp?.existe && comp.status === "ABERTO";
 
@@ -179,6 +182,23 @@ export default function NfSalaoPage() {
       setRpsForm("");
       const n = j.renumeradas as number | undefined;
       setAviso(`Próximo RPS definido em ${valor}${n ? ` · ${n} nota(s) renumerada(s) a partir de ${valor}` : ""}.`);
+    } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
+    finally { setBusy(false); }
+  };
+
+  const emitirLoteNacional = async () => {
+    if (!confirm("Emitir a NFS-e Nacional de todas as terapeutas ainda não emitidas desta competência? As notas já emitidas são puladas.")) return;
+    setBusy(true); setErro(null); setAviso(null); setEmitResult(null);
+    try {
+      const r = await fetch(`/api/nf-salao/${ano}/${mes}?unidade=${unidade}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "emitirLote" }) });
+      const j = await lerJson(r);
+      if (!r.ok || !j) throw new Error(msgErro(r, j));
+      const c = j.competencia as Competencia; setComp(c); if (c?.existe) syncBaseForm(c);
+      const res = j.resultado as ResultadoEmissao | undefined;
+      if (res) {
+        setEmitResult(res);
+        setAviso(`Emissão (${res.ambiente}): ${res.emitidas} emitida(s), ${res.jaEmitidas} já estavam, ${res.falhas} falha(s).`);
+      }
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
     finally { setBusy(false); }
   };
@@ -504,6 +524,39 @@ export default function NfSalaoPage() {
             </div>
           )}
 
+          {/* Emissão NFS-e: capital → Nota do Milhão/SP; Metrópole → GINFES (São Bernardo). */}
+          {(
+            <div className="bg-white border border-[#E4D8C1] rounded-2xl p-4 mb-6">
+              <div className="flex flex-wrap items-center gap-3">
+                <button disabled={busy} onClick={emitirLoteNacional}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-[#7E0000] hover:bg-[#5c0000] px-3 py-2 rounded-lg disabled:opacity-50">
+                  {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} Emitir NFS-e (lote)
+                </button>
+                <span className="text-xs text-[#8a7866]">Emite a NFS-e de cada terapeuta ainda não emitida direto no webservice da prefeitura ({ehMetropole ? "GINFES / São Bernardo" : "Nota do Milhão / SP"}), com o certificado A1 da unidade. As já emitidas são puladas.</span>
+              </div>
+              {emitResult && (
+                <div className="mt-3 border-t border-[#E4D8C1] pt-3">
+                  <div className="text-xs font-bold uppercase tracking-wide text-[#7E0000] mb-2">
+                    Resultado · {emitResult.ambiente === "producao" ? "Produção" : "Homologação (teste)"} — {emitResult.emitidas} emitida(s) · {emitResult.jaEmitidas} já estavam · {emitResult.falhas} falha(s)
+                  </div>
+                  <ul className="space-y-1">
+                    {emitResult.itens.map((it) => (
+                      <li key={it.notaId} className="flex items-start gap-2 text-[13px]">
+                        <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${it.ok ? "bg-[#425F1D]" : "bg-[#9a2b2b]"}`} />
+                        <span className="text-[#40342a]">
+                          <b>{it.terapeutaNome}</b>{" "}
+                          {it.ok
+                            ? <span className="text-[#425F1D]">{it.numeroNfse ? `NFS-e ${it.numeroNfse}` : "emitida"}{it.chaveAcesso ? ` · chave ${it.chaveAcesso}` : ""}</span>
+                            : <span className="text-[#9a2b2b]">{it.erro}</span>}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           <p className="text-xs text-[#8a7866]">
             Alíquota do mês: ISS {comp.aliquotaIss.toFixed(2).replace(".", ",")}% · tributos aprox. {comp.aliquotaTributos.toFixed(2).replace(".", ",")}%.
             Código do serviço 06.02.01 (prefeitura SP 08516). {editavel ? "Clique numa terapeuta para editar valores, copiar a discriminação e registrar a NF emitida." : "Mês fechado — reabra para editar."}
@@ -613,6 +666,7 @@ function NfRow({
                     <FieldRow k="Base de cálculo do ISS · O" v={brl2(t.baseCalculo)} />
                     <FieldRow k="Valor total da nota · M" v={brl2(t.valorNota)} big />
                     <FieldRow k="NF emitida · verificação" v={`${t.nfSalaoNumero ?? "—"}${t.codVerificacao ? " · " + t.codVerificacao : ""}`} />
+                    {t.chaveAcesso && <FieldRow k="Chave de acesso (NFS-e Nacional)" v={t.chaveAcesso} />}
                   </>
                 )}
               </div>

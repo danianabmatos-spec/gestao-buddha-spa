@@ -16,6 +16,7 @@ import {
   atribuirRpsTodas,
   definirProximoRps,
 } from "@/lib/nf-salao/escrita";
+import { emitirLote } from "@/lib/nf-salao/emissor/emitir-lote";
 
 export const dynamic = "force-dynamic";
 
@@ -150,6 +151,10 @@ export async function POST(
       case "atribuirRps": {
         const r = await atribuirRpsTodas(p.a, p.m, u.id);
         return Response.json({ competencia: r.competencia, atribuidos: r.atribuidos });
+      }
+      case "emitirLote": {
+        const resultado = await emitirLote(p.a, p.m, u.id);
+        return Response.json({ competencia: await getCompetencia(p.a, p.m, u.id), resultado });
       }
       default:
         return Response.json({ error: "Ação inválida" }, { status: 400 });

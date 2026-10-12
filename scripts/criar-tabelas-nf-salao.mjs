@@ -65,6 +65,18 @@ await db.execute(`
 await db.execute(`CREATE INDEX IF NOT EXISTS "NfSalaoTerapeuta_nfSalaoMesId_idx" ON "NfSalaoTerapeuta"("nfSalaoMesId")`)
 await db.execute(`CREATE INDEX IF NOT EXISTS "NfSalaoTerapeuta_unidadeId_idx" ON "NfSalaoTerapeuta"("unidadeId")`)
 
+// Coluna chaveAcesso (chave de acesso da NFS-e emitida) — aditiva/idempotente.
+// SQLite não tem ADD COLUMN IF NOT EXISTS → checa o pragma antes.
+{
+  const cols = await db.execute(`PRAGMA table_info("NfSalaoTerapeuta")`)
+  if (!cols.rows.some((r) => r.name === 'chaveAcesso')) {
+    await db.execute(`ALTER TABLE "NfSalaoTerapeuta" ADD COLUMN "chaveAcesso" TEXT`)
+    console.log('✔ Coluna NfSalaoTerapeuta.chaveAcesso adicionada.')
+  } else {
+    console.log('✔ Coluna NfSalaoTerapeuta.chaveAcesso já existe.')
+  }
+}
+
 await db.execute(`
   CREATE TABLE IF NOT EXISTS "RpsSequencia" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,

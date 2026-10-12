@@ -19,6 +19,7 @@ export interface TerapeutaLinha {
   baseCalculo: number;
   rps: number | null;
   nfSalaoNumero: string | null;
+  chaveAcesso: string | null;
   nfComissaoNumero: string | null;
   nfCreditoNumero: string | null;
   codVerificacao: string | null;
@@ -143,6 +144,7 @@ export async function getCompetencia(
         baseCalculo: t.baseCalculo,
         rps: t.rps,
         nfSalaoNumero: t.nfSalaoNumero,
+        chaveAcesso: t.chaveAcesso,
         nfComissaoNumero: t.nfComissaoNumero,
         nfCreditoNumero: t.nfCreditoNumero,
         codVerificacao: t.codVerificacao,
