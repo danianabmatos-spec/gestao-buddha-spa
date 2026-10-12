@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { Users, UserPlus, Trash2, Save, KeyRound, Loader2, Check } from 'lucide-react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Users, UserPlus, Trash2, Save, KeyRound, Loader2, Check, ChevronDown, ChevronRight } from 'lucide-react'
 
 interface Un { id: number; slug: string; nome: string }
 interface U { id: string; nome: string; email: string; perfil: string; ativo: boolean; unidades: Un[] }
@@ -26,6 +26,12 @@ export default function UsuariosPage() {
   const [prov, setProv] = useState<{ rhIndisponivel: boolean; criar: ProvPlano[]; ignorados: ProvIgnorado[] } | null>(null)
   const [provBusy, setProvBusy] = useState(false)
   const [provCriados, setProvCriados] = useState<ProvPlano[] | null>(null)
+  // filtros + expand da lista
+  const [fBusca, setFBusca] = useState('')
+  const [fPerfil, setFPerfil] = useState('')
+  const [fUnidade, setFUnidade] = useState('')
+  const [fAtivo, setFAtivo] = useState('')
+  const [expandido, setExpandido] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
     setLoading(true); setErro(null)
@@ -98,6 +104,19 @@ export default function UsuariosPage() {
       await carregar()
     } finally { setCriando(false) }
   }
+
+  const filtrados = useMemo(() => usuarios.filter((u) => {
+    if (fBusca) { const q = fBusca.toLowerCase(); if (!u.nome.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false }
+    if (fPerfil && u.perfil !== fPerfil) return false
+    if (fAtivo === 'sim' && !u.ativo) return false
+    if (fAtivo === 'nao' && u.ativo) return false
+    if (fUnidade) {
+      const id = Number(fUnidade)
+      const total = perfis.find((p) => p.chave === u.perfil)?.escopo === 'total'
+      if (!total && !u.unidades.some((x) => x.id === id)) return false
+    }
+    return true
+  }), [usuarios, perfis, fBusca, fPerfil, fAtivo, fUnidade])
 
   return (
     <div className="p-4 md:p-8 max-w-[1000px] w-full">
@@ -198,21 +217,64 @@ export default function UsuariosPage() {
         </button>
       </div>
 
-      {/* Lista */}
+      {/* Lista — tabela filtrável */}
       {loading ? (
         <div className="flex items-center justify-center py-16 text-[#392617]/50"><Loader2 className="animate-spin mr-2" /> Carregando…</div>
       ) : (
-        <div className="mt-5 space-y-2">
-          {usuarios.map((u) => (
-            <UserRow key={u.id} u={u} unidades={unidades} perfis={perfis} ehVoce={u.id === meuId} onChange={carregar} setErro={setErro} />
-          ))}
+        <div className="mt-5">
+          {/* filtros por coluna */}
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <input value={fBusca} onChange={(e) => setFBusca(e.target.value)} placeholder="Buscar nome ou e-mail…"
+              className="px-3 py-1.5 rounded-lg border border-[#DDC7A4] bg-white text-sm w-56 focus:border-[#D78B18] focus:outline-none" />
+            <select value={fPerfil} onChange={(e) => setFPerfil(e.target.value)} className="px-2 py-1.5 rounded-lg border border-[#DDC7A4] bg-white text-sm">
+              <option value="">Todos os cargos</option>
+              {perfis.map((p) => <option key={p.chave} value={p.chave}>{p.nome}</option>)}
+            </select>
+            <select value={fUnidade} onChange={(e) => setFUnidade(e.target.value)} className="px-2 py-1.5 rounded-lg border border-[#DDC7A4] bg-white text-sm">
+              <option value="">Todas as unidades</option>
+              {unidades.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+            <select value={fAtivo} onChange={(e) => setFAtivo(e.target.value)} className="px-2 py-1.5 rounded-lg border border-[#DDC7A4] bg-white text-sm">
+              <option value="">Ativos e inativos</option>
+              <option value="sim">Só ativos</option>
+              <option value="nao">Só inativos</option>
+            </select>
+            <span className="text-xs text-[#392617]/50 ml-auto">{filtrados.length} de {usuarios.length}</span>
+          </div>
+
+          <div className="rounded-xl border border-[#DDC7A4] bg-white overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[760px]">
+                <thead>
+                  <tr className="bg-[#7E0000] text-white text-xs">
+                    <th className="w-6"></th>
+                    <th className="px-3 py-2 text-left font-semibold">Nome</th>
+                    <th className="px-3 py-2 text-left font-semibold">E-mail</th>
+                    <th className="px-3 py-2 text-left font-semibold">Cargo</th>
+                    <th className="px-3 py-2 text-left font-semibold">Unidades</th>
+                    <th className="px-3 py-2 text-center font-semibold">Ativo</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#DDC7A4]/30">
+                  {filtrados.map((u) => (
+                    <UserRow key={u.id} u={u} unidades={unidades} perfis={perfis} ehVoce={u.id === meuId}
+                      aberto={expandido === u.id} onToggle={() => setExpandido(expandido === u.id ? null : u.id)}
+                      onChange={carregar} setErro={setErro} />
+                  ))}
+                  {filtrados.length === 0 && (
+                    <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-[#392617]/50">Nenhum usuário com esses filtros.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-function UserRow({ u, unidades, perfis, ehVoce, onChange, setErro }: { u: U; unidades: Un[]; perfis: P[]; ehVoce: boolean; onChange: () => void; setErro: (s: string | null) => void }) {
+function UserRow({ u, unidades, perfis, ehVoce, aberto, onToggle, onChange, setErro }: { u: U; unidades: Un[]; perfis: P[]; ehVoce: boolean; aberto: boolean; onToggle: () => void; onChange: () => void; setErro: (s: string | null) => void }) {
   const [nome, setNome] = useState(u.nome)
   const [email, setEmail] = useState(u.email)
   const [perfil, setPerfil] = useState(u.perfil)
@@ -222,6 +284,8 @@ function UserRow({ u, unidades, perfis, ehVoce, onChange, setErro }: { u: U; uni
   const [busy, setBusy] = useState(false)
   const escopo = perfis.find((p) => p.chave === perfil)?.escopo
   const precisa = escopo === 'coord' || escopo === 'unidade'
+  const nomePerfil = perfis.find((p) => p.chave === u.perfil)?.nome || u.perfil
+  const escopoU = perfis.find((p) => p.chave === u.perfil)?.escopo
 
   function toggle(id: number) {
     if (escopo === 'unidade') setIds(ids.includes(id) ? [] : [id])
@@ -250,38 +314,79 @@ function UserRow({ u, unidades, perfis, ehVoce, onChange, setErro }: { u: U; uni
   }
 
   return (
-    <div className={`rounded-xl border bg-white p-3 ${ativo ? 'border-[#DDC7A4]' : 'border-[#DDC7A4] opacity-60'}`}>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-[220px] space-y-1">
-          <div className="flex items-center gap-1">
-            <input value={nome} onChange={(e) => setNome(e.target.value)} className="w-full px-2 py-1 rounded border border-[#DDC7A4] text-sm font-medium text-[#392617] focus:border-[#D78B18] focus:outline-none" />
-            {ehVoce && <span className="text-[10px] text-[#D78B18] whitespace-nowrap">(você)</span>}
-          </div>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="e-mail" className="w-full px-2 py-1 rounded border border-[#DDC7A4] text-xs text-[#392617]/80 focus:border-[#D78B18] focus:outline-none" />
-        </div>
-        <select value={perfil} onChange={(e) => { setPerfil(e.target.value); setIds([]) }} className="px-2 py-1.5 rounded-lg border border-[#DDC7A4] bg-white text-xs">
-          {perfis.map((p) => <option key={p.chave} value={p.chave}>{p.nome}</option>)}
-        </select>
-        <label className="flex items-center gap-1 text-xs text-[#392617] cursor-pointer">
-          <input type="checkbox" checked={ativo} onChange={(e) => { setAtivo(e.target.checked); patch({ ativo: e.target.checked }) }} disabled={ehVoce} className="accent-[#425F1D]" /> ativo
-        </label>
-        <button onClick={() => patch({ nome, email, perfil, unidadeIds: ids })} disabled={busy} className="ml-auto px-3 py-1.5 rounded-lg bg-[#7E0000] text-[#DDC7A4] text-xs hover:bg-[#5c0000] disabled:opacity-50 inline-flex items-center gap-1"><Save size={13} /> Salvar</button>
-        {!ehVoce && <button onClick={excluir} disabled={busy} className="px-2 py-1.5 rounded-lg border border-[#7E0000] text-[#7E0000] text-xs hover:bg-red-50 disabled:opacity-50"><Trash2 size={13} /></button>}
-      </div>
-      {precisa && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {unidades.map((un) => (
-            <label key={un.id} className={`text-[11px] px-2 py-0.5 rounded border cursor-pointer ${ids.includes(un.id) ? 'bg-[#425F1D] text-white border-[#425F1D]' : 'bg-white border-[#DDC7A4] text-[#392617]'}`}>
-              <input type="checkbox" className="hidden" checked={ids.includes(un.id)} onChange={() => toggle(un.id)} /> {un.nome}
-            </label>
-          ))}
-        </div>
+    <Fragment>
+      {/* linha-resumo (clique expande o editor) */}
+      <tr className={`hover:bg-[#FBF6EF] cursor-pointer ${u.ativo ? '' : 'opacity-60'}`} onClick={onToggle}>
+        <td className="px-1 text-center text-[#7E0000]">{aberto ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</td>
+        <td className="px-3 py-2 font-medium text-[#392617] whitespace-nowrap">
+          {u.nome}{ehVoce && <span className="text-[10px] text-[#D78B18] ml-1">(você)</span>}
+        </td>
+        <td className="px-3 py-2 text-[#392617]/70 whitespace-nowrap">{u.email}</td>
+        <td className="px-3 py-2 text-[#392617]/80 whitespace-nowrap">{nomePerfil}</td>
+        <td className="px-3 py-2">
+          {escopoU === 'total' ? (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#DDC7A4]/40 text-[#392617] whitespace-nowrap">Todas</span>
+          ) : u.unidades.length ? (
+            <div className="flex flex-wrap gap-1">
+              {u.unidades.map((x) => <span key={x.id} className="text-[10px] px-2 py-0.5 rounded-full bg-[#7E0000]/10 text-[#7E0000] whitespace-nowrap">{x.nome}</span>)}
+            </div>
+          ) : <span className="text-[#392617]/40">—</span>}
+        </td>
+        <td className="px-3 py-2 text-center">
+          <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full text-white whitespace-nowrap" style={{ backgroundColor: u.ativo ? '#425F1D' : '#b0a99a' }}>
+            {u.ativo ? 'Ativo' : 'Inativo'}
+          </span>
+        </td>
+      </tr>
+
+      {/* editor expandido */}
+      {aberto && (
+        <tr className="bg-[#F5F0EB]/60">
+          <td colSpan={6} className="px-4 py-3">
+            <div className="space-y-3">
+              <div className="grid sm:grid-cols-2 gap-2">
+                <label className="text-[11px] text-[#392617]/70">Nome
+                  <input value={nome} onChange={(e) => setNome(e.target.value)} className="mt-0.5 w-full px-2 py-1.5 rounded border border-[#DDC7A4] text-sm text-[#392617] bg-white focus:border-[#D78B18] focus:outline-none" />
+                </label>
+                <label className="text-[11px] text-[#392617]/70">E-mail
+                  <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="e-mail" className="mt-0.5 w-full px-2 py-1.5 rounded border border-[#DDC7A4] text-sm text-[#392617]/80 bg-white focus:border-[#D78B18] focus:outline-none" />
+                </label>
+              </div>
+              <div className="flex flex-wrap items-end gap-4">
+                <label className="text-[11px] text-[#392617]/70">Cargo
+                  <select value={perfil} onChange={(e) => { setPerfil(e.target.value); setIds([]) }} className="mt-0.5 block px-2 py-1.5 rounded-lg border border-[#DDC7A4] bg-white text-sm">
+                    {perfis.map((p) => <option key={p.chave} value={p.chave}>{p.nome}</option>)}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1.5 text-sm text-[#392617] cursor-pointer pb-1.5">
+                  <input type="checkbox" checked={ativo} onChange={(e) => { setAtivo(e.target.checked); patch({ ativo: e.target.checked }) }} disabled={ehVoce} className="accent-[#425F1D]" /> ativo
+                </label>
+              </div>
+              {precisa && (
+                <div>
+                  <div className="text-[11px] text-[#392617]/60 mb-1">{escopo === 'unidade' ? 'Unidade (escolha 1):' : 'Unidades:'}</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {unidades.map((un) => (
+                      <label key={un.id} className={`text-[11px] px-2 py-0.5 rounded border cursor-pointer ${ids.includes(un.id) ? 'bg-[#425F1D] text-white border-[#425F1D]' : 'bg-white border-[#DDC7A4] text-[#392617]'}`}>
+                        <input type="checkbox" className="hidden" checked={ids.includes(un.id)} onChange={() => toggle(un.id)} /> {un.nome}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <KeyRound size={13} className="text-[#392617]/40" />
+                <input placeholder="nova senha (resetar)" value={senha} onChange={(e) => setSenha(e.target.value)} className="w-48 px-2 py-1 rounded border border-[#DDC7A4] text-xs bg-white" />
+                <button onClick={() => senha.length >= 4 ? patch({ senha }, 'ok') : setErro('Senha mín. 4 caracteres.')} disabled={busy || !senha} className="px-2 py-1 rounded border border-[#D78B18] text-[#7E0000] text-xs hover:bg-[#F5F0EB] disabled:opacity-40 inline-flex items-center gap-1"><Check size={12} /> Resetar senha</button>
+                <div className="ml-auto flex items-center gap-2">
+                  <button onClick={() => patch({ nome, email, perfil, unidadeIds: ids })} disabled={busy} className="px-3 py-1.5 rounded-lg bg-[#7E0000] text-[#DDC7A4] text-xs hover:bg-[#5c0000] disabled:opacity-50 inline-flex items-center gap-1"><Save size={13} /> Salvar</button>
+                  {!ehVoce && <button onClick={excluir} disabled={busy} className="px-2 py-1.5 rounded-lg border border-[#7E0000] text-[#7E0000] text-xs hover:bg-red-50 disabled:opacity-50"><Trash2 size={13} /></button>}
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
       )}
-      <div className="mt-2 flex items-center gap-2">
-        <KeyRound size={13} className="text-[#392617]/40" />
-        <input placeholder="nova senha (resetar)" value={senha} onChange={(e) => setSenha(e.target.value)} className="w-48 px-2 py-1 rounded border border-[#DDC7A4] text-xs" />
-        <button onClick={() => senha.length >= 4 ? patch({ senha }, 'ok') : setErro('Senha mín. 4 caracteres.')} disabled={busy || !senha} className="px-2 py-1 rounded border border-[#D78B18] text-[#7E0000] text-xs hover:bg-[#F5F0EB] disabled:opacity-40 inline-flex items-center gap-1"><Check size={12} /> Resetar senha</button>
-      </div>
-    </div>
+    </Fragment>
   )
 }
