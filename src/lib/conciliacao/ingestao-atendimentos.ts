@@ -276,6 +276,48 @@ function mapearDescontos({ rows, titulos }: ReportData): Map<string, LinhaDescon
   return mapa
 }
 
+/**
+ * Vendas (pacote/voucher/produto) com DESCONTO ou CORTESIA que NÃO são atendimento —
+ * do Report 2421, Origem Desconto começando com "Venda de ..." (ex.: "Venda de Planos",
+ * "Venda de Vouchers", "Venda de Produtos"). Vão pra conciliação (coluna "Vendas c/
+ * desconto") a justificar. Upsert idempotente por idVenda na VendaDescontoConc (SQL raw);
+ * NÃO mexe em justificativa/status já lançados. cortesia=1 quando desconto == bruto (100%).
+ */
+async function ingerirVendasDesconto(unidadeId: number, rep2421: ReportData, dataIni: string, dataFim: string): Promise<number> {
+  const at = indexador(rep2421.titulos)
+  const iId = at('id da venda', /id da venda/, /^id/), iLanc = at('lancamento', /lan[çc]amento/),
+    iExec = at('data de execucao', /execu/), iDesc = at('descricao', /descri/),
+    iCli = at('cliente', /cliente/), iOrig = at('origem desconto', /origem\s*desconto/),
+    iBruto = at('valor bruto', /valor bruto/, /bruto/), iVlrDesc = at('desconto (r$)', /^desconto/)
+  const reVenda = /^\s*venda de /i
+  let n = 0
+  for (const row of rep2421.rows) {
+    const origem = s(iOrig >= 0 ? row[iOrig] : row[6])
+    if (!reVenda.test(origem)) continue
+    const desconto = parseValor(iVlrDesc >= 0 ? row[iVlrDesc] : row[8])
+    if (desconto <= 0) continue
+    const idVenda = s(iId >= 0 ? row[iId] : row[0])
+    if (!idVenda) continue
+    const data = normData(iLanc >= 0 ? row[iLanc] : (iExec >= 0 ? row[iExec] : row[1]))
+    if (data < dataIni || data > dataFim) continue
+    const bruto = parseValor(iBruto >= 0 ? row[iBruto] : row[7])
+    const cliente = limparServico(iCli >= 0 ? row[iCli] : row[5]) || s(iCli >= 0 ? row[iCli] : row[5])
+    const item = limparServico(iDesc >= 0 ? row[iDesc] : row[4]) || s(iDesc >= 0 ? row[iDesc] : row[4])
+    const cortesia = bruto > 0 && Math.abs(desconto - bruto) < 0.01 ? 1 : 0
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "VendaDescontoConc" ("unidadeId","idVenda","data","cliente","item","origemDesconto","valorBruto","valorDesconto","cortesia","atualizadoEm")
+         VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))
+       ON CONFLICT("unidadeId","idVenda") DO UPDATE SET
+         "data"=excluded."data","cliente"=excluded."cliente","item"=excluded."item",
+         "origemDesconto"=excluded."origemDesconto","valorBruto"=excluded."valorBruto",
+         "valorDesconto"=excluded."valorDesconto","cortesia"=excluded."cortesia","atualizadoEm"=datetime('now')`,
+      unidadeId, idVenda, data, cliente, item, origem, bruto, desconto, cortesia,
+    )
+    n++
+  }
+  return n
+}
+
 export interface ResultadoIngestaoAtend {
   unidadeSlug: string
   unidadeId: number
@@ -371,6 +413,10 @@ export async function ingerirAtendimentos(
     })
     gravados++
   }
+
+  // Vendas (pacote/voucher/produto) com desconto/cortesia — não são atendimento, vão
+  // pra coluna "Vendas c/ desconto" a justificar. Reaproveita o Report 2421 já buscado.
+  await ingerirVendasDesconto(unidadeId, rep2421, dataIniISO, dataFimISO)
 
   // Motor F2: cruza os A_VERIFICAR com a Parte 1 e gera divergências, por dia tocado.
   for (const data of diasTocados) {

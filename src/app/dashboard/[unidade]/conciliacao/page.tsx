@@ -23,7 +23,12 @@ interface Divergencia {
 interface Resumo { totalBelle: number; totalConciliado: number; qtdMovimentacoes: number; qtdAbertas: number; status: string }
 interface Caixa { fundoAbertura: number | null; valorFechamento: number | null; saidas: number }
 interface PorForma { formaPagamento: string; qtd: number; total: number }
-interface DiaDetalhe { resumo: Resumo | null; caixa: Caixa | null; porForma: PorForma[]; divergencias: Divergencia[] }
+interface VendaDesconto {
+  id: number; idVenda: string; cliente: string | null; item: string | null; origemDesconto: string | null
+  valorBruto: number; valorDesconto: number; cortesia: boolean; justificativa: string | null
+  status: string; tratadaPorNome: string | null
+}
+interface DiaDetalhe { resumo: Resumo | null; caixa: Caixa | null; porForma: PorForma[]; divergencias: Divergencia[]; vendasDesconto?: VendaDesconto[] }
 
 const brl = (n: number | null | undefined) => (n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const MESES = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -255,7 +260,7 @@ export default function ConciliacaoPage() {
                     )
                   })}
                   {mesData && mesData.dias.length === 0 && (
-                    <tr><td colSpan={9} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    <tr><td colSpan={(mesData?.colunas.length ?? 8) + 2} className="px-3 py-6 text-center text-sm text-muted-foreground">
                       Nenhum movimento neste mês. Clique em “Sincronizar o mês”.
                     </td></tr>
                   )}
@@ -298,6 +303,7 @@ export default function ConciliacaoPage() {
           contasReceber={contasReceber}
           classificandoId={classificandoId} setClassificandoId={setClassificandoId}
           contaSel={contaSel} setContaSel={setContaSel}
+          recarregarDia={() => carregarDia(data)}
         />
       )}
     </div>
@@ -314,9 +320,26 @@ function DiaView(props: {
   contasReceber: { id: number; nome: string }[]
   classificandoId: number | null; setClassificandoId: (n: number | null) => void
   contaSel: string; setContaSel: (s: string) => void
+  recarregarDia: () => void
 }) {
   const { data, dia, onVoltar, onSincronizar, sincronizando, tratar, acaoId, justificandoId, setJustificandoId, textoJust, setTextoJust,
-    contasReceber, classificandoId, setClassificandoId, contaSel, setContaSel } = props
+    contasReceber, classificandoId, setClassificandoId, contaSel, setContaSel, recarregarDia } = props
+  // Justificativa das VENDAS c/ desconto (estado local).
+  const [vendaJust, setVendaJust] = useState<{ id: number; texto: string } | null>(null)
+  const [vendaBusy, setVendaBusy] = useState<number | null>(null)
+  async function tratarVenda(id: number, acao: 'justificar' | 'ignorar' | 'reabrir', justificativa?: string) {
+    setVendaBusy(id)
+    try {
+      await fetch('/api/conciliacao/venda-desconto', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, acao, justificativa }),
+      })
+      setVendaJust(null)
+      recarregarDia()
+    } finally { setVendaBusy(null) }
+  }
+  const vendas = dia?.vendasDesconto ?? []
+  const vendasPend = vendas.filter((v) => v.status === 'PENDENTE').length
   const abertas = (dia?.divergencias ?? []).filter((d) => ABERTAS.includes(d.status))
   const fechadas = (dia?.divergencias ?? []).filter((d) => !ABERTAS.includes(d.status))
   const [d1, d2, d3] = data.split('-')
@@ -447,6 +470,52 @@ function DiaView(props: {
           </details>
         )}
       </div>
+
+      {/* Vendas (pacote/voucher/produto) lançadas com desconto/cortesia — a justificar */}
+      {vendas.length > 0 && (
+        <div>
+          <p className="text-sm font-medium text-foreground mb-2 flex items-center gap-1.5">
+            {vendasPend ? <AlertTriangle size={15} className="text-[#D78B18]" /> : <CheckCircle2 size={15} className="text-[#425F1D]" />}
+            Vendas c/ desconto {vendasPend ? `(${vendasPend} a justificar)` : '— tudo tratado'}
+          </p>
+          <div className="space-y-2">
+            {vendas.map((v) => {
+              const pend = v.status === 'PENDENTE'
+              return (
+                <div key={v.id} className={`rounded-lg border p-3 ${pend ? 'border-[#D78B18]/40 bg-[#D78B18]/[0.05]' : 'border-[#425F1D]/20 bg-[#425F1D]/[0.03]'}`}>
+                  <div className="flex items-center gap-2 flex-wrap text-sm">
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded text-white ${v.cortesia ? 'bg-[#7E0000]' : 'bg-[#D78B18]'}`}>{v.cortesia ? 'Cortesia 100%' : 'Desconto'}</span>
+                    <span className="font-medium text-foreground">{v.cliente || '—'}</span>
+                    <span className="text-muted-foreground">{v.item}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{v.origemDesconto} · bruto {brl(v.valorBruto)} · desconto <b className="text-[#7E0000]">{brl(v.valorDesconto)}</b></p>
+                  {v.justificativa && <p className="text-xs text-[#425F1D] mt-1">✓ {v.justificativa}{v.tratadaPorNome ? ` · ${v.tratadaPorNome}` : ''}</p>}
+                  {vendaJust?.id === v.id ? (
+                    <div className="mt-2 flex flex-col gap-2">
+                      <textarea value={vendaJust.texto} onChange={(e) => setVendaJust({ id: v.id, texto: e.target.value })} placeholder="Motivo da cortesia/desconto…" rows={2} className="w-full rounded-md border px-2 py-1.5 text-sm" />
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={vendaBusy === v.id || !vendaJust.texto.trim()} onClick={() => tratarVenda(v.id, 'justificar', vendaJust.texto)} className="bg-[#7E0000] hover:bg-[#5c0000] text-white">Confirmar</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setVendaJust(null)}>Cancelar</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {pend ? (
+                        <>
+                          <Button size="sm" variant="ghost" disabled={vendaBusy === v.id} onClick={() => setVendaJust({ id: v.id, texto: '' })}>Justificar</Button>
+                          <Button size="sm" variant="ghost" disabled={vendaBusy === v.id} onClick={() => tratarVenda(v.id, 'ignorar')}>Ignorar</Button>
+                        </>
+                      ) : (
+                        <Button size="sm" variant="ghost" disabled={vendaBusy === v.id} onClick={() => tratarVenda(v.id, 'reabrir')}>Reabrir</Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </>
   )
 }

@@ -76,6 +76,17 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => b.total - a.total)
 
+    // Vendas (pacote/voucher/produto) lançadas com desconto/cortesia no dia — a justificar.
+    const vendasDesconto = await prisma.$queryRawUnsafe<{
+      id: number; idVenda: string; cliente: string | null; item: string | null; origemDesconto: string | null
+      valorBruto: number; valorDesconto: number; cortesia: number; justificativa: string | null
+      status: string; tratadaPorNome: string | null
+    }[]>(
+      `SELECT "id","idVenda","cliente","item","origemDesconto","valorBruto","valorDesconto","cortesia","justificativa","status","tratadaPorNome"
+         FROM "VendaDescontoConc" WHERE "unidadeId" = ? AND "data" = ? ORDER BY "status" ASC, "id" ASC`,
+      unidadeId, data,
+    ).catch(() => [] as never[])
+
     return NextResponse.json({
       unidade: unidadeSlug,
       data,
@@ -89,6 +100,7 @@ export async function GET(request: NextRequest) {
         : null,
       porForma,
       divergencias: divergenciasEnriq,
+      vendasDesconto: vendasDesconto.map((v) => ({ ...v, cortesia: !!v.cortesia })),
     })
   } catch (error) {
     console.error('[Conciliação/Dia] Erro:', error)

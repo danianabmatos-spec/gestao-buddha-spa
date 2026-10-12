@@ -8,10 +8,12 @@ export const dynamic = 'force-dynamic'
 const COL_ATEND = 'Atend. s/ financeiro'
 // Tipos de divergência do eixo de ATENDIMENTOS (Parte 2) → caem na coluna COL_ATEND.
 const ATEND_TIPOS = ['ATENDIMENTO_SEM_JUSTIFICATIVA', 'CORTESIA', 'DESCONTO']
+// Coluna de VENDAS (pacote/voucher/produto) lançadas com desconto/cortesia — a justificar.
+const COL_VENDA = 'Vendas c/ desconto'
 
-// Colunas do resumo (ordem de exibição). Formas de pagamento + a coluna de atendimentos.
+// Colunas do resumo (ordem de exibição). Formas de pagamento + atendimentos + vendas c/ desc.
 const COLUNAS_FORMA = ['Dinheiro', 'Cartão', 'Pix', 'TotalPass', 'Gympass', 'Voucher'] as const
-const COLUNAS = [...COLUNAS_FORMA, COL_ATEND] as const
+const COLUNAS = [...COLUNAS_FORMA, COL_ATEND, COL_VENDA] as const
 type Coluna = (typeof COLUNAS)[number]
 
 // Mapeia a forma de pagamento do Belle → coluna do resumo.
@@ -66,7 +68,7 @@ export async function GET(request: NextRequest) {
     const [movs, divs, atendDias] = await Promise.all([
       prisma.movimentacaoBelle.findMany({
         where: { unidadeId, data: { startsWith: prefixo } },
-        select: { data: true, formaPagamento: true, statusConcil: true, valorLiquido: true, tipoMovimento: true },
+        select: { data: true, formaPagamento: true, statusConcil: true, valorBruto: true, valorLiquido: true, tipoMovimento: true },
       }),
       prisma.divergencia.findMany({
         where: { unidadeId, data: { startsWith: prefixo }, status: { in: STATUS_ABERTOS } },
@@ -77,6 +79,12 @@ export async function GET(request: NextRequest) {
       prisma.atendimentoConc.groupBy({ by: ['data'], where: { unidadeId, data: { startsWith: prefixo } }, _count: { _all: true } }),
     ])
 
+    // Vendas (pacote/voucher/produto) com desconto/cortesia a justificar (tabela via SQL raw).
+    const vendasDesc = await prisma.$queryRawUnsafe<{ data: string; status: string; n: number }[]>(
+      `SELECT "data", "status", COUNT(*) AS n FROM "VendaDescontoConc" WHERE "unidadeId" = ? AND "data" LIKE ? GROUP BY "data", "status"`,
+      unidadeId, `${prefixo}%`,
+    ).catch(() => [] as { data: string; status: string; n: number }[])
+
     // dia -> coluna -> Celula
     const grade = new Map<string, Record<Coluna, Celula>>()
     const garantirDia = (dia: string) => {
@@ -86,11 +94,15 @@ export async function GET(request: NextRequest) {
       return grade.get(dia)!
     }
 
-    const totalDia = new Map<string, number>() // dia -> total movimentado (líquido, entradas)
+    const totalDia = new Map<string, number>() // dia -> total do dia = VALOR BRUTO, SEM parcerias
     for (const m of movs) {
       if ((m.tipoMovimento ?? 'E').toUpperCase() === 'S') continue
-      totalDia.set(m.data, (totalDia.get(m.data) ?? 0) + (m.valorLiquido || 0))
       const col = colunaDaForma(m.formaPagamento)
+      // Total do dia = VALOR (bruto), não o Recebido/líquido; e EXCLUI TotalPass/Gympass,
+      // que são conciliados nas colunas próprias deles (não entram no total do dia).
+      if (col !== 'TotalPass' && col !== 'Gympass') {
+        totalDia.set(m.data, (totalDia.get(m.data) ?? 0) + (m.valorBruto || 0))
+      }
       if (!col) continue
       const cel = garantirDia(m.data)[col]
       cel.total += m.valorLiquido || 0
@@ -102,6 +114,17 @@ export async function GET(request: NextRequest) {
     for (const ad of atendDias) {
       const cel = garantirDia(ad.data)[COL_ATEND]
       if (cel.status === 'vazio') cel.status = 'ok'
+    }
+
+    // Coluna "Vendas c/ desconto": pendentes → vermelho; só tratadas → verde.
+    for (const vd of vendasDesc) {
+      const cel = garantirDia(vd.data)[COL_VENDA]
+      if (vd.status === 'PENDENTE') {
+        cel.status = 'divergente'
+        cel.qtdDivergencias += Number(vd.n)
+      } else if (cel.status === 'vazio') {
+        cel.status = 'ok'
+      }
     }
 
     for (const dv of divs) {
