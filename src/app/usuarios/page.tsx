@@ -32,6 +32,7 @@ export default function UsuariosPage() {
   const [fUnidade, setFUnidade] = useState('')
   const [fAtivo, setFAtivo] = useState('')
   const [expandido, setExpandido] = useState<string | null>(null)
+  const [cargosAbertos, setCargosAbertos] = useState<Set<string>>(new Set())
 
   const carregar = useCallback(async () => {
     setLoading(true); setErro(null)
@@ -117,6 +118,17 @@ export default function UsuariosPage() {
     }
     return true
   }), [usuarios, perfis, fBusca, fPerfil, fAtivo, fUnidade])
+
+  // Agrupa por cargo (recolhido por padrão); ao filtrar, os grupos abrem p/ mostrar os achados.
+  const filtroAtivo = !!(fBusca || fPerfil || fUnidade || fAtivo)
+  const grupos = useMemo(() => {
+    const byChave = new Map<string, U[]>()
+    for (const u of filtrados) { const arr = byChave.get(u.perfil) ?? []; arr.push(u); byChave.set(u.perfil, arr) }
+    const conhecidos = perfis.map((p) => p.chave)
+    const ordem = [...conhecidos, ...[...byChave.keys()].filter((k) => !conhecidos.includes(k))]
+    return ordem.filter((k) => byChave.has(k)).map((k) => ({ chave: k, nome: perfis.find((p) => p.chave === k)?.nome || k, users: byChave.get(k)! }))
+  }, [filtrados, perfis])
+  const toggleCargo = (chave: string) => setCargosAbertos((s) => { const n = new Set(s); if (n.has(chave)) n.delete(chave); else n.add(chave); return n })
 
   return (
     <div className="p-4 md:p-8 max-w-[1000px] w-full">
@@ -256,11 +268,24 @@ export default function UsuariosPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#DDC7A4]/30">
-                  {filtrados.map((u) => (
-                    <UserRow key={u.id} u={u} unidades={unidades} perfis={perfis} ehVoce={u.id === meuId}
-                      aberto={expandido === u.id} onToggle={() => setExpandido(expandido === u.id ? null : u.id)}
-                      onChange={carregar} setErro={setErro} />
-                  ))}
+                  {grupos.map((g) => {
+                    const aberto = filtroAtivo || cargosAbertos.has(g.chave)
+                    return (
+                      <Fragment key={g.chave}>
+                        <tr className="bg-[#DDC7A4]/25 hover:bg-[#DDC7A4]/40 cursor-pointer" onClick={() => toggleCargo(g.chave)}>
+                          <td className="px-1 text-center text-[#7E0000]">{aberto ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</td>
+                          <td colSpan={5} className="px-3 py-2 font-semibold text-[#7E0000]">
+                            {g.nome} <span className="text-xs font-normal text-[#392617]/60">· {g.users.length} usuário{g.users.length === 1 ? '' : 's'}</span>
+                          </td>
+                        </tr>
+                        {aberto && g.users.map((u) => (
+                          <UserRow key={u.id} u={u} unidades={unidades} perfis={perfis} ehVoce={u.id === meuId}
+                            aberto={expandido === u.id} onToggle={() => setExpandido(expandido === u.id ? null : u.id)}
+                            onChange={carregar} setErro={setErro} />
+                        ))}
+                      </Fragment>
+                    )
+                  })}
                   {filtrados.length === 0 && (
                     <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-[#392617]/50">Nenhum usuário com esses filtros.</td></tr>
                   )}
