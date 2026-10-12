@@ -98,7 +98,7 @@ export function criarEmissorMunicipalGinfes(ambiente: Ambiente): EmissorNfse {
       return {
         ok: true,
         numeroNfse: numero,
-        chaveAcesso: cod ?? undefined, // GINFES usa Número + Código de Verificação (não chave de 50)
+        codVerificacao: cod, // GINFES usa Número + Código de Verificação (não chave de 50)
         httpStatus: resp.status,
         raw: `protocolo=${protocolo}\n${retc.slice(0, 3500)}`,
       };

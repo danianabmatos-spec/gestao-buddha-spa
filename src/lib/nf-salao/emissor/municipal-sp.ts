@@ -91,10 +91,11 @@ export function criarEmissorMunicipalSP(ambiente: Ambiente): EmissorNfse {
       const sucesso = /<(?:[\w.-]+:)?Sucesso[^>]*>\s*true/i.test(ret);
 
       if (resp.status >= 200 && resp.status < 300 && sucesso) {
+        // SP devolve NumeroNFe + CodigoVerificacao (sem chave de 50 díg do nacional).
         return {
           ok: true,
           numeroNfse: campo(ret, "NumeroNFe"),
-          chaveAcesso: campo(ret, "ChaveNFe") ?? undefined,
+          codVerificacao: campo(ret, "CodigoVerificacao"),
           dataAutorizacao: campo(ret, "DataEmissaoNFe"),
           httpStatus: resp.status,
           raw: ret.slice(0, 4000),

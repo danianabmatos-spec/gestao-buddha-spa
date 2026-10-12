@@ -114,6 +114,7 @@ export async function emitirLote(ano: number, mes: number, unidadeId: number): P
             where: { id: nota.id },
             data: {
               chaveAcesso: r.chaveAcesso ?? nota.chaveAcesso,
+              codVerificacao: r.codVerificacao ?? nota.codVerificacao,
               nfSalaoNumero: r.numeroNfse ?? nota.nfSalaoNumero,
               status: "EMITIDA",
               emitidaEm: new Date(),

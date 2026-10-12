@@ -53,9 +53,10 @@ export interface DpsDados {
 
 export interface EmitirResultado {
   ok: boolean;
-  chaveAcesso?: string; // 50 dígitos (sucesso)
+  chaveAcesso?: string; // 50 dígitos (só padrão nacional)
+  codVerificacao?: string | null; // código de verificação (SP / GINFES)
   idDps?: string;
-  numeroNfse?: string | null; // extraído do XML da NFS-e autorizada
+  numeroNfse?: string | null; // nº da NFS-e emitida
   xmlNfse?: string | null; // NFS-e autorizada (já descompactada)
   dataAutorizacao?: string | null;
   erros?: { codigo: string; descricao: string; complemento?: string }[];
