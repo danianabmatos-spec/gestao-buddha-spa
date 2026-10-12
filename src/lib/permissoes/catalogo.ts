@@ -65,6 +65,7 @@ export const FUNCIONALIDADES: Funcionalidade[] = [
   { chave: 'validacao', label: 'Validação de Atendimentos', grupo: 'Unidade', rotas: ['/validacao', '/api/validacao'], padrao: p(E, N, N, N, N) },
   { chave: 'pos-venda', label: 'Pós-venda', grupo: 'Unidade', rotas: ['/pos-venda', '/api/pos-venda'], padrao: p(E, E, N, N, N) },
   { chave: 'pontuacao', label: 'Pontuação', grupo: 'Unidade', rotas: ['/pontuacao', '/api/pontuacao'], padrao: p(E, N, N, N, N) },
+  { chave: 'bola', label: 'Controle da Bola (rodízio)', grupo: 'Unidade', rotas: ['/dashboard/*/bola', '/api/bola'], padrao: p(E, E, N, N, N) },
 
   // ── Terapeuta ──
   { chave: 'meus-atendimentos', label: 'Meus Atendimentos', grupo: 'Terapeuta', rotas: ['/meus-atendimentos', '/api/meus-atendimentos'], padrao: p(N, N, N, N, E) },

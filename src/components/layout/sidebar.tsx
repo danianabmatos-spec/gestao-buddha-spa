@@ -62,7 +62,7 @@ const menuOperacional = [
   { href: '/metas', label: 'Metas', icon: Target, func: 'metas' },
 ]
 // Funcionalidades que compõem uma unidade (a unidade só aparece se pelo menos 1 for visível).
-const FUNCS_UNIDADE = ['rotina-do-dia', 'dashboard', 'historico', 'terapeutas', 'metas', 'caixa', 'validacao', 'pos-venda']
+const FUNCS_UNIDADE = ['rotina-do-dia', 'dashboard', 'historico', 'terapeutas', 'metas', 'caixa', 'validacao', 'pos-venda', 'bola']
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -203,8 +203,8 @@ export function Sidebar() {
                           <Scale size={14} strokeWidth={1.8} /> Conciliação
                         </Link>
                       )}
-                      {/* Controle da Bola — piloto (Tatuapé e Perdizes) */}
-                      {['tatuape-gomescardim', 'perdizes'].includes(slug) && (
+                      {/* Controle da Bola — piloto (Tatuapé e Perdizes) + permissão */}
+                      {pode('bola') && ['tatuape-gomescardim', 'perdizes'].includes(slug) && (
                         <Link href={`/dashboard/${slug}/bola`} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white">
                           <Target size={14} strokeWidth={1.8} /> Controle da Bola
                         </Link>
