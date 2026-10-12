@@ -25,6 +25,7 @@ import {
   BarChart3,
   Banknote,
   PhoneCall,
+  LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -72,11 +73,20 @@ export function Sidebar() {
   const [unidadesExpanded, setUnidadesExpanded] = useState<Record<string, boolean>>({})
   // Badge do menu lateral: nº de NPS pendentes de tratativa por unidade (cache barato).
   const [npsPendentes, setNpsPendentes] = useState<Record<string, number>>({})
+  // Usuário logado (pro rodapé: nome + Sair).
+  const [usuario, setUsuario] = useState<{ nome: string; perfil: string } | null>(null)
 
   useEffect(() => {
     fetch('/api/rotinas/nps-pendentes')
       .then(r => r.ok ? r.json() : null)
       .then(j => setNpsPendentes(j?.pendentes ?? {}))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(j => setUsuario(j?.usuario ? { nome: j.usuario.nome, perfil: j.usuario.perfil } : null))
       .catch(() => {})
   }, [])
 
@@ -98,6 +108,12 @@ export function Sidebar() {
   const pode = (func: string) => !!perms && perms[func] != null && perms[func] !== 'NENHUM'
 
   const toggleUnidade = (slug: string) => setUnidadesExpanded(prev => ({ ...prev, [slug]: !prev[slug] }))
+
+  const sair = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+    window.location.href = '/login'
+  }
+  const PERFIL_LABEL: Record<string, string> = { DONA: 'Dona', COORDENACAO: 'Coordenação', RECEPCAO: 'Recepção', FINANCEIRO: 'Financeiro', RH: 'RH', TERAPEUTA: 'Terapeuta' }
 
   // Mostra só as unidades que a pessoa acessa (null = todas).
   const unidadesVisiveis = unidadesUser == null ? unidadesDisponiveis : unidadesDisponiveis.filter(u => unidadesUser.includes(u.slug))
@@ -244,6 +260,19 @@ export function Sidebar() {
             <Settings size={18} strokeWidth={1.8} /> Configurações
           </Link>
         )}
+        {/* Usuário logado + Sair */}
+        <div className="pt-1 mt-1 border-t border-[#5c0000]/60">
+          {usuario && (
+            <div className="px-3 pt-1.5 pb-1">
+              <p className="text-xs font-semibold text-white truncate" title={usuario.nome}>{usuario.nome}</p>
+              <p className="text-[10px] text-[#DDC7A4]/60">{PERFIL_LABEL[usuario.perfil] ?? usuario.perfil}</p>
+            </div>
+          )}
+          <button onClick={sair}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#DDC7A4] hover:bg-[#5c0000] hover:text-white transition-colors">
+            <LogOut size={18} strokeWidth={1.8} /> Sair
+          </button>
+        </div>
       </div>
     </aside>
   )
