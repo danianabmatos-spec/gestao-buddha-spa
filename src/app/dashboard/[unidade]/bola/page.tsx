@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { RefreshCw, ArrowLeft, Clock, Plus, X } from 'lucide-react'
+import { RefreshCw, ArrowLeft, Clock, Plus, X, Info, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getUnidadeNome } from '@/lib/belle/unidades-config'
 
@@ -58,6 +58,7 @@ export default function BolaPage() {
   const [agora, setAgora] = useState('')
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [regrasAbertas, setRegrasAbertas] = useState(true)
 
   // cliente selecionado (da agenda do Belle) + decisão
   const [clienteSel, setClienteSel] = useState<Cliente | null>(null)
@@ -147,9 +148,30 @@ export default function BolaPage() {
         <h1 className="text-2xl font-semibold" style={{ color: MARSALA }}>Controle da Bola</h1>
         <span className="text-muted-foreground">{getUnidadeNome(unidadeSlug)}</span>
       </div>
-      <p className="text-sm text-muted-foreground mb-5">
-        Fila montada pelos check-ins · turno, preferencial e sala vêm do Belle ao vivo.
+      <p className="text-sm text-muted-foreground mb-3">
+        A recepção marca a chegada e toca no cliente que chega · serviço, sala e preferencial vêm do Belle ao vivo.
       </p>
+
+      {/* Regras da bola — critérios de decisão, visíveis p/ clareza */}
+      <div className="mb-5 border rounded-xl overflow-hidden">
+        <button onClick={() => setRegrasAbertas((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-semibold" style={{ color: MARSALA }}>
+          <span className="inline-flex items-center gap-2"><Info className="w-4 h-4" /> Regras da bola</span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${regrasAbertas ? 'rotate-180' : ''}`} />
+        </button>
+        {regrasAbertas && (
+          <div className="px-4 pb-3 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-xs text-[#392617] border-t pt-3">
+            <div><b>1. Ordem da vez:</b> atende quem tem <b>menos atendimentos</b>; em empate, quem <b>chegou primeiro</b>.</div>
+            <div><b>2. 20 e 30 min mantêm a vez:</b> atendimento curto não conta rodada; 45 min ou mais, roda.</div>
+            <div><b>3. Em atendimento sai da bola:</b> volta à fila quando termina.</div>
+            <div><b>4. Preferencial (<span style={{ color: FLORA }}>verde</span>):</b> o cliente vai <b>direto com a terapeuta dele</b>, fora da bola.</div>
+            <div><b>5. Gênero:</b> respeita ♀/♂ pedido no agendamento (Tipo Obs); sem marca = indiferente.</div>
+            <div><b>6. Capacidade:</b> só entra na vez quem <b>faz aquela terapia</b> (cadastro do Belle).</div>
+            <div><b>7. Sala:</b> é a que já está no agendamento do Belle.</div>
+            <div><b>8. Presença:</b> a recepção <b>marca a chegada</b> e <b>tira</b> quem sai — só quem está na fila entra.</div>
+          </div>
+        )}
+      </div>
 
       <div className="flex items-center gap-2 mb-5 flex-wrap">
         <label className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
