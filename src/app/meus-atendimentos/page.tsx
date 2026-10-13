@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Loader2, CheckCircle2, XCircle, Camera, ClipboardList, Leaf, Moon, Zap,
-  ThumbsUp, MessageSquareWarning, LogOut, CalendarDays, Hand, Clock, Wallet, FileText,
+  ThumbsUp, MessageSquareWarning, LogOut, CalendarDays, Hand, Clock, Wallet, FileText, RefreshCw,
 } from 'lucide-react'
 
 // ─── Catálogo do bloquinho (espelha o papel de Recomendação) ────────────────────
@@ -58,6 +58,7 @@ function mesLongo(ref: string) {
 export default function MeusAtendimentosPage() {
   const [resp, setResp] = useState<ApiResp | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0) // re-monta bola/comissão ao atualizar
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -69,7 +70,16 @@ export default function MeusAtendimentosPage() {
     setLoading(false)
   }, [])
 
+  // Atualizar tudo (lista + bola + comissão) — no celular não tem F5.
+  const recarregarTudo = useCallback(() => { setRefreshKey((k) => k + 1); carregar() }, [carregar])
+
   useEffect(() => { carregar() }, [carregar])
+  // Auto-atualiza quando a terapeuta volta pra aba (ex.: terminou um atendimento).
+  useEffect(() => {
+    const onVis = () => { if (!document.hidden) recarregarTudo() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [recarregarTudo])
 
   const atendsRaw = resp?.atendimentos ?? []
   // A validar (PENDENTE) vêm PRIMEIRO, pra confirmar em sequência; depois os demais.
@@ -98,18 +108,23 @@ export default function MeusAtendimentosPage() {
               <p className="text-[13px] text-white/80 mt-0.5">Olá, {resp.terapeuta.nome.split(' ')[0]} 🌿</p>
             )}
           </div>
-          <button
-            onClick={async () => { await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {}); window.location.href = '/login' }}
-            className="text-white/80 hover:text-white inline-flex items-center gap-1 text-sm"
-          >
-            <LogOut size={16} /> Sair
-          </button>
+          <div className="flex items-center gap-4">
+            <button onClick={recarregarTudo} className="text-white/80 hover:text-white inline-flex items-center gap-1 text-sm">
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Atualizar
+            </button>
+            <button
+              onClick={async () => { await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {}); window.location.href = '/login' }}
+              className="text-white/80 hover:text-white inline-flex items-center gap-1 text-sm"
+            >
+              <LogOut size={16} /> Sair
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-5 sm:px-6">
-        {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <CheckinBola />}
-        {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <MinhaComissao realizados={realizados} diasTrabalhados={diasTrabalhados} />}
+        {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <CheckinBola key={`ck${refreshKey}`} />}
+        {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <MinhaComissao key={`mc${refreshKey}`} realizados={realizados} diasTrabalhados={diasTrabalhados} />}
         {resp?.terapeuta && (
           <p className="text-sm text-[#392617]/70 mb-1">Atendimentos de {mesLongo(resp.ref)}</p>
         )}

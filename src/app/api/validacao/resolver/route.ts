@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, unauthorized, unidadesPermitidas } from '@/lib/auth/guard'
+import { syncAtendimentosUnidade } from '@/lib/atendimentos/sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,5 +36,18 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return NextResponse.json({ ok: true, statusValidacao: atualizado.statusValidacao })
+  // AJUSTADO = corrigido no Belle → re-sincroniza o dia pra PUXAR o dado corrigido
+  // (serviço/valor), senão a terapeuta continua vendo a terapia errada. O sync
+  // preserva o statusValidacao. Isolado: falha no Belle não derruba a resolução.
+  let resync: { gravados: number } | null = null
+  if (resolucao === 'AJUSTADO') {
+    try {
+      const r = await syncAtendimentosUnidade(at.unidadeSlug, at.data, at.data)
+      resync = { gravados: r.gravados }
+    } catch (e) {
+      console.error('[validacao/resolver] re-sync Belle:', e instanceof Error ? e.message : e)
+    }
+  }
+
+  return NextResponse.json({ ok: true, statusValidacao: atualizado.statusValidacao, resync })
 }
