@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Loader2, MessageCircle, ShoppingBag, XCircle, CheckCircle2, LogOut, HeartHandshake,
-  CalendarDays, RotateCcw,
+  CalendarDays, RotateCcw, ClipboardList,
 } from 'lucide-react'
 
 const LABEL: Record<string, string> = {
@@ -29,10 +29,18 @@ interface ApiResp { unidadeAtual: Unidade; unidades: Unidade[]; status: string; 
 
 const STATUS_TABS = [
   { key: 'PENDENTE_VENDA', label: 'A trabalhar' },
+  { key: 'SEM_RECOMENDACAO', label: 'Sem recomendação' },
   { key: 'VENDIDA', label: 'Vendidas' },
   { key: 'SEM_VENDA', label: 'Sem venda' },
   { key: 'TODOS', label: 'Todas' },
 ]
+
+// Catálogo do bloquinho (p/ a recepção incluir o que a terapeuta indicou verbalmente).
+const ITENS_REC: Record<string, { t: string; l: string }[]> = {
+  'Óleos essenciais': [{ t: 'OLEO_CALMA', l: 'Óleo Calma' }, { t: 'OLEO_ENERGIA', l: 'Óleo Energia' }, { t: 'OLEO_SONO', l: 'Óleo Sono' }],
+  'Chás': [{ t: 'CHA_INDIANO', l: 'Chá Indiano' }, { t: 'CHA_DETOX', l: 'Chá Detox' }, { t: 'CHA_ENERGIA', l: 'Chá Energia' }, { t: 'CHA_RELAX', l: 'Chá Relax' }],
+  'Retorno / próximos passos': [{ t: 'PACOTE', l: 'Pacote de sessões' }, { t: 'VOUCHER', l: 'Voucher' }, { t: 'NOVO_AGENDAMENTO', l: 'Novo agendamento' }],
+}
 
 function dataBR(iso: string) { return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` }
 
@@ -132,6 +140,24 @@ function CardPosVenda({ rec, unidadeNome, onMudou }: { rec: Rec; unidadeNome: st
   // Mensagem do convite — editável pela recepção antes de enviar pelo WhatsApp.
   const [msg, setMsg] = useState(() => montarMensagem(rec, unidadeNome))
   const [editarMsg, setEditarMsg] = useState(false)
+
+  // Atendimento sem bloquinho → a recepção inclui a recomendação que a terapeuta indicou.
+  if (rec.status === 'SEM_RECOMENDACAO') {
+    return (
+      <div className="bg-white rounded-2xl border border-[#DDC7A4] p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[16px] font-bold text-[#392617]">{rec.clienteNome}</p>
+            <p className="text-[12px] text-[#392617]/60 flex items-center gap-1.5">
+              <CalendarDays size={12} /> {dataBR(rec.dataAtendimento)} · {rec.servico || 'Atendimento'} · terapeuta {rec.terapeutaNome.split(' ')[0]}
+            </p>
+          </div>
+          <span className="shrink-0 inline-flex items-center gap-1 text-[12px] font-semibold text-[#9a6410] bg-[#D78B18]/15 rounded-full px-2 py-1">Sem recomendação</span>
+        </div>
+        <FormIncluirRec rec={rec} onSalvo={onMudou} />
+      </div>
+    )
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-[#DDC7A4] p-4">
@@ -273,6 +299,54 @@ function FormVenda({ rec, onSalvo, onCancelar, compacto }: { rec: Rec; onSalvo: 
         </button>
         {onCancelar && <button onClick={onCancelar} className="px-3 py-2 text-sm text-[#392617]/70">Cancelar</button>}
       </div>
+    </div>
+  )
+}
+
+// A recepção inclui a recomendação que a terapeuta indicou verbalmente (não preencheu
+// o bloquinho). Ao salvar, o atendimento entra na fila "A trabalhar" do pós-venda.
+function FormIncluirRec({ rec, onSalvo }: { rec: Rec; onSalvo: () => void }) {
+  const [itens, setItens] = useState<Set<string>>(new Set())
+  const [retorno, setRetorno] = useState('')
+  const [obs, setObs] = useState('')
+  const [salvando, setSalvando] = useState(false)
+
+  function toggle(t: string) {
+    setItens((prev) => { const n = new Set(prev); n.has(t) ? n.delete(t) : n.add(t); return n })
+  }
+  async function salvar() {
+    setSalvando(true)
+    await fetch('/api/pos-venda/incluir-recomendacao', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ belleId: rec.belleId, itens: [...itens], retorno, observacao: obs }),
+    })
+    setSalvando(false); onSalvo()
+  }
+
+  return (
+    <div className="mt-3 border-t border-[#DDC7A4]/60 pt-3">
+      <p className="text-[12px] text-[#392617]/70 mb-2">A terapeuta indicou <strong>verbalmente</strong>? Inclua a recomendação dela aqui:</p>
+      {Object.entries(ITENS_REC).map(([grupo, lista]) => (
+        <div key={grupo} className="mb-2.5">
+          <p className="text-[12px] font-semibold text-[#7E0000] mb-1">{grupo}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {lista.map((i) => (
+              <button key={i.t} type="button" onClick={() => toggle(i.t)}
+                className={`text-[13px] rounded-full px-3 py-1.5 border ${itens.has(i.t) ? 'bg-[#D78B18] text-white border-[#D78B18]' : 'bg-white text-[#392617]/80 border-[#DDC7A4] hover:border-[#D78B18]'}`}>
+                {i.l}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <input value={retorno} onChange={(e) => setRetorno(e.target.value)} placeholder="Retorno / próximos passos (opcional)"
+        className="mt-1 w-full border border-[#DDC7A4] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#D78B18]" />
+      <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Observação (opcional)"
+        className="mt-2 w-full border border-[#DDC7A4] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#D78B18]" />
+      <button onClick={salvar} disabled={salvando || (itens.size === 0 && !retorno.trim())}
+        className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-white bg-[#7E0000] hover:bg-[#5c0000] disabled:opacity-50 rounded-lg px-4 py-2.5">
+        {salvando ? <Loader2 size={15} className="animate-spin" /> : <ClipboardList size={15} />} Incluir recomendação
+      </button>
     </div>
   )
 }
