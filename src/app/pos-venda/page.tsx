@@ -17,6 +17,19 @@ const CONVERSOES = [
   { tipo: 'PRODUTO', label: 'Produto' },
   { tipo: 'PACOTE', label: 'Pacote' },
 ]
+// Conversões que pedem QUANTIDADE (com rótulo e aviso claros na tela). NOVO_AGENDAMENTO
+// é sempre 1. A quantidade É a pontuação: PACOTE = nº de sessões pagas; VOUCHER/PRODUTO = qtd.
+const QTD_INFO: Record<string, { label: string; nota?: string }> = {
+  PACOTE: {
+    label: 'Quantas sessões PAGAS o cliente comprou no pacote?',
+    nota: '⚠️ Só as sessões pagas pontuam — cortesias/bônus NÃO entram na pontuação.',
+  },
+  VOUCHER: {
+    label: 'Quantos vouchers o cliente levou?',
+    nota: 'Se levou mais de um, informe a quantidade — cada voucher conta 1 ponto.',
+  },
+  PRODUTO: { label: 'Quantos produtos o cliente levou?' },
+}
 
 interface Unidade { slug: string; nome: string }
 interface Item { tipo: string; quantidade: number }
@@ -200,6 +213,16 @@ function CardPosVenda({ rec, unidadeNome, onMudou }: { rec: Rec; unidadeNome: st
   const [msg, setMsg] = useState(() => montarMensagem(rec, unidadeNome))
   const [editarMsg, setEditarMsg] = useState(false)
 
+  // Excluir lançamento feito errado → zera os pontos e volta pra "A trabalhar".
+  async function excluirVenda() {
+    if (!confirm('Excluir este lançamento de venda? Os pontos são zerados e a recomendação volta pra "A trabalhar".')) return
+    await fetch('/api/pos-venda/excluir-venda', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ belleId: rec.belleId }),
+    })
+    onMudou()
+  }
+
   // Atendimento sem bloquinho → a recepção inclui a recomendação que a terapeuta indicou.
   if (rec.status === 'SEM_RECOMENDACAO') {
     return <FormIncluirRec rec={rec} onSalvo={onMudou} />
@@ -246,7 +269,12 @@ function CardPosVenda({ rec, unidadeNome, onMudou }: { rec: Rec; unidadeNome: st
       {vendida ? (
         <div className="mt-3 border-t border-[#DDC7A4]/60 pt-3">
           <p className="text-[12px] text-[#392617]/70">Convertido em: <strong className="text-[#425F1D]">{(rec.venda?.itens ?? []).map((i) => `${LABEL[i.tipo] || i.tipo}${i.tipo === 'PACOTE' || i.quantidade > 1 ? ` (${i.quantidade})` : ''}`).join(', ')}</strong></p>
-          <FormVenda rec={rec} onSalvo={onMudou} compacto />
+          <div className="flex items-center gap-4 mt-1">
+            <FormVenda rec={rec} onSalvo={onMudou} compacto />
+            <button onClick={excluirVenda} className="text-[13px] font-medium text-[#7E0000] underline inline-flex items-center gap-1">
+              <XCircle size={13} /> Excluir venda
+            </button>
+          </div>
         </div>
       ) : (
         <div className="mt-3 border-t border-[#DDC7A4]/60 pt-3">
@@ -311,23 +339,26 @@ function FormVenda({ rec, onSalvo, onCancelar, compacto }: { rec: Rec; onSalvo: 
       <div className="flex flex-wrap gap-2">
         {CONVERSOES.map((c) => {
           const ativo = sel.has(c.tipo)
-          const precisaQtd = ativo && (c.tipo === 'PACOTE' || c.tipo === 'PRODUTO')
           return (
-            <div key={c.tipo} className="flex items-center gap-1">
-              <button type="button" onClick={() => toggle(c.tipo)}
-                className={`text-[13px] rounded-full px-3 py-1.5 border ${ativo ? 'bg-[#425F1D] text-white border-[#425F1D]' : 'bg-white text-[#392617]/80 border-[#DDC7A4] hover:border-[#D78B18]'}`}>
-                {c.label}
-              </button>
-              {precisaQtd && (
-                <input type="number" min={1} value={sel.get(c.tipo) ?? 1} onChange={(e) => setQtd(c.tipo, Math.floor(Number(e.target.value) || 1))}
-                  title={c.tipo === 'PACOTE' ? 'Nº de sessões pagas' : 'Quantidade'}
-                  className="w-14 border border-[#DDC7A4] rounded-lg px-2 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#D78B18]" />
-              )}
-            </div>
+            <button key={c.tipo} type="button" onClick={() => toggle(c.tipo)}
+              className={`text-[13px] rounded-full px-3 py-1.5 border ${ativo ? 'bg-[#425F1D] text-white border-[#425F1D]' : 'bg-white text-[#392617]/80 border-[#DDC7A4] hover:border-[#D78B18]'}`}>
+              {c.label}
+            </button>
           )
         })}
       </div>
-      {sel.has('PACOTE') && <p className="text-[11px] text-[#392617]/50 mt-1">Pacote: informe o nº de sessões pagas (cortesias não contam).</p>}
+
+      {/* Quantidade (= pontuação) p/ os itens que precisam — com rótulo e aviso claros. */}
+      {[...sel.keys()].filter((t) => QTD_INFO[t]).map((t) => (
+        <div key={t} className="mt-2.5 rounded-lg border border-[#D78B18]/40 bg-[#D78B18]/[0.06] px-3 py-2.5">
+          <label className="block text-[12px] font-semibold text-[#392617] mb-1.5">{QTD_INFO[t].label}</label>
+          <input type="number" min={1} value={sel.get(t) ?? 1}
+            onChange={(e) => setQtd(t, Math.floor(Number(e.target.value) || 1))}
+            className="w-20 border border-[#DDC7A4] rounded-lg px-3 py-1.5 text-[14px] font-semibold focus:outline-none focus:ring-2 focus:ring-[#D78B18]" />
+          {QTD_INFO[t].nota && <p className="text-[11px] text-[#9a6410] mt-1.5 leading-snug">{QTD_INFO[t].nota}</p>}
+        </div>
+      ))}
+
       <div className="flex gap-2 mt-3">
         <button onClick={salvar} disabled={salvando || sel.size === 0}
           className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-[#7E0000] hover:bg-[#5c0000] disabled:opacity-50 rounded-lg px-4 py-2.5">
