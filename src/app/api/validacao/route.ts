@@ -16,9 +16,12 @@ function mesAtual(): string {
 export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session) return unauthorized()
-  if (session.perfil !== 'DONA' && session.perfil !== 'COORDENACAO') {
-    return NextResponse.json({ error: 'Acesso restrito à coordenação.' }, { status: 403 })
+  // Recepção pode VISUALIZAR o painel; validar/liberar/resolver continua só com a
+  // coordenação (enforçado nos POSTs /liberar e /resolver).
+  if (!['DONA', 'COORDENACAO', 'RECEPCAO'].includes(session.perfil)) {
+    return NextResponse.json({ error: 'Acesso restrito.' }, { status: 403 })
   }
+  const podeValidar = session.perfil === 'DONA' || session.perfil === 'COORDENACAO'
 
   const permitidas = unidadesPermitidas(session)
   const slugsDisponiveis = permitidas === null ? getUnidadesDisponiveis() : permitidas
@@ -87,5 +90,7 @@ export async function GET(req: NextRequest) {
     podeLiberar: resumo.pendentes === 0 && resumo.contestados === 0,
     // Com contestação aberta, a liberação (nem forçada) fica indisponível.
     temContestacaoAberta: resumo.contestados > 0,
+    // Recepção só visualiza; ações (liberar/resolver) ficam com a coordenação.
+    podeValidar,
   })
 }

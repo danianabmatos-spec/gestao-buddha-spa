@@ -24,6 +24,7 @@ interface ApiResp {
   forcadoInfo: { terapeuta: string; pendentes: number }[] | null
   podeLiberar: boolean
   temContestacaoAberta: boolean
+  podeValidar: boolean
 }
 
 const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
@@ -116,7 +117,7 @@ export default function ValidacaoPage() {
             </div>
 
             {/* Liberação */}
-            <BlocoLiberacao r={r} erro={erro} onLiberar={liberar} />
+            <BlocoLiberacao r={r} erro={erro} onLiberar={liberar} podeValidar={r.podeValidar} />
 
             {/* Contestações a resolver */}
             {r.contestacoes.length > 0 && (
@@ -125,7 +126,7 @@ export default function ValidacaoPage() {
                   <MessageSquareWarning size={15} /> Contestações a resolver ({r.contestacoes.length})
                 </h2>
                 <div className="space-y-3">
-                  {r.contestacoes.map((c) => <CardContestacao key={c.belleId} c={c} onResolvido={() => carregar(slug, ref)} />)}
+                  {r.contestacoes.map((c) => <CardContestacao key={c.belleId} c={c} podeValidar={r.podeValidar} onResolvido={() => carregar(slug, ref)} />)}
                 </div>
               </section>
             )}
@@ -173,7 +174,7 @@ function Stat({ label, valor, tom }: { label: string; valor: number; tom?: 'ok' 
   )
 }
 
-function CardContestacao({ c, onResolvido }: { c: Contestacao; onResolvido: () => void }) {
+function CardContestacao({ c, onResolvido, podeValidar }: { c: Contestacao; onResolvido: () => void; podeValidar: boolean }) {
   const [nota, setNota] = useState('')
   const [salvando, setSalvando] = useState(false)
   const dataBR = `${c.data.slice(8, 10)}/${c.data.slice(5, 7)}/${c.data.slice(0, 4)}`
@@ -201,23 +202,27 @@ function CardContestacao({ c, onResolvido }: { c: Contestacao; onResolvido: () =
       </div>
       <p className="text-[12px] text-[#392617]/55 mt-1.5">Cliente: {c.clienteNome} · comissão {brl(c.valorComissao)}</p>
       <p className="mt-2 text-[13px] text-[#7E0000] italic bg-[#7E0000]/[0.04] rounded-lg px-3 py-2">“{c.observacaoContestacao}”</p>
-      <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Resposta da coordenação (opcional)"
-        className="mt-2 w-full border border-[#DDC7A4] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#D78B18]" />
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <button onClick={() => resolver('AJUSTADO')} disabled={salvando}
-          className="inline-flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-[#425F1D] hover:bg-[#374f18] disabled:opacity-50 rounded-lg px-3 py-2.5">
-          {salvando ? <Loader2 size={15} className="animate-spin" /> : <ThumbsUp size={15} />} Ajustar (conta)
-        </button>
-        <button onClick={() => resolver('REJEITADO')} disabled={salvando}
-          className="inline-flex items-center justify-center gap-1.5 text-sm font-medium text-[#7E0000] border border-[#7E0000]/30 hover:bg-[#7E0000]/5 disabled:opacity-50 rounded-lg px-3 py-2.5">
-          <XCircle size={15} /> Rejeitar (não conta)
-        </button>
-      </div>
+      {podeValidar && (
+        <>
+          <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Resposta da coordenação (opcional)"
+            className="mt-2 w-full border border-[#DDC7A4] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#D78B18]" />
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button onClick={() => resolver('AJUSTADO')} disabled={salvando}
+              className="inline-flex items-center justify-center gap-1.5 text-sm font-medium text-white bg-[#425F1D] hover:bg-[#374f18] disabled:opacity-50 rounded-lg px-3 py-2.5">
+              {salvando ? <Loader2 size={15} className="animate-spin" /> : <ThumbsUp size={15} />} Ajustar (conta)
+            </button>
+            <button onClick={() => resolver('REJEITADO')} disabled={salvando}
+              className="inline-flex items-center justify-center gap-1.5 text-sm font-medium text-[#7E0000] border border-[#7E0000]/30 hover:bg-[#7E0000]/5 disabled:opacity-50 rounded-lg px-3 py-2.5">
+              <XCircle size={15} /> Rejeitar (não conta)
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
-function BlocoLiberacao({ r, erro, onLiberar }: { r: ApiResp; erro: string | null; onLiberar: (forcar: boolean) => void }) {
+function BlocoLiberacao({ r, erro, onLiberar, podeValidar }: { r: ApiResp; erro: string | null; onLiberar: (forcar: boolean) => void; podeValidar: boolean }) {
   const [confirmarForca, setConfirmarForca] = useState(false)
   const pendentesPorTer = r.porTerapeuta.filter((t) => t.pendentes > 0)
 
@@ -249,6 +254,20 @@ function BlocoLiberacao({ r, erro, onLiberar }: { r: ApiResp; erro: string | nul
       <div className="bg-white rounded-2xl border border-[#7E0000]/25 p-4 mb-5">
         <p className="text-[14px] font-semibold text-[#7E0000] flex items-center gap-1.5"><MessageSquareWarning size={16} /> Liberação indisponível</p>
         <p className="text-[12px] text-[#392617]/70 mt-1">Há {r.resumo.contestados} contestação(ões) em aberto. Resolva todas abaixo para poder liberar o fechamento.</p>
+      </div>
+    )
+  }
+
+  // Recepção (só visualiza): mostra o estado, sem botões de liberar.
+  if (!podeValidar) {
+    return (
+      <div className="bg-white rounded-2xl border border-[#DDC7A4] p-4 mb-5">
+        <p className="text-[14px] font-semibold text-[#392617] mb-1">Fechamento do mês</p>
+        <p className="text-[12px] text-[#392617]/60">
+          {r.podeLiberar
+            ? 'Tudo validado. A liberação do fechamento é feita pela coordenação.'
+            : `Faltam ${r.resumo.pendentes} atendimento(s) sem validação. A liberação do fechamento é feita pela coordenação.`}
+        </p>
       </div>
     )
   }
