@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Loader2, MessageCircle, ShoppingBag, XCircle, CheckCircle2, LogOut, HeartHandshake,
-  CalendarDays, RotateCcw, ClipboardList,
+  CalendarDays, RotateCcw, ClipboardList, ChevronDown, ChevronRight,
 } from 'lucide-react'
 
 const LABEL: Record<string, string> = {
@@ -42,6 +42,13 @@ const ITENS_REC: Record<string, { t: string; l: string }[]> = {
   'Retorno / próximos passos': [{ t: 'PACOTE', l: 'Pacote de sessões' }, { t: 'VOUCHER', l: 'Voucher' }, { t: 'NOVO_AGENDAMENTO', l: 'Novo agendamento' }],
 }
 
+const STATUS_LABEL: Record<string, { txt: string; cls: string }> = {
+  PENDENTE_VENDA: { txt: 'A trabalhar', cls: 'text-[#9a6410] bg-[#D78B18]/15' },
+  VENDIDA: { txt: 'Vendida', cls: 'text-[#425F1D] bg-[#425F1D]/10' },
+  SEM_VENDA: { txt: 'Sem venda', cls: 'text-[#392617]/55 bg-[#392617]/[0.06]' },
+  SEM_RECOMENDACAO: { txt: 'Sem recomendação', cls: 'text-[#9a6410] bg-[#D78B18]/15' },
+}
+
 function dataBR(iso: string) { return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` }
 
 function resumoRecomendacao(r: Rec): string {
@@ -66,6 +73,8 @@ export default function PosVendaPage() {
   const [loading, setLoading] = useState(true)
   const [slug, setSlug] = useState<string | null>(null)
   const [status, setStatus] = useState('PENDENTE_VENDA')
+  const [expandido, setExpandido] = useState<string | null>(null)
+  const [filtro, setFiltro] = useState('')
 
   const carregar = useCallback(async (u?: string | null, st?: string) => {
     setLoading(true)
@@ -85,6 +94,11 @@ export default function PosVendaPage() {
   }, [carregar])
 
   const r = resp
+  const fila = resp?.fila ?? []
+  const filtrados = useMemo(() => {
+    const q = filtro.trim().toLowerCase()
+    return q ? fila.filter((x) => x.clienteNome.toLowerCase().includes(q) || x.terapeutaNome.toLowerCase().includes(q)) : fila
+  }, [fila, filtro])
 
   return (
     <div className="min-h-screen bg-[#E4E5E2]">
@@ -117,14 +131,59 @@ export default function PosVendaPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-24 text-[#7E0000]"><Loader2 className="animate-spin" size={28} /></div>
-        ) : !r || r.fila.length === 0 ? (
+        ) : !r || fila.length === 0 ? (
           <div className="bg-white rounded-xl border border-[#DDC7A4] p-8 text-center text-[#392617]/70">
             Nenhuma recomendação nesta lista. 🌸
           </div>
         ) : (
-          <div className="space-y-3">
-            {r.fila.map((rec) => <CardPosVenda key={rec.belleId} rec={rec} unidadeNome={r.unidadeAtual.nome} onMudou={() => carregar(slug, status)} />)}
-          </div>
+          <>
+            <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Buscar cliente ou terapeuta…"
+              className="mb-2 w-full sm:w-72 border border-[#DDC7A4] bg-white rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#D78B18]" />
+            <div className="rounded-xl border border-[#DDC7A4] bg-white overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[560px]">
+                  <thead>
+                    <tr className="bg-[#7E0000] text-white text-xs">
+                      <th className="w-6"></th>
+                      <th className="px-3 py-2 text-left font-semibold">Cliente</th>
+                      <th className="px-2 py-2 text-left font-semibold">Data</th>
+                      <th className="px-3 py-2 text-left font-semibold">Terapeuta</th>
+                      <th className="px-3 py-2 text-center font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#DDC7A4]/30">
+                    {filtrados.map((rec) => {
+                      const aberto = expandido === rec.belleId
+                      const st = STATUS_LABEL[rec.status] ?? { txt: rec.status, cls: 'text-[#392617]/55 bg-[#392617]/[0.06]' }
+                      return (
+                        <Fragment key={rec.belleId}>
+                          <tr className="hover:bg-[#FBF6EF] cursor-pointer" onClick={() => setExpandido(aberto ? null : rec.belleId)}>
+                            <td className="px-1 text-center text-[#7E0000]">{aberto ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</td>
+                            <td className="px-3 py-2 font-medium text-[#392617] whitespace-nowrap">{rec.clienteNome}</td>
+                            <td className="px-2 py-2 text-[#392617]/70 whitespace-nowrap">{dataBR(rec.dataAtendimento)}</td>
+                            <td className="px-3 py-2 text-[#392617]/80 whitespace-nowrap">{rec.terapeutaNome.split(' ')[0]}</td>
+                            <td className="px-3 py-2 text-center">
+                              <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${st.cls}`}>{st.txt}</span>
+                            </td>
+                          </tr>
+                          {aberto && (
+                            <tr className="bg-[#F5F0EB]/50">
+                              <td colSpan={5} className="px-4 py-3">
+                                <CardPosVenda rec={rec} unidadeNome={r.unidadeAtual.nome} onMudou={() => carregar(slug, status)} />
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      )
+                    })}
+                    {filtrados.length === 0 && (
+                      <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-[#392617]/50">Nenhum cliente com esse filtro.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
         )}
       </main>
     </div>
@@ -143,36 +202,13 @@ function CardPosVenda({ rec, unidadeNome, onMudou }: { rec: Rec; unidadeNome: st
 
   // Atendimento sem bloquinho → a recepção inclui a recomendação que a terapeuta indicou.
   if (rec.status === 'SEM_RECOMENDACAO') {
-    return (
-      <div className="bg-white rounded-2xl border border-[#DDC7A4] p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[16px] font-bold text-[#392617]">{rec.clienteNome}</p>
-            <p className="text-[12px] text-[#392617]/60 flex items-center gap-1.5">
-              <CalendarDays size={12} /> {dataBR(rec.dataAtendimento)} · {rec.servico || 'Atendimento'} · terapeuta {rec.terapeutaNome.split(' ')[0]}
-            </p>
-          </div>
-          <span className="shrink-0 inline-flex items-center gap-1 text-[12px] font-semibold text-[#9a6410] bg-[#D78B18]/15 rounded-full px-2 py-1">Sem recomendação</span>
-        </div>
-        <FormIncluirRec rec={rec} onSalvo={onMudou} />
-      </div>
-    )
+    return <FormIncluirRec rec={rec} onSalvo={onMudou} />
   }
 
+  // Conteúdo expandido da linha (o cliente/data/terapeuta/status vêm na linha-resumo).
   return (
-    <div className="bg-white rounded-2xl border border-[#DDC7A4] p-4">
-      {/* Cliente + status */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[16px] font-bold text-[#392617]">{rec.clienteNome}</p>
-          <p className="text-[12px] text-[#392617]/60 flex items-center gap-1.5">
-            <CalendarDays size={12} /> {dataBR(rec.dataAtendimento)} · terapeuta {rec.terapeutaNome.split(' ')[0]}
-          </p>
-        </div>
-        {vendida && <span className="shrink-0 inline-flex items-center gap-1 text-[12px] font-semibold text-[#425F1D] bg-[#425F1D]/10 rounded-full px-2 py-1"><CheckCircle2 size={13} /> Vendida</span>}
-        {semVenda && <span className="shrink-0 inline-flex items-center gap-1 text-[12px] font-semibold text-[#392617]/60 bg-[#392617]/[0.06] rounded-full px-2 py-1">Sem venda</span>}
-      </div>
-
+    <div>
+      {rec.servico && <p className="text-[12px] text-[#392617]/60 mb-2">{rec.servico}</p>}
       {/* O que a terapeuta recomendou */}
       <div className="mt-2 flex flex-wrap gap-1.5">
         {rec.itens.map((t) => <span key={t} className="text-[11px] bg-[#D78B18]/10 border border-[#D78B18]/30 rounded-full px-2 py-0.5 text-[#9a6410]">{LABEL[t] || t}</span>)}

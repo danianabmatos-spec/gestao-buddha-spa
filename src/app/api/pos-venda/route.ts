@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, unauthorized, unidadesPermitidas, resolveUnidade } from '@/lib/auth/guard'
 import { getUnidadesDisponiveis, getUnidadeNome } from '@/lib/belle/unidades-config'
+import { syncAtendimentosUnidade } from '@/lib/atendimentos/sync'
 
 export const dynamic = 'force-dynamic'
 
 const PERFIS_OK = ['DONA', 'RECEPCAO', 'COORDENACAO']
+// Throttle do sync ao vivo da aba "Sem recomendação" (1× por minuto por unidade).
+const ultimoSyncHoje = new Map<string, number>()
 
 // GET /api/pos-venda[?unidade=slug&status=PENDENTE_VENDA|VENDIDA|SEM_VENDA|TODOS]
 // Fila do pós-venda da recepção: recomendações a trabalhar (padrão: aguardando venda),
@@ -30,6 +33,12 @@ export async function GET(req: NextRequest) {
   // a recepção pode incluir a recomendação que a terapeuta indicou verbalmente.
   if (status === 'SEM_RECOMENDACAO') {
     const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+    // Sincroniza HOJE do Belle (throttle 60s) → atendimentos recém-fechados aparecem na hora.
+    const agoraMs = Date.now()
+    if (agoraMs - (ultimoSyncHoje.get(unidade) ?? 0) > 60_000) {
+      ultimoSyncHoje.set(unidade, agoraMs)
+      try { await syncAtendimentosUnidade(unidade, hoje, hoje) } catch (e) { console.error('[pos-venda] sync hoje:', e instanceof Error ? e.message : e) }
+    }
     const d = new Date(); d.setDate(d.getDate() - 7)
     const desde = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d)
     const ats = await prisma.atendimento.findMany({
