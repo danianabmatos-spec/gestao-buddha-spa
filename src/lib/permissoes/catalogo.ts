@@ -61,7 +61,7 @@ export const FUNCIONALIDADES: Funcionalidade[] = [
   { chave: 'terapeutas-gestor', label: 'Terapeutas — editar Nota do Gestor', grupo: 'Unidade', rotas: ['/api/terapeutas/avaliacao'], padrao: p(N, N, E, E, N) },
   { chave: 'terapeutas-pesos', label: 'Terapeutas — gerir Pesos', grupo: 'Unidade', rotas: ['/api/terapeutas/pesos'], padrao: p(N, N, N, N, N) },
   { chave: 'metas', label: 'Metas', grupo: 'Unidade', rotas: ['/dashboard/*/metas', '/metas', '/api/metas'], padrao: p(V, V, V, N, N) },
-  { chave: 'caixa', label: 'Controle de Caixa', grupo: 'Unidade', rotas: ['/caixa', '/api/rotinas/caixa'], padrao: p(V, E, E, N, N) },
+  { chave: 'caixa', label: 'Controle de Caixa', grupo: 'Unidade', rotas: ['/caixa', '/api/rotinas/caixa', '/dashboard/*/conciliacao', '/api/conciliacao'], padrao: p(V, E, E, N, N) },
   { chave: 'validacao', label: 'Validação de Atendimentos', grupo: 'Unidade', rotas: ['/validacao', '/api/validacao'], padrao: p(E, N, N, N, N) },
   { chave: 'pos-venda', label: 'Pós-venda', grupo: 'Unidade', rotas: ['/pos-venda', '/api/pos-venda'], padrao: p(E, E, N, N, N) },
   { chave: 'pontuacao', label: 'Pontuação', grupo: 'Unidade', rotas: ['/pontuacao', '/api/pontuacao'], padrao: p(E, N, N, N, N) },

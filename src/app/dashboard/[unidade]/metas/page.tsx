@@ -27,7 +27,18 @@ export default function MetasPage() {
   const [loading, setLoading] = useState(false)
   const [premiacao, setPremiacao] = useState<any | null>(null)
   const [fonteMetas, setFonteMetas] = useState<string | null>(null)
+  const [perfilUsuario, setPerfilUsuario] = useState<string>('')
   const buscandoRef = useRef(false)
+
+  // Perfil do usuário logado — a premiação da COORDENADORA só aparece pra
+  // Dona/Coordenação (a recepção não deve ver a remuneração da coordenadora).
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setPerfilUsuario(j?.usuario?.perfil ?? ''))
+      .catch(() => {})
+  }, [])
+  const podeVerCoordenadora = perfilUsuario === 'DONA' || perfilUsuario === 'COORDENACAO'
 
   const buscarDados = useCallback(async (anoSelecionado: number) => {
     if (buscandoRef.current) return // Evita chamadas duplicadas
@@ -722,8 +733,8 @@ export default function MetasPage() {
             </div>
           </div>
 
-          {/* Premiação da Coordenadora */}
-          {premiacao.premioCoordenadora && premiacao.premioCoordenadora.length > 0 && (
+          {/* Premiação da Coordenadora — só Dona/Coordenação (recepção não vê) */}
+          {podeVerCoordenadora && premiacao.premioCoordenadora && premiacao.premioCoordenadora.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-[#DDC7A4]/30 flex-1 min-w-0 w-full">
             <div className="bg-[#7E0000] text-white px-5 py-3 flex items-center gap-2">
               <Award size={18} />
