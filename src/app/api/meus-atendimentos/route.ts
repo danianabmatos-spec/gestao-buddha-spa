@@ -25,10 +25,15 @@ export async function GET(req: Request) {
 
   const ref = new URL(req.url).searchParams.get('ref') || mesAtualISO()
 
-  const atendimentos = await prisma.atendimento.findMany({
+  const todos = await prisma.atendimento.findMany({
     where: { terapeutaId: terapeuta.id, fechamentoRef: ref },
     orderBy: [{ data: 'asc' }, { hora: 'asc' }, { id: 'asc' }],
   })
+  // Só mostra os JÁ ATENDIDOS (passados + o atual) — futuros não entram na validação.
+  const agora = new Date()
+  const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(agora) // YYYY-MM-DD
+  const horaSP = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(agora) // HH:MM
+  const atendimentos = todos.filter((a) => a.data < hojeSP || (a.data === hojeSP && (a.hora ?? '00:00') <= horaSP))
 
   const belleIds = atendimentos.map((a) => a.belleId)
   const recomendacoes = belleIds.length

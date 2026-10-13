@@ -71,10 +71,20 @@ export default function MeusAtendimentosPage() {
 
   useEffect(() => { carregar() }, [carregar])
 
-  const atends = resp?.atendimentos ?? []
+  const atendsRaw = resp?.atendimentos ?? []
+  // A validar (PENDENTE) vêm PRIMEIRO, pra confirmar em sequência; depois os demais.
+  const atends = [...atendsRaw].sort((a, b) => {
+    const pa = a.statusValidacao === 'PENDENTE' ? 0 : 1
+    const pb = b.statusValidacao === 'PENDENTE' ? 0 : 1
+    if (pa !== pb) return pa - pb
+    return (a.data + (a.hora ?? '')).localeCompare(b.data + (b.hora ?? ''))
+  })
   // Contestados não pedem recomendação — ficam fora da conta.
   const recomendaveis = atends.filter((a) => a.statusValidacao !== 'CONTESTADO')
   const totalRecomendado = recomendaveis.filter((a) => a.recomendacao).length
+  // Stats p/ o quadro da comissão: atendimentos realizados + dias trabalhados.
+  const realizados = atends.length
+  const diasTrabalhados = new Set(atends.map((a) => a.data)).size
 
   return (
     <div className="min-h-screen bg-[#E4E5E2]">
@@ -99,7 +109,7 @@ export default function MeusAtendimentosPage() {
 
       <main className="max-w-2xl mx-auto px-4 py-5 sm:px-6">
         {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <CheckinBola />}
-        {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <MinhaComissao />}
+        {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <MinhaComissao realizados={realizados} diasTrabalhados={diasTrabalhados} />}
         {resp?.terapeuta && (
           <p className="text-sm text-[#392617]/70 mb-1">Atendimentos de {mesLongo(resp.ref)}</p>
         )}
@@ -203,7 +213,7 @@ function CheckinBola() {
 // ─── Minha comissão (read-only, lida da Folha) ───────────────────────────────────
 // A terapeuta vê "quanto vou receber" sem abrir o Folha. Fonte: /api/minha-comissao,
 // que lê ao vivo a integração da Folha. Bruto por ora; líquido quando enriquecermos.
-function MinhaComissao() {
+function MinhaComissao({ realizados, diasTrabalhados }: { realizados: number; diasTrabalhados: number }) {
   const [carregando, setCarregando] = useState(true)
   const [d, setD] = useState<{
     disponivel: boolean; encontrada?: boolean; comissaoBruta?: number
@@ -251,6 +261,21 @@ function MinhaComissao() {
           {d.nfEmitida
             ? <span className="inline-flex items-center gap-1 text-[#425F1D] font-semibold"><FileText size={13} /> NF nº {d.nfNumero}</span>
             : <span className="inline-flex items-center gap-1 text-[#9a6410] font-semibold"><FileText size={13} /> NF a emitir</span>}
+        </div>
+      </div>
+      {/* Stats do mês: atendimentos realizados, dias trabalhados, média por dia */}
+      <div className="mt-3 pt-3 border-t border-[#D78B18]/25 grid grid-cols-3 gap-2 text-center">
+        <div>
+          <p className="text-[15px] font-bold text-[#7E0000] leading-tight">{realizados}</p>
+          <p className="text-[10px] uppercase tracking-wide text-[#392617]/55">atendimentos</p>
+        </div>
+        <div>
+          <p className="text-[15px] font-bold text-[#7E0000] leading-tight">{diasTrabalhados}</p>
+          <p className="text-[10px] uppercase tracking-wide text-[#392617]/55">dias trabalhados</p>
+        </div>
+        <div>
+          <p className="text-[15px] font-bold text-[#7E0000] leading-tight">{diasTrabalhados > 0 ? brl((d.comissaoBruta || 0) / diasTrabalhados) : '—'}</p>
+          <p className="text-[10px] uppercase tracking-wide text-[#392617]/55">média/dia</p>
         </div>
       </div>
     </div>
