@@ -34,9 +34,23 @@ export async function POST(req: NextRequest) {
   const belleId = txt(form.get('belleId'))
   if (!belleId) return NextResponse.json({ error: 'Informe o atendimento.' }, { status: 400 })
 
-  const at = await prisma.atendimento.findUnique({ where: { belleId } })
-  if (!at || at.terapeutaId !== terapeuta.id) {
-    return NextResponse.json({ error: 'Atendimento não encontrado.' }, { status: 404 })
+  // Origem do atendimento: a BOLA (tempo real, "bola:<id>") ou o Atendimento já
+  // sincronizado do Belle. Em ambos os casos a recomendação é chaveada por belleId;
+  // o sync reconcilia "bola:<id>" → belleId real depois (lib/atendimentos/sync.ts).
+  let origem: { unidadeSlug: string; clienteNome: string; data: string; servico: string | null }
+  if (belleId.startsWith('bola:')) {
+    const bolaId = Number(belleId.slice('bola:'.length))
+    const ba = Number.isFinite(bolaId) ? await prisma.bolaAtendimento.findUnique({ where: { id: bolaId } }) : null
+    if (!ba || ba.terapeutaId !== terapeuta.id) {
+      return NextResponse.json({ error: 'Atendimento não encontrado.' }, { status: 404 })
+    }
+    origem = { unidadeSlug: ba.unidadeSlug, clienteNome: ba.clienteNome || 'Cliente', data: ba.data, servico: ba.servicoNome }
+  } else {
+    const at = await prisma.atendimento.findUnique({ where: { belleId } })
+    if (!at || at.terapeutaId !== terapeuta.id) {
+      return NextResponse.json({ error: 'Atendimento não encontrado.' }, { status: 404 })
+    }
+    origem = { unidadeSlug: at.unidadeSlug, clienteNome: at.clienteNome, data: at.data, servico: at.servico }
   }
 
   // Itens (checkboxes do bloquinho) — array de tipos.
@@ -61,12 +75,12 @@ export async function POST(req: NextRequest) {
   }
 
   const base = {
-    unidadeSlug: at.unidadeSlug,
+    unidadeSlug: origem.unidadeSlug,
     usuarioId: session.sub,
     terapeutaNome: terapeuta.nome,
-    clienteNome: at.clienteNome,
-    dataAtendimento: at.data,
-    servico: at.servico,
+    clienteNome: origem.clienteNome,
+    dataAtendimento: origem.data,
+    servico: origem.servico,
     notaSono: num(form.get('notaSono')),
     notaEnergia: num(form.get('notaEnergia')),
     notaEstresse: num(form.get('notaEstresse')),

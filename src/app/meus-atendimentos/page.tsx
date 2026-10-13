@@ -124,6 +124,7 @@ export default function MeusAtendimentosPage() {
 
       <main className="max-w-2xl mx-auto px-4 py-5 sm:px-6">
         {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <CheckinBola key={`ck${refreshKey}`} />}
+        {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <AtendimentosDaBola key={`ab${refreshKey}`} />}
         {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <MinhaComissao key={`mc${refreshKey}`} realizados={realizados} diasTrabalhados={diasTrabalhados} />}
         {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <MinhaPontuacao key={`mp${refreshKey}`} />}
         {resp?.terapeuta && (
@@ -221,6 +222,53 @@ function CheckinBola() {
           className="shrink-0 inline-flex items-center gap-2 text-sm font-semibold text-white bg-[#7E0000] hover:bg-[#5c0000] disabled:opacity-60 rounded-xl px-5 py-3 shadow-sm">
           {marcando ? <Loader2 size={18} className="animate-spin" /> : <Hand size={18} />} Cheguei
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Atendimentos de hoje (vindos da BOLA, tempo real) ───────────────────────────
+// Logo após a sessão, a terapeuta registra a recomendação sem esperar o fechamento
+// do dia no Belle. A recomendação (belleId "bola:<id>") é reconciliada com o
+// atendimento real no sync (lib/atendimentos/sync.ts).
+function CardBolaAtendimento({ at, onMudou }: { at: Atendimento; onMudou: () => void }) {
+  return (
+    <div className="bg-white rounded-2xl border border-[#DDC7A4] overflow-hidden">
+      <div className="px-4 pt-4">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[15px] font-bold text-[#392617]">{at.clienteNome}</p>
+          {at.hora && (
+            <span className="shrink-0 inline-flex items-center gap-1 text-[12px] font-bold text-[#425F1D] bg-[#425F1D]/10 rounded-full px-2 py-1">
+              <Clock size={12} /> {at.hora}
+            </span>
+          )}
+        </div>
+        <p className="text-[13px] text-[#392617]/70">{at.servico || 'Atendimento'}</p>
+      </div>
+      <BlocoRecomendacao at={at} onMudou={onMudou} />
+    </div>
+  )
+}
+
+function AtendimentosDaBola() {
+  const [lista, setLista] = useState<Atendimento[] | null>(null)
+  const buscar = useCallback(async () => {
+    try {
+      const r = await fetch('/api/bola/meus-atendimentos', { cache: 'no-store' })
+      const j = await r.json()
+      setLista(j.terapeuta ? (j.atendimentos ?? []) : [])
+    } catch { setLista([]) }
+  }, [])
+  useEffect(() => { const t = setTimeout(buscar, 0); return () => clearTimeout(t) }, [buscar])
+
+  if (!lista || lista.length === 0) return null
+  return (
+    <div className="mb-5">
+      <p className="text-[11px] uppercase tracking-wide text-[#425F1D] font-bold mb-2 inline-flex items-center gap-1.5">
+        <Hand size={12} /> Atendimentos de hoje · registre a recomendação
+      </p>
+      <div className="space-y-3">
+        {lista.map((a) => <CardBolaAtendimento key={a.belleId} at={a} onMudou={buscar} />)}
       </div>
     </div>
   )
@@ -355,10 +403,47 @@ function Pill({ tone, icon, children }: { tone: 'verde' | 'marsala' | 'ambar' | 
   return <span className={`shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold rounded-full px-2 py-0.5 ${map[tone]}`}>{icon}{children}</span>
 }
 
-function CardAtendimento({ at, onMudou }: { at: Atendimento; onMudou: () => void }) {
+// Bloco "Recomendação" (o bloquinho) — compartilhado pelo card do atendimento
+// (validação) e pelo card da bola (tempo real). Chaveado por at.belleId.
+function BlocoRecomendacao({ at, onMudou }: { at: Atendimento; onMudou: () => void }) {
   const [aberto, setAberto] = useState(false)
-  const contestado = at.statusValidacao === 'CONTESTADO'
   const temRec = !!at.recomendacao
+  return (
+    <section className="mt-2 border-t-2 border-[#D78B18]/30 bg-[#D78B18]/[0.07] px-4 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#7E0000]">
+          <ClipboardList size={13} /> Recomendação
+        </span>
+        {temRec ? <Pill tone="verde" icon={<CheckCircle2 size={12} />}>Registrada</Pill> : <Pill tone="ambar">A registrar</Pill>}
+      </div>
+
+      {aberto ? (
+        <FormBloquinho at={at} onSalvo={() => { setAberto(false); onMudou() }} />
+      ) : temRec ? (
+        <div>
+          <div className="flex flex-wrap gap-1.5">
+            {at.recomendacao!.itens.map((t) => (
+              <span key={t} className="text-[11px] bg-white border border-[#DDC7A4] rounded-full px-2 py-0.5 text-[#392617]/80">{LABEL[t] || t}</span>
+            ))}
+            {at.recomendacao!.temFoto && (
+              <span className="text-[11px] inline-flex items-center gap-1 bg-white border border-[#DDC7A4] rounded-full px-2 py-0.5 text-[#392617]/80"><Camera size={11} /> foto</span>
+            )}
+          </div>
+          {at.recomendacao!.retorno && <p className="text-[12px] text-[#392617]/60 italic mt-1.5">“{at.recomendacao!.retorno}”</p>}
+          <button onClick={() => setAberto(true)} className="mt-2 text-[13px] font-medium text-[#7E0000] underline">Editar recomendação</button>
+        </div>
+      ) : (
+        <button onClick={() => setAberto(true)}
+          className="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-[#D78B18] hover:bg-[#c07d13] rounded-lg px-4 py-3 shadow-sm">
+          <ClipboardList size={17} /> Registrar recomendação
+        </button>
+      )}
+    </section>
+  )
+}
+
+function CardAtendimento({ at, onMudou }: { at: Atendimento; onMudou: () => void }) {
+  const contestado = at.statusValidacao === 'CONTESTADO'
 
   return (
     <div className="bg-white rounded-2xl border border-[#DDC7A4] overflow-hidden">
@@ -392,36 +477,7 @@ function CardAtendimento({ at, onMudou }: { at: Atendimento; onMudou: () => void
           Atendimento contestado — recomendação não se aplica.
         </div>
       ) : (
-        <section className="mt-2 border-t-2 border-[#D78B18]/30 bg-[#D78B18]/[0.07] px-4 py-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#7E0000]">
-              <ClipboardList size={13} /> Recomendação
-            </span>
-            {temRec ? <Pill tone="verde" icon={<CheckCircle2 size={12} />}>Registrada</Pill> : <Pill tone="ambar">A registrar</Pill>}
-          </div>
-
-          {aberto ? (
-            <FormBloquinho at={at} onSalvo={() => { setAberto(false); onMudou() }} />
-          ) : temRec ? (
-            <div>
-              <div className="flex flex-wrap gap-1.5">
-                {at.recomendacao!.itens.map((t) => (
-                  <span key={t} className="text-[11px] bg-white border border-[#DDC7A4] rounded-full px-2 py-0.5 text-[#392617]/80">{LABEL[t] || t}</span>
-                ))}
-                {at.recomendacao!.temFoto && (
-                  <span className="text-[11px] inline-flex items-center gap-1 bg-white border border-[#DDC7A4] rounded-full px-2 py-0.5 text-[#392617]/80"><Camera size={11} /> foto</span>
-                )}
-              </div>
-              {at.recomendacao!.retorno && <p className="text-[12px] text-[#392617]/60 italic mt-1.5">“{at.recomendacao!.retorno}”</p>}
-              <button onClick={() => setAberto(true)} className="mt-2 text-[13px] font-medium text-[#7E0000] underline">Editar recomendação</button>
-            </div>
-          ) : (
-            <button onClick={() => setAberto(true)}
-              className="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-[#D78B18] hover:bg-[#c07d13] rounded-lg px-4 py-3 shadow-sm">
-              <ClipboardList size={17} /> Registrar recomendação
-            </button>
-          )}
-        </section>
+        <BlocoRecomendacao at={at} onMudou={onMudou} />
       )}
     </div>
   )

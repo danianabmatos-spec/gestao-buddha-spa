@@ -57,11 +57,9 @@ export async function POST(req: NextRequest) {
   // no WhatsApp não derruba o registro da venda.
   if (!eraVendida) {
     try {
-      const at = await prisma.atendimento.findUnique({
-        where: { belleId: rec.belleId },
-        select: { terapeutaNome: true, clienteNome: true },
-      })
-      if (at?.terapeutaNome) {
+      // Fonte: a própria recomendação (sempre tem terapeuta/cliente) — funciona
+      // inclusive quando veio da bola e ainda não há Atendimento sincronizado.
+      if (rec.terapeutaNome) {
         const primeiro = (n: string) => n.trim().split(/\s+/)[0] || n.trim()
         const pontos = limpos.reduce((s, i) => s + i.quantidade, 0)
         const LABEL: Record<string, (q: number) => string> = {
@@ -71,7 +69,7 @@ export async function POST(req: NextRequest) {
           PACOTE: (q) => `um pacote de ${q} sessões`,
         }
         const desc = limpos.map((i) => LABEL[i.tipo](i.quantidade)).join(' + ')
-        const msg = `🌟 ${primeiro(at.terapeutaNome)}, sua cliente ${primeiro(at.clienteNome)} fechou ${desc} conforme sua recomendação — você ganhou ${pontos} ponto${pontos > 1 ? 's' : ''}! Parabéns, brilhou!! 🎉`
+        const msg = `🌟 ${primeiro(rec.terapeutaNome)}, sua cliente ${primeiro(rec.clienteNome)} fechou ${desc} conforme sua recomendação — você ganhou ${pontos} ponto${pontos > 1 ? 's' : ''}! Parabéns, brilhou!! 🎉`
         await enviarAnuncioGrupo(rec.unidadeSlug, msg, 'pex')
       }
     } catch (e) {
