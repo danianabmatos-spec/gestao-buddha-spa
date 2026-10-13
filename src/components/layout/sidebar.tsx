@@ -26,6 +26,8 @@ import {
   Banknote,
   PhoneCall,
   LogOut,
+  MessageCircle,
+  ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -245,6 +247,13 @@ export function Sidebar() {
       </nav>
 
       <div className="p-3 border-t border-[#5c0000] space-y-1">
+        {/* Atalho pra Central: a recepção conecta o WhatsApp da própria unidade
+            na tela "Meu WhatsApp" de lá (login próprio da Central). */}
+        <a href="https://atendimento.solcentral.com.br" target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#DDC7A4] hover:bg-[#5c0000] hover:text-white transition-colors">
+          <MessageCircle size={18} strokeWidth={1.8} /> <span className="flex-1">Meu WhatsApp</span>
+          <ExternalLink size={12} className="opacity-50" />
+        </a>
         {pode('empresas') && (
           <Link href="/empresas" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#DDC7A4] hover:bg-[#5c0000] hover:text-white transition-colors">
             <Building2 size={18} strokeWidth={1.8} /> Empresas
