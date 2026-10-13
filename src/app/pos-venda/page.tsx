@@ -129,7 +129,9 @@ function CardPosVenda({ rec, unidadeNome, onMudou }: { rec: Rec; unidadeNome: st
   const vendida = rec.status === 'VENDIDA'
   const semVenda = rec.status === 'SEM_VENDA'
 
-  const msg = montarMensagem(rec, unidadeNome)
+  // Mensagem do convite — editável pela recepção antes de enviar pelo WhatsApp.
+  const [msg, setMsg] = useState(() => montarMensagem(rec, unidadeNome))
+  const [editarMsg, setEditarMsg] = useState(false)
 
   return (
     <div className="bg-white rounded-2xl border border-[#DDC7A4] p-4">
@@ -151,21 +153,31 @@ function CardPosVenda({ rec, unidadeNome, onMudou }: { rec: Rec; unidadeNome: st
       </div>
       {rec.retorno && <p className="text-[12px] text-[#392617]/70 italic mt-1.5">Retorno: “{rec.retorno}”</p>}
 
-      {/* WhatsApp */}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {!rec.clienteTelefone && (
-          <input value={tel} onChange={(e) => setTel(e.target.value)} placeholder="WhatsApp do cliente (DDD + número)" inputMode="tel"
-            className="flex-1 min-w-[180px] border border-[#DDC7A4] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#D78B18]" />
+      {/* WhatsApp — convite com mensagem EDITÁVEL antes de enviar */}
+      <div className="mt-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {!rec.clienteTelefone && (
+            <input value={tel} onChange={(e) => setTel(e.target.value)} placeholder="WhatsApp do cliente (DDD + número)" inputMode="tel"
+              className="flex-1 min-w-[180px] border border-[#DDC7A4] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#D78B18]" />
+          )}
+          <a
+            href={tel.replace(/\D/g, '').length >= 10 ? linkWhatsapp(tel, msg) : undefined}
+            target="_blank" rel="noopener noreferrer"
+            onClick={(e) => { if (tel.replace(/\D/g, '').length < 10) e.preventDefault() }}
+            className={`inline-flex items-center gap-2 text-sm font-semibold rounded-lg px-4 py-2.5 ${
+              tel.replace(/\D/g, '').length >= 10 ? 'text-white bg-[#25D366] hover:bg-[#1eb658]' : 'text-[#392617]/40 bg-[#392617]/[0.06] cursor-not-allowed'
+            }`}>
+            <MessageCircle size={16} /> Convidar pelo WhatsApp
+          </a>
+          <button type="button" onClick={() => setEditarMsg((v) => !v)} className="text-[12px] text-[#7E0000] underline">
+            {editarMsg ? 'ocultar mensagem' : 'editar mensagem'}
+          </button>
+        </div>
+        {editarMsg && (
+          <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={5}
+            className="mt-2 w-full border border-[#DDC7A4] rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#D78B18]"
+            placeholder="Mensagem que vai pro cliente no WhatsApp" />
         )}
-        <a
-          href={tel.replace(/\D/g, '').length >= 10 ? linkWhatsapp(tel, msg) : undefined}
-          target="_blank" rel="noopener noreferrer"
-          onClick={(e) => { if (tel.replace(/\D/g, '').length < 10) e.preventDefault() }}
-          className={`inline-flex items-center gap-2 text-sm font-semibold rounded-lg px-4 py-2.5 ${
-            tel.replace(/\D/g, '').length >= 10 ? 'text-white bg-[#25D366] hover:bg-[#1eb658]' : 'text-[#392617]/40 bg-[#392617]/[0.06] cursor-not-allowed'
-          }`}>
-          <MessageCircle size={16} /> Convidar pelo WhatsApp
-        </a>
       </div>
 
       {/* Ação: registrar venda / sem venda */}
