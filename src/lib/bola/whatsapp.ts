@@ -1,7 +1,8 @@
 // Anúncio da bola no grupo de WhatsApp da unidade (mão única: recepção → equipe).
 // O ENVIO REAL fica atrás de uma trava (BOLA_WHATSAPP_ATIVO) — enquanto desligado,
-// roda em dry-run (só monta e loga a mensagem). Ligar = conectar ao servidor
-// WhatsApp (whatsapp-web.js na VPS) + configurar o group id de cada unidade.
+// roda em dry-run (só monta e loga a mensagem). Ligado, faz POST em BOLA_WHATSAPP_URL
+// = endpoint da Central (POST /v1/integracao/bola, auth x-bola-key=BOLA_WHATSAPP_KEY),
+// que posta no grupo interno da unidade via Baileys. O mapa unidade→grupo vive na Central.
 
 export interface AnuncioBola {
   terapeutaNome: string
@@ -52,7 +53,7 @@ export async function enviarAnuncioGrupo(unidadeSlug: string, mensagem: string):
   try {
     const resp = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-bola-key': process.env.BOLA_WHATSAPP_KEY || '' },
       body: JSON.stringify({ unidade: unidadeSlug, texto: mensagem }),
       signal: AbortSignal.timeout(10_000),
     })
