@@ -5,6 +5,7 @@ import {
   computarEstado,
   escolherProxima,
   hhmmToMin,
+  minToHHMM,
   type TerapeutaBola,
   type TurnoHoje,
   type CheckIn,
@@ -75,6 +76,8 @@ export interface EstadoBolaCompleto {
   data: string
   agoraMin: number
   estado: EstadoTerapeuta[]
+  turnoAtivo: number // menor turno com gente (a bola roda esse)
+  aguardando: { cod: string; terapeutaId: number | null; nome: string; turno: number; chegada: string }[]
   disponiveis: DisponivelBola[] // terapeutas que a recepção pode adicionar à fila
   clientes: ClienteDemanda[] // clientes da agenda do Belle (recepção toca ao chegar)
   // guardado para o escolher()
@@ -173,25 +176,36 @@ export async function montarEstadoBola(
     })
   }
 
-  // fila de check-in (nosso banco) — ordem de chegada
+  // fila de check-in (nosso banco) — ordem de chegada, com TURNO (1 ou 2).
   const checkins = await prisma.bolaCheckin.findMany({
     where: { unidadeSlug, data, status: 'ATIVO' },
     orderBy: { chegadaEm: 'asc' },
   })
-  const fila: CheckIn[] = []
+  const filaAll: { terapeutaId: string; chegadaMin: number; turno: number }[] = []
   for (const c of checkins) {
     const cod = idParaCod.get(c.terapeutaId)
-    if (cod) fila.push({ terapeutaId: cod, chegadaMin: minutosDeSP(c.chegadaEm) })
+    if (cod) filaAll.push({ terapeutaId: cod, chegadaMin: minutosDeSP(c.chegadaEm), turno: c.turno ?? 1 })
   }
+  // A bola roda o MENOR turno com gente; turnos maiores ficam aguardando.
+  const turnoAtivo = filaAll.length ? Math.min(...filaAll.map((f) => f.turno)) : 1
+  const fila: CheckIn[] = filaAll
+    .filter((f) => f.turno === turnoAtivo)
+    .map((f) => ({ terapeutaId: f.terapeutaId, chegadaMin: f.chegadaMin }))
 
   const estado = computarEstado(agoraMin, fila, turnos, atendimentos, preferenciaisFuturos, terapeutas)
 
   const codParaId: Record<string, number> = {}
   for (const [id, cod] of idParaCod) codParaId[cod] = id
 
-  // Terapeutas que a recepção pode "marcar chegada": cadastradas e ainda NÃO na fila.
+  // Terapeutas aguardando o próximo turno (turno > ativo) — ainda não entram na bola.
+  const aguardando = filaAll
+    .filter((f) => f.turno > turnoAtivo)
+    .map((f) => ({ cod: f.terapeutaId, terapeutaId: codParaId[f.terapeutaId] ?? null, nome: porCod[f.terapeutaId]?.nome ?? f.terapeutaId, turno: f.turno, chegada: minToHHMM(f.chegadaMin) }))
+    .sort((a, b) => a.turno - b.turno || a.nome.localeCompare(b.nome))
+
+  // Terapeutas que a recepção pode "marcar chegada": cadastradas e ainda NÃO em check-in ATIVO.
   // Escaladas (turno hoje) primeiro — só dica visual; a recepção decide quem entra.
-  const filaCods = new Set(fila.map((f) => f.terapeutaId))
+  const filaCods = new Set(filaAll.map((f) => f.terapeutaId))
   const turnoCods = new Set(turnos.map((t) => t.terapeutaId))
   const disponiveis: DisponivelBola[] = terapeutas
     .filter((t) => codParaId[t.id] != null && !filaCods.has(t.id))
@@ -226,6 +240,8 @@ export async function montarEstadoBola(
     data,
     agoraMin,
     estado,
+    turnoAtivo,
+    aguardando,
     disponiveis,
     clientes,
     _terapeutas: terapeutas,

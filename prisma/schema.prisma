@@ -1042,6 +1042,7 @@ model BolaCheckin {
   terapeuta    Terapeuta @relation(fields: [terapeutaId], references: [id])
   data         String                       // "YYYY-MM-DD" (fuso America/Sao_Paulo)
   chegadaEm    DateTime  @default(now())     // define a ordem da bola
+  turno        Int       @default(1)         // 1 ou 2 — a bola roda o MENOR turno com gente
   // ATIVO | ENCERRADO (saiu / fim do turno)
   status       String    @default("ATIVO")
   criadoEm     DateTime  @default(now())

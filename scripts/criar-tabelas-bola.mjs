@@ -15,6 +15,7 @@ await db.execute(`
     "terapeutaId" INTEGER NOT NULL,
     "data" TEXT NOT NULL,
     "chegadaEm" DATETIME NOT NULL DEFAULT (datetime('now')),
+    "turno" INTEGER NOT NULL DEFAULT 1,
     "status" TEXT NOT NULL DEFAULT 'ATIVO',
     "criadoEm" DATETIME NOT NULL DEFAULT (datetime('now')),
     "atualizadoEm" DATETIME NOT NULL DEFAULT (datetime('now')),
@@ -23,6 +24,8 @@ await db.execute(`
 `)
 await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS "BolaCheckin_unidadeSlug_terapeutaId_data_key" ON "BolaCheckin"("unidadeSlug","terapeutaId","data")`)
 await db.execute(`CREATE INDEX IF NOT EXISTS "BolaCheckin_unidadeSlug_data_status_idx" ON "BolaCheckin"("unidadeSlug","data","status")`)
+// Migração: coluna "turno" (1 ou 2) p/ tabelas já existentes. Idempotente (ignora se já existe).
+try { await db.execute(`ALTER TABLE "BolaCheckin" ADD COLUMN "turno" INTEGER NOT NULL DEFAULT 1`) } catch { /* coluna já existe */ }
 
 await db.execute(`
   CREATE TABLE IF NOT EXISTS "BolaAtendimento" (

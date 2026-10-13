@@ -23,7 +23,8 @@ interface Cliente {
   generoPref: 'F' | 'M' | null; preferencial: boolean; preferencialCod: string | null; preferencialNome: string | null
 }
 interface Atendido { id: number; cliente: string | null; terapeuta: string; servicoNome: string | null; salaNome: string | null; horaEnvio: string }
-interface PainelResp { unidade: string; data: string; agora: string; fila: FilaItem[]; disponiveis: Disponivel[]; clientes: Cliente[]; atendidos: Atendido[] }
+interface Aguardando { cod: string; terapeutaId: number | null; nome: string; turno: number; chegada: string }
+interface PainelResp { unidade: string; data: string; agora: string; turnoAtivo: number; fila: FilaItem[]; aguardando: Aguardando[]; disponiveis: Disponivel[]; clientes: Cliente[]; atendidos: Atendido[] }
 interface Ordem { nome: string; rodadas: number; elegivel: boolean; motivo: string }
 interface Escolha { escolhida: { id: string; nome: string } | null; salaBelle: string | null; motivo: string; ordem: Ordem[] }
 
@@ -60,6 +61,7 @@ export default function BolaPage() {
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [regrasAbertas, setRegrasAbertas] = useState(true)
+  const [turnoSel, setTurnoSel] = useState<1 | 2>(1) // turno em que a próxima chegada entra
 
   // cliente selecionado (da agenda do Belle) + decisão
   const [clienteSel, setClienteSel] = useState<Cliente | null>(null)
@@ -89,10 +91,10 @@ export default function BolaPage() {
   const marcarChegada = useCallback(async (terapeutaId: number) => {
     const r = await fetch(`/api/bola/fila?unidade=${unidadeSlug}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ terapeutaId }),
+      body: JSON.stringify({ terapeutaId, turno: turnoSel }),
     })
     if (r.ok) carregar()
-  }, [unidadeSlug, carregar])
+  }, [unidadeSlug, carregar, turnoSel])
 
   const removerDaFila = useCallback(async (terapeutaId: number | null) => {
     if (!terapeutaId) return
@@ -207,6 +209,16 @@ export default function BolaPage() {
             <div className="mb-4">
               <h2 className="font-semibold mb-2">Terapeutas de hoje</h2>
               <p className="text-xs text-muted-foreground mb-2">Toque pra marcar a chegada (entra na fila na ordem).</p>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs text-muted-foreground">Marcar no:</span>
+                {[1, 2].map((t) => (
+                  <button key={t} onClick={() => setTurnoSel(t as 1 | 2)}
+                    className="text-xs rounded-full border px-2.5 py-1 transition-colors"
+                    style={turnoSel === t ? { background: MARSALA, color: '#fff', borderColor: MARSALA } : { color: '#392617' }}>
+                    Turno {t}
+                  </button>
+                ))}
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {painel.disponiveis.map((d) => (
                   <button key={d.cod} onClick={() => marcarChegada(d.terapeutaId)}
@@ -220,7 +232,7 @@ export default function BolaPage() {
             </div>
           )}
 
-          <h2 className="font-semibold mb-2">A fila</h2>
+          <h2 className="font-semibold mb-2">A fila{painel && painel.fila.length > 0 ? ` — Turno ${painel.turnoAtivo}` : ''}</h2>
           {painel && painel.fila.length === 0 && (
             <p className="text-sm text-muted-foreground">Ninguém na bola ainda — marque a chegada acima.</p>
           )}
@@ -248,6 +260,23 @@ export default function BolaPage() {
               </div>
             ))}
           </div>
+
+          {painel && painel.aguardando.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold text-muted-foreground mb-1">Aguardando próximo turno</h3>
+              <p className="text-xs text-muted-foreground mb-2">Entram na bola quando o turno {painel.turnoAtivo} sair.</p>
+              <div className="flex flex-col gap-1.5">
+                {painel.aguardando.map((a) => (
+                  <div key={a.cod} className="flex items-center gap-3 border rounded-lg px-3 py-2 opacity-70">
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{ background: 'rgba(126,0,0,.08)', color: MARSALA }}>Turno {a.turno}</span>
+                    <div className="flex-1 min-w-0 text-sm truncate">{a.nome}</div>
+                    <button onClick={() => removerDaFila(a.terapeutaId)} title="Tirar da fila"
+                      className="text-muted-foreground hover:text-[#7E0000] transition-colors shrink-0"><X className="w-4 h-4" /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* CHEGOU CLIENTE — lista da agenda do Belle */}

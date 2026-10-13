@@ -21,7 +21,7 @@ async function unidadeEterapeuta(req: NextRequest) {
     select: { id: true, nome: true },
   })
   if (!terapeuta) return { erro: NextResponse.json({ error: 'Terapeuta não encontrada nesta unidade.' }, { status: 404 }) }
-  return { unidade, terapeuta }
+  return { unidade, terapeuta, body }
 }
 
 // POST /api/bola/fila?unidade=slug  { terapeutaId }
@@ -29,12 +29,13 @@ async function unidadeEterapeuta(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const r = await unidadeEterapeuta(req)
   if (r.erro) return r.erro
-  const { unidade, terapeuta } = r
+  const { unidade, terapeuta, body } = r
+  const turno = body?.turno === 2 || body?.turno === '2' ? 2 : 1
   const data = hojeBrasilia()
   await prisma.bolaCheckin.upsert({
     where: { unidadeSlug_terapeutaId_data: { unidadeSlug: unidade, terapeutaId: terapeuta.id, data } },
-    update: { status: 'ATIVO', chegadaEm: new Date() }, // re-add = volta pro fim da fila
-    create: { unidadeSlug: unidade, terapeutaId: terapeuta.id, data },
+    update: { status: 'ATIVO', chegadaEm: new Date(), turno }, // re-add = volta pro fim da fila
+    create: { unidadeSlug: unidade, terapeutaId: terapeuta.id, data, turno },
   })
   return NextResponse.json({ ok: true, nome: terapeuta.nome })
 }

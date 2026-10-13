@@ -48,6 +48,8 @@ export async function GET(req: NextRequest) {
     unidade: base.unidade,
     data: base.data,
     agora: minToHHMM(base.agoraMin),
+    turnoAtivo: base.turnoAtivo,
+    aguardando: base.aguardando, // terapeutas do próximo turno (entram quando o ativo sair)
     fila: base.estado.map((e) => ({
       terapeutaId: e.terapeuta.id, // cod do Belle
       terapeutaIdDb: base._codParaId[e.terapeuta.id] ?? null, // id do nosso Terapeuta (p/ remover)
