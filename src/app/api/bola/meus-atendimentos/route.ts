@@ -40,12 +40,16 @@ export async function GET() {
     const r = recPorBelle.get(`bola:${b.id}`)
     return {
       belleId: `bola:${b.id}`,
+      bolaId: b.id,
       clienteNome: b.clienteNome || 'Cliente',
       servico: b.servicoNome,
       hora: horaSP(b.inicioEm),
       data: b.data,
       statusValidacao: 'CONFIRMADO',
       observacaoContestacao: null,
+      iniciado: !!b.iniciadoEm,
+      inicioReal: b.iniciadoEm ? horaSP(b.iniciadoEm) : null,
+      terminaPrev: b.iniciadoEm ? horaSP(b.fimPrevistoEm) : null,
       recomendacao: r
         ? {
             notaSono: r.notaSono, notaEnergia: r.notaEnergia, notaEstresse: r.notaEstresse,

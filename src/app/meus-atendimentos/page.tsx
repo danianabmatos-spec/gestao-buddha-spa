@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Loader2, CheckCircle2, XCircle, Camera, ClipboardList, Leaf, Moon, Zap,
-  ThumbsUp, MessageSquareWarning, LogOut, CalendarDays, Hand, Clock, Wallet, FileText, RefreshCw, Star,
+  ThumbsUp, MessageSquareWarning, LogOut, CalendarDays, Hand, Clock, Wallet, FileText, RefreshCw, Star, Play,
 } from 'lucide-react'
 
 // ─── Catálogo do bloquinho (espelha o papel de Recomendação) ────────────────────
@@ -228,22 +228,68 @@ function CheckinBola() {
 }
 
 // ─── Atendimentos de hoje (vindos da BOLA, tempo real) ───────────────────────────
-// Logo após a sessão, a terapeuta registra a recomendação sem esperar o fechamento
-// do dia no Belle. A recomendação (belleId "bola:<id>") é reconciliada com o
-// atendimento real no sync (lib/atendimentos/sync.ts).
-function CardBolaAtendimento({ at, onMudou }: { at: Atendimento; onMudou: () => void }) {
+// Logo que a bola é passada, o atendimento aparece aqui. A terapeuta marca o INÍCIO
+// ao entrar na sala com o cliente (define o término e quem fica livre pra bola);
+// depois registra a recomendação. A recomendação (belleId "bola:<id>") é reconciliada
+// com o atendimento real no sync (lib/atendimentos/sync.ts).
+interface BolaAtend extends Atendimento {
+  bolaId: number
+  iniciado: boolean
+  inicioReal: string | null
+  terminaPrev: string | null
+}
+
+function CardBolaAtendimento({ at, onMudou }: { at: BolaAtend; onMudou: () => void }) {
+  const [iniciando, setIniciando] = useState(false)
+  async function iniciar() {
+    setIniciando(true)
+    try {
+      const r = await fetch('/api/bola/iniciar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ atendimentoId: at.bolaId }),
+      })
+      if (r.ok) onMudou()
+    } finally { setIniciando(false) }
+  }
+
+  // Ainda não iniciou → cartão em destaque chamando a terapeuta pra iniciar.
+  if (!at.iniciado) {
+    return (
+      <div className="bg-white rounded-2xl border-2 border-[#D78B18] overflow-hidden shadow-sm">
+        <div className="px-4 pt-4">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[15px] font-bold text-[#392617]">{at.clienteNome}</p>
+            {at.hora && (
+              <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-[#8a5a0c] bg-[#D78B18]/15 rounded-full px-2 py-1">
+                <Clock size={11} /> avisada {at.hora}
+              </span>
+            )}
+          </div>
+          <p className="text-[13px] text-[#392617]/70">{at.servico || 'Atendimento'}</p>
+        </div>
+        <div className="px-4 pb-4 pt-3">
+          <p className="text-[13px] text-[#8a5a0c] font-medium mb-2">👉 Entrou na sala com o cliente? Toque para iniciar o atendimento.</p>
+          <button onClick={iniciar} disabled={iniciando}
+            className="w-full inline-flex items-center justify-center gap-2 text-[15px] font-bold text-white bg-[#425F1D] hover:bg-[#374f18] disabled:opacity-60 rounded-xl px-4 py-3.5 shadow-sm">
+            {iniciando ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />} Iniciar atendimento
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Já iniciou → mostra o andamento e libera o bloquinho da recomendação.
   return (
     <div className="bg-white rounded-2xl border border-[#DDC7A4] overflow-hidden">
       <div className="px-4 pt-4">
         <div className="flex items-start justify-between gap-2">
           <p className="text-[15px] font-bold text-[#392617]">{at.clienteNome}</p>
-          {at.hora && (
-            <span className="shrink-0 inline-flex items-center gap-1 text-[12px] font-bold text-[#425F1D] bg-[#425F1D]/10 rounded-full px-2 py-1">
-              <Clock size={12} /> {at.hora}
-            </span>
-          )}
+          <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-[#425F1D] bg-[#425F1D]/12 rounded-full px-2 py-1">
+            <Play size={10} /> {at.inicioReal}–{at.terminaPrev}
+          </span>
         </div>
         <p className="text-[13px] text-[#392617]/70">{at.servico || 'Atendimento'}</p>
+        <p className="text-[12px] text-[#425F1D] font-medium mt-0.5">Em atendimento · término previsto ~{at.terminaPrev}</p>
       </div>
       <BlocoRecomendacao at={at} onMudou={onMudou} />
     </div>
@@ -251,7 +297,7 @@ function CardBolaAtendimento({ at, onMudou }: { at: Atendimento; onMudou: () => 
 }
 
 function AtendimentosDaBola() {
-  const [lista, setLista] = useState<Atendimento[] | null>(null)
+  const [lista, setLista] = useState<BolaAtend[] | null>(null)
   const buscar = useCallback(async () => {
     try {
       const r = await fetch('/api/bola/meus-atendimentos', { cache: 'no-store' })
@@ -262,10 +308,11 @@ function AtendimentosDaBola() {
   useEffect(() => { const t = setTimeout(buscar, 0); return () => clearTimeout(t) }, [buscar])
 
   if (!lista || lista.length === 0) return null
+  const aguardando = lista.filter((a) => !a.iniciado).length
   return (
     <div className="mb-5">
       <p className="text-[11px] uppercase tracking-wide text-[#425F1D] font-bold mb-2 inline-flex items-center gap-1.5">
-        <Hand size={12} /> Atendimentos de hoje · registre a recomendação
+        <Hand size={12} /> Atendimentos de hoje{aguardando > 0 ? ' · inicie ao entrar na sala' : ' · registre a recomendação'}
       </p>
       <div className="space-y-3">
         {lista.map((a) => <CardBolaAtendimento key={a.belleId} at={a} onMudou={buscar} />)}

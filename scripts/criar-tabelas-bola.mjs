@@ -41,6 +41,7 @@ await db.execute(`
     "preferencial" BOOLEAN NOT NULL DEFAULT 0,
     "belleAgendaId" TEXT,
     "inicioEm" DATETIME NOT NULL DEFAULT (datetime('now')),
+    "iniciadoEm" DATETIME,
     "fimPrevistoEm" DATETIME NOT NULL,
     "criadoEm" DATETIME NOT NULL DEFAULT (datetime('now')),
     CONSTRAINT "BolaAtendimento_terapeutaId_fkey" FOREIGN KEY ("terapeutaId") REFERENCES "Terapeuta" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
@@ -48,5 +49,7 @@ await db.execute(`
 `)
 await db.execute(`CREATE INDEX IF NOT EXISTS "BolaAtendimento_unidadeSlug_data_idx" ON "BolaAtendimento"("unidadeSlug","data")`)
 await db.execute(`CREATE INDEX IF NOT EXISTS "BolaAtendimento_terapeutaId_data_idx" ON "BolaAtendimento"("terapeutaId","data")`)
+// Migração: coluna "iniciadoEm" (início real pela terapeuta) p/ tabelas já existentes.
+try { await db.execute(`ALTER TABLE "BolaAtendimento" ADD COLUMN "iniciadoEm" DATETIME`) } catch { /* coluna já existe */ }
 
 console.log('Tabelas da bola OK (BolaCheckin, BolaAtendimento).')

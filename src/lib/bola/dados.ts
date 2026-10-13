@@ -167,10 +167,17 @@ export async function montarEstadoBola(
   for (const a of bolaAtend) {
     const cod = idParaCod.get(a.terapeutaId)
     if (!cod) continue
+    // Ocupação pelo INÍCIO REAL (terapeuta clicou "Iniciar"):
+    //  - já iniciou → janela [iniciadoEm, fimPrevistoEm] (= início real + duração);
+    //  - ainda não iniciou → segue OCUPADA (recebeu o cliente, vai iniciar já):
+    //    mantemos o fim à frente de agora até ela clicar em iniciar.
+    const iniciada = !!a.iniciadoEm
     atendimentos.push({
       terapeutaId: cod,
-      inicioMin: minutosDeSP(a.inicioEm),
-      fimMin: minutosDeSP(a.fimPrevistoEm),
+      inicioMin: minutosDeSP(a.iniciadoEm ?? a.inicioEm),
+      fimMin: iniciada
+        ? minutosDeSP(a.fimPrevistoEm)
+        : Math.max(minutosDeSP(a.fimPrevistoEm), agoraMin + (a.duracaoMin || 0)),
       cliente: a.clienteNome ?? undefined,
       servico: a.servicoNome ?? undefined,
     })

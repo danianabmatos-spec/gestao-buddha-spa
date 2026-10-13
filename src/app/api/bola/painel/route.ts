@@ -38,8 +38,13 @@ export async function GET(req: NextRequest) {
     terapeuta: a.terapeuta?.nome ?? '',
     servicoNome: a.servicoNome,
     salaNome: a.salaNome,
+    duracaoMin: a.duracaoMin,
     // HORA DO ENVIO DA BOLA (quando a terapeuta foi avisada) — NÃO o início da massagem.
     horaEnvio: fmtHora(a.inicioEm),
+    // INÍCIO REAL (terapeuta clicou "Iniciar") e término previsto — o que a recepção quer saber.
+    iniciado: !!a.iniciadoEm,
+    inicioReal: a.iniciadoEm ? fmtHora(a.iniciadoEm) : null,
+    terminaPrev: a.iniciadoEm ? fmtHora(a.fimPrevistoEm) : null,
   }))
   const passados = new Set(atendRaw.map((a) => String(a.belleAgendaId)).filter((x) => x && x !== 'null'))
   const clientes = base.clientes.filter((c) => !passados.has(String(c.codConsulta)))

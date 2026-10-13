@@ -22,7 +22,7 @@ interface Cliente {
   servicoNome: string; servicoCod: number; duracaoMin: number; salaNome: string
   generoPref: 'F' | 'M' | null; preferencial: boolean; preferencialCod: string | null; preferencialNome: string | null
 }
-interface Atendido { id: number; cliente: string | null; terapeuta: string; servicoNome: string | null; salaNome: string | null; horaEnvio: string }
+interface Atendido { id: number; cliente: string | null; terapeuta: string; servicoNome: string | null; salaNome: string | null; duracaoMin: number; horaEnvio: string; iniciado: boolean; inicioReal: string | null; terminaPrev: string | null }
 interface Aguardando { cod: string; terapeutaId: number | null; nome: string; turno: number; chegada: string }
 interface PainelResp { unidade: string; data: string; agora: string; turnoAtivo: number; fila: FilaItem[]; aguardando: Aguardando[]; disponiveis: Disponivel[]; clientes: Cliente[]; atendidos: Atendido[] }
 interface Ordem { nome: string; rodadas: number; elegivel: boolean; motivo: string }
@@ -356,14 +356,23 @@ export default function BolaPage() {
       {painel && painel.atendidos.length > 0 && (
         <div className="mt-6 border rounded-xl p-4">
           <h2 className="font-semibold mb-1" style={{ color: FLORA }}>Cliente atendido</h2>
-          <p className="text-xs text-muted-foreground mb-3">Bolas já passadas hoje · a hora é quando a <b>terapeuta foi avisada</b> (não o início da massagem).</p>
+          <p className="text-xs text-muted-foreground mb-3">Bolas passadas hoje · <b>avisada</b> = hora que a terapeuta recebeu a bola; a <b>terapeuta marca o início</b> quando entra na sala.</p>
           <div className="flex flex-col gap-1.5">
             {painel.atendidos.map((a) => (
               <div key={a.id} className="flex items-center gap-3 border rounded-lg px-3 py-2">
-                <span className="text-xs tabular-nums font-semibold w-12 shrink-0" style={{ color: FLORA }}>{a.horaEnvio}</span>
+                <span className="text-xs tabular-nums w-14 shrink-0 text-muted-foreground" title="Hora em que a terapeuta foi avisada">avisada<br />{a.horaEnvio}</span>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">{a.cliente || '—'} <span className="text-muted-foreground font-normal">→ {a.terapeuta}</span></div>
                   <div className="text-xs text-muted-foreground truncate">{a.servicoNome}{a.salaNome ? ` · ${a.salaNome}` : ''}</div>
+                  {a.iniciado ? (
+                    <div className="text-xs font-semibold mt-0.5" style={{ color: FLORA }}>
+                      ▶ iniciado {a.inicioReal} · termina ~{a.terminaPrev}
+                    </div>
+                  ) : (
+                    <div className="text-xs font-semibold mt-0.5 inline-flex items-center gap-1" style={{ color: '#8a5a0c' }}>
+                      <Clock className="w-3 h-3" /> aguardando a terapeuta iniciar
+                    </div>
+                  )}
                 </div>
                 <button onClick={() => cancelarBola(a.id)} title="Cancelar esta bola"
                   className="text-xs inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[#7E0000] hover:bg-[#7E0000]/5 shrink-0">

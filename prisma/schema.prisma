@@ -1067,8 +1067,9 @@ model BolaAtendimento {
   salaNome      String?                     // sala que veio do Belle
   preferencial  Boolean   @default(false)   // atendimento de cliente verde
   belleAgendaId String?                     // cod_consulta do Belle, se houver
-  inicioEm      DateTime  @default(now())    // quando a bola passou (= início)
-  fimPrevistoEm DateTime                     // inicioEm + duracaoMin
+  inicioEm      DateTime  @default(now())    // quando a bola passou (= terapeuta avisada)
+  iniciadoEm    DateTime?                    // quando a TERAPEUTA iniciou (entrou na sala); null = aguardando
+  fimPrevistoEm DateTime                     // término previsto = iniciadoEm + duracaoMin (provisório no passe)
   criadoEm      DateTime  @default(now())
 
   @@index([unidadeSlug, data])
