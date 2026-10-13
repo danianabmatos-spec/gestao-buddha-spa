@@ -114,10 +114,10 @@ export async function proxy(req: NextRequest) {
       }
     }
 
-    // Validação do fechamento e Pontuação (coordenadora): só DONA e COORDENACAO.
+    // Validação do fechamento e Pontuação: DONA, COORDENACAO e RECEPCAO.
     if ((pathname.startsWith('/validacao') || pathname.startsWith('/api/validacao') ||
          pathname.startsWith('/pontuacao') || pathname.startsWith('/api/pontuacao')) &&
-        session.perfil !== 'DONA' && session.perfil !== 'COORDENACAO') {
+        !['DONA', 'COORDENACAO', 'RECEPCAO'].includes(session.perfil)) {
       if (pathname.startsWith('/api/')) {
         return NextResponse.json({ error: 'Acesso restrito à coordenação.' }, { status: 403 })
       }

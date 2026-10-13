@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Loader2, CheckCircle2, XCircle, Camera, ClipboardList, Leaf, Moon, Zap,
-  ThumbsUp, MessageSquareWarning, LogOut, CalendarDays, Hand, Clock, Wallet, FileText, RefreshCw,
+  ThumbsUp, MessageSquareWarning, LogOut, CalendarDays, Hand, Clock, Wallet, FileText, RefreshCw, Star,
 } from 'lucide-react'
 
 // ─── Catálogo do bloquinho (espelha o papel de Recomendação) ────────────────────
@@ -125,6 +125,7 @@ export default function MeusAtendimentosPage() {
       <main className="max-w-2xl mx-auto px-4 py-5 sm:px-6">
         {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <CheckinBola key={`ck${refreshKey}`} />}
         {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <MinhaComissao key={`mc${refreshKey}`} realizados={realizados} diasTrabalhados={diasTrabalhados} />}
+        {resp?.terapeuta && UNIDADES_PILOTO.includes(resp.terapeuta.unidadeSlug) && <MinhaPontuacao key={`mp${refreshKey}`} />}
         {resp?.terapeuta && (
           <p className="text-sm text-[#392617]/70 mb-1">Atendimentos de {mesLongo(resp.ref)}</p>
         )}
@@ -293,6 +294,53 @@ function MinhaComissao({ realizados, diasTrabalhados }: { realizados: number; di
           <p className="text-[10px] uppercase tracking-wide text-[#392617]/55">média/dia</p>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Minha pontuação (bloquinho → venda) — read-only, visão da terapeuta ─────────
+function MinhaPontuacao() {
+  const [d, setD] = useState<{
+    meus: { voucher: number; agendamento: number; produto: number; pacote: number; total: number }
+    posicao: number | null; totalTerapeutas: number; metaPremio: number; premioAtivo: boolean; ref: string
+  } | null>(null)
+  const [carregando, setCarregando] = useState(true)
+  useEffect(() => {
+    fetch('/api/minha-pontuacao', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j?.meus) setD(j) })
+      .catch(() => {})
+      .finally(() => setCarregando(false))
+  }, [])
+
+  if (carregando) return <div className="h-[72px] mb-4 rounded-2xl bg-white/60 border border-[#DDC7A4] animate-pulse" />
+  if (!d) return null
+
+  const meses = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+  const m = Number(d.ref.slice(5, 7))
+  const chips: [string, number][] = [['Voucher', d.meus.voucher], ['Agendamento', d.meus.agendamento], ['Produto', d.meus.produto], ['Pacote', d.meus.pacote]]
+
+  return (
+    <div className="mb-4 rounded-2xl border border-[#425F1D]/40 bg-[#425F1D]/[0.07] px-4 py-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="shrink-0 w-9 h-9 rounded-full bg-[#425F1D] text-white flex items-center justify-center"><Star size={18} /></div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-[#2f4a15] font-bold">Minha pontuação · {meses[m] || ''}/{d.ref.slice(0, 4)}</p>
+            <p className="text-[18px] font-bold text-[#425F1D] leading-tight">{d.meus.total} <span className="text-[11px] font-medium text-[#392617]/55">ponto{d.meus.total === 1 ? '' : 's'}</span></p>
+          </div>
+        </div>
+        {d.posicao != null && <span className="text-[12px] font-semibold text-[#2f4a15]">{d.posicao}ª de {d.totalTerapeutas}</span>}
+      </div>
+      {d.meus.total > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {chips.filter(([, n]) => n > 0).map(([l, n]) => (
+            <span key={l} className="text-[11px] font-medium text-[#2f4a15] bg-white border border-[#425F1D]/20 rounded-full px-2 py-0.5">{l}: {n}</span>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-1.5 text-[12px] text-[#392617]/60">Ainda sem pontos este mês — suas recomendações viram pontos quando o cliente compra. 🌟</p>
+      )}
     </div>
   )
 }

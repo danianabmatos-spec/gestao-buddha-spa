@@ -5,7 +5,7 @@ import { apurarPontuacao, apurarConsolidado } from '@/lib/pontuacao/apurar'
 
 export const dynamic = 'force-dynamic'
 
-const PERFIS_OK = ['DONA', 'COORDENACAO']
+const PERFIS_OK = ['DONA', 'COORDENACAO', 'RECEPCAO']
 
 function mesAtual(): string {
   const d = new Date()
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session) return unauthorized()
   if (!PERFIS_OK.includes(session.perfil)) {
-    return NextResponse.json({ error: 'Acesso restrito à coordenação.' }, { status: 403 })
+    return NextResponse.json({ error: 'Acesso restrito.' }, { status: 403 })
   }
 
   const permitidas = unidadesPermitidas(session)

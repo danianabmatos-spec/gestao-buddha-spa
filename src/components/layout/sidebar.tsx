@@ -28,6 +28,7 @@ import {
   LogOut,
   MessageCircle,
   ExternalLink,
+  Star,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -65,7 +66,7 @@ const menuOperacional = [
   { href: '/metas', label: 'Metas', icon: Target, func: 'metas' },
 ]
 // Funcionalidades que compõem uma unidade (a unidade só aparece se pelo menos 1 for visível).
-const FUNCS_UNIDADE = ['rotina-do-dia', 'dashboard', 'historico', 'terapeutas', 'metas', 'caixa', 'validacao', 'pos-venda', 'bola']
+const FUNCS_UNIDADE = ['rotina-do-dia', 'dashboard', 'historico', 'terapeutas', 'metas', 'caixa', 'validacao', 'pos-venda', 'bola', 'pontuacao']
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -235,6 +236,11 @@ export function Sidebar() {
                       {pode('pos-venda') && (
                         <Link href={`/pos-venda?unidade=${slug}`} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white">
                           <HeartHandshake size={14} strokeWidth={1.8} /> Pós-venda
+                        </Link>
+                      )}
+                      {pode('pontuacao') && (
+                        <Link href={`/pontuacao?unidade=${slug}`} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors text-[#DDC7A4]/80 hover:bg-[#5c0000] hover:text-white">
+                          <Star size={14} strokeWidth={1.8} /> Pontuação
                         </Link>
                       )}
                     </div>

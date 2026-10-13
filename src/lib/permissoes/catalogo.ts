@@ -64,7 +64,7 @@ export const FUNCIONALIDADES: Funcionalidade[] = [
   { chave: 'caixa', label: 'Controle de Caixa', grupo: 'Unidade', rotas: ['/caixa', '/api/rotinas/caixa', '/dashboard/*/conciliacao', '/api/conciliacao'], padrao: p(V, E, E, N, N) },
   { chave: 'validacao', label: 'Validação de Atendimentos', grupo: 'Unidade', rotas: ['/validacao', '/api/validacao'], padrao: p(E, N, N, N, N) },
   { chave: 'pos-venda', label: 'Pós-venda', grupo: 'Unidade', rotas: ['/pos-venda', '/api/pos-venda'], padrao: p(E, E, N, N, N) },
-  { chave: 'pontuacao', label: 'Pontuação', grupo: 'Unidade', rotas: ['/pontuacao', '/api/pontuacao'], padrao: p(E, N, N, N, N) },
+  { chave: 'pontuacao', label: 'Pontuação', grupo: 'Unidade', rotas: ['/pontuacao', '/api/pontuacao'], padrao: p(E, E, N, N, N) },
   { chave: 'bola', label: 'Controle da Bola (rodízio)', grupo: 'Unidade', rotas: ['/dashboard/*/bola', '/api/bola'], padrao: p(E, E, N, N, N) },
 
   // ── Terapeuta ──
