@@ -29,8 +29,9 @@ export async function GET(req: NextRequest) {
   const status = (sp.get('status') || 'PENDENTE_VENDA').toUpperCase()
   if (!unidade) return NextResponse.json({ error: 'Sem unidade disponível.' }, { status: 400 })
 
-  // Aba "Sem recomendação": atendimentos recentes (últimos 7 dias) SEM bloquinho —
-  // a recepção pode incluir a recomendação que a terapeuta indicou verbalmente.
+  // Aba "Sem recomendação": atendimentos do MÊS CORRENTE (1º dia até hoje) SEM
+  // bloquinho — a recepção pode incluir a recomendação que a terapeuta indicou
+  // verbalmente.
   if (status === 'SEM_RECOMENDACAO') {
     const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
     // Sincroniza HOJE do Belle (throttle 60s) → atendimentos recém-fechados aparecem na hora.
@@ -39,15 +40,14 @@ export async function GET(req: NextRequest) {
       ultimoSyncHoje.set(unidade, agoraMs)
       try { await syncAtendimentosUnidade(unidade, hoje, hoje) } catch (e) { console.error('[pos-venda] sync hoje:', e instanceof Error ? e.message : e) }
     }
-    const d = new Date(); d.setDate(d.getDate() - 7)
-    const desde = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(d)
+    const desde = `${hoje.slice(0, 7)}-01` // 1º dia do mês corrente (fuso São Paulo)
     const ats = await prisma.atendimento.findMany({
       where: { unidadeSlug: unidade, data: { gte: desde, lte: hoje } },
-      orderBy: [{ data: 'desc' }], take: 500,
+      orderBy: [{ data: 'desc' }], take: 2000,
     })
     const comRec = new Set(
       (await prisma.recomendacao.findMany({
-        where: { unidadeSlug: unidade, belleId: { in: ats.map((a) => a.belleId) } },
+        where: { unidadeSlug: unidade, dataAtendimento: { gte: desde, lte: hoje } },
         select: { belleId: true },
       })).map((r) => r.belleId),
     )
