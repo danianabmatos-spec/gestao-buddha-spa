@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 import { getSession, unauthorized, resolveUnidade } from '@/lib/auth/guard'
 import { montarEstadoBola, escolherDoEstado } from '@/lib/bola/dados'
 import { hhmmToMin, minToHHMM } from '@/lib/bola/motor'
@@ -23,6 +24,26 @@ export async function GET(req: NextRequest) {
 
   const base = await montarEstadoBola(unidade, { agoraMin: parseAgora(url.searchParams.get('agora')) })
 
+  // Bolas já passadas hoje → quadro "Cliente atendido" + tira o cliente da lista "Chegou cliente".
+  const atendRaw = await prisma.bolaAtendimento.findMany({
+    where: { unidadeSlug: unidade, data: base.data },
+    include: { terapeuta: { select: { nome: true } } },
+    orderBy: { inicioEm: 'desc' },
+  })
+  const fmtHora = (d: Date) =>
+    new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(d)
+  const atendidos = atendRaw.map((a) => ({
+    id: a.id,
+    cliente: a.clienteNome,
+    terapeuta: a.terapeuta?.nome ?? '',
+    servicoNome: a.servicoNome,
+    salaNome: a.salaNome,
+    // HORA DO ENVIO DA BOLA (quando a terapeuta foi avisada) — NÃO o início da massagem.
+    horaEnvio: fmtHora(a.inicioEm),
+  }))
+  const passados = new Set(atendRaw.map((a) => String(a.belleAgendaId)).filter((x) => x && x !== 'null'))
+  const clientes = base.clientes.filter((c) => !passados.has(String(c.codConsulta)))
+
   return NextResponse.json({
     unidade: base.unidade,
     data: base.data,
@@ -42,7 +63,8 @@ export async function GET(req: NextRequest) {
             : null,
     })),
     disponiveis: base.disponiveis, // terapeutas do dia que a recepção pode marcar chegada
-    clientes: base.clientes, // clientes da agenda do Belle (recepção toca ao chegar)
+    clientes, // clientes da agenda do Belle (recepção toca ao chegar) — sem os já passados
+    atendidos, // bolas já passadas hoje (quadro "Cliente atendido", com hora do envio)
   })
 }
 

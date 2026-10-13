@@ -12,13 +12,24 @@ export interface AnuncioBola {
   salaNome?: string | null
 }
 
+/** Só o primeiro nome do cliente (privacidade no grupo). */
+const primeiroNome = (n: string): string => n.trim().split(/\s+/)[0] || n.trim()
+
 /** Monta a mensagem padronizada que o robô posta no grupo. */
 export function montarAnuncioBola(a: AnuncioBola): string {
   const partes = [a.terapeutaNome]
-  if (a.clienteNome) partes.push(a.clienteNome)
+  if (a.clienteNome) partes.push(primeiroNome(a.clienteNome))
   partes.push(`${a.servicoNome} (${a.duracaoMin}min)`)
   if (a.salaNome) partes.push(`Sala ${a.salaNome}`)
   return `🔔 Próximo atendimento\n${partes.join(' → ')}`
+}
+
+/** Mensagem de CANCELAMENTO de uma bola já anunciada. */
+export function montarCancelamentoBola(a: { terapeutaNome: string; clienteNome?: string | null; servicoNome?: string | null }): string {
+  const partes = [a.terapeutaNome]
+  if (a.clienteNome) partes.push(primeiroNome(a.clienteNome))
+  if (a.servicoNome) partes.push(a.servicoNome)
+  return `❌ Bola cancelada\n${partes.join(' → ')}`
 }
 
 export interface ResultadoEnvio {

@@ -22,7 +22,8 @@ interface Cliente {
   servicoNome: string; servicoCod: number; duracaoMin: number; salaNome: string
   generoPref: 'F' | 'M' | null; preferencial: boolean; preferencialCod: string | null; preferencialNome: string | null
 }
-interface PainelResp { unidade: string; data: string; agora: string; fila: FilaItem[]; disponiveis: Disponivel[]; clientes: Cliente[] }
+interface Atendido { id: number; cliente: string | null; terapeuta: string; servicoNome: string | null; salaNome: string | null; horaEnvio: string }
+interface PainelResp { unidade: string; data: string; agora: string; fila: FilaItem[]; disponiveis: Disponivel[]; clientes: Cliente[]; atendidos: Atendido[] }
 interface Ordem { nome: string; rodadas: number; elegivel: boolean; motivo: string }
 interface Escolha { escolhida: { id: string; nome: string } | null; salaBelle: string | null; motivo: string; ordem: Ordem[] }
 
@@ -128,13 +129,23 @@ export default function BolaPage() {
       const r = await fetch(`/api/bola/passar?unidade=${unidadeSlug}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agora: agora || undefined, terapeutaCod, servicoCod: clienteSel.servicoCod, servicoNome: clienteSel.servicoNome, duracaoMin: clienteSel.duracaoMin, salaNome: clienteSel.salaNome, clienteNome: clienteSel.cliente }),
+        body: JSON.stringify({ agora: agora || undefined, terapeutaCod, servicoCod: clienteSel.servicoCod, servicoNome: clienteSel.servicoNome, duracaoMin: clienteSel.duracaoMin, salaNome: clienteSel.salaNome, clienteNome: clienteSel.cliente, codConsulta: clienteSel.codConsulta }),
       })
       const j = await r.json()
       if (r.ok) { setPasse({ mensagem: j.mensagem, enviado: !!j.whatsapp?.enviado, motivo: j.whatsapp?.motivo || '' }); carregar() }
       else setPasse({ mensagem: j.error || 'Erro ao passar a bola', enviado: false, motivo: 'erro' })
     } finally { setPassando(false) }
   }, [clienteSel, escolha, unidadeSlug, agora, carregar])
+
+  const cancelarBola = useCallback(async (atendimentoId: number) => {
+    if (!confirm('Cancelar esta bola? A terapeuta é avisada no grupo (❌) e o cliente volta pra "Chegou cliente".')) return
+    const r = await fetch(`/api/bola/cancelar?unidade=${unidadeSlug}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ atendimentoId }),
+    })
+    if (r.ok) carregar()
+    else { const j = await r.json().catch(() => ({})); setErro(j.error || 'Erro ao cancelar a bola') }
+  }, [unidadeSlug, carregar])
 
   const naBola = painel ? idxNaBola(painel.fila) : -1
 
@@ -311,6 +322,29 @@ export default function BolaPage() {
           </div>
         </div>
       </div>
+
+      {/* CLIENTE ATENDIDO — bolas já passadas hoje (a hora é o AVISO à terapeuta, não o início da massagem) */}
+      {painel && painel.atendidos.length > 0 && (
+        <div className="mt-6 border rounded-xl p-4">
+          <h2 className="font-semibold mb-1" style={{ color: FLORA }}>Cliente atendido</h2>
+          <p className="text-xs text-muted-foreground mb-3">Bolas já passadas hoje · a hora é quando a <b>terapeuta foi avisada</b> (não o início da massagem).</p>
+          <div className="flex flex-col gap-1.5">
+            {painel.atendidos.map((a) => (
+              <div key={a.id} className="flex items-center gap-3 border rounded-lg px-3 py-2">
+                <span className="text-xs tabular-nums font-semibold w-12 shrink-0" style={{ color: FLORA }}>{a.horaEnvio}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{a.cliente || '—'} <span className="text-muted-foreground font-normal">→ {a.terapeuta}</span></div>
+                  <div className="text-xs text-muted-foreground truncate">{a.servicoNome}{a.salaNome ? ` · ${a.salaNome}` : ''}</div>
+                </div>
+                <button onClick={() => cancelarBola(a.id)} title="Cancelar esta bola"
+                  className="text-xs inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[#7E0000] hover:bg-[#7E0000]/5 shrink-0">
+                  <X className="w-3.5 h-3.5" /> Cancelar
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

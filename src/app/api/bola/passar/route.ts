@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   if (!unidade) return NextResponse.json({ error: 'Unidade não informada.' }, { status: 400 })
 
   const body = await req.json().catch(() => ({}))
-  const { servicoCod, servicoNome, duracaoMin, generoPref, salaNome, clienteNome, terapeutaCod } = body
+  const { servicoCod, servicoNome, duracaoMin, generoPref, salaNome, clienteNome, terapeutaCod, codConsulta } = body
   if (!servicoNome || !duracaoMin) {
     return NextResponse.json({ error: 'Informe servicoNome e duracaoMin.' }, { status: 400 })
   }
@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
       duracaoMin: Number(duracaoMin),
       salaNome: salaNome || null,
       preferencial: false,
+      belleAgendaId: codConsulta != null ? String(codConsulta) : null,
       inicioEm: inicio,
       fimPrevistoEm: fim,
     },
