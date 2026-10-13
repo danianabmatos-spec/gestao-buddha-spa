@@ -244,16 +244,19 @@ export function Sidebar() {
             })}
           </div>
         )}
+
+        {/* Meu WhatsApp — atalho pra Central (a recepção conecta o WhatsApp da
+            própria unidade na tela "Meu WhatsApp" de lá; login próprio da Central). */}
+        <div className="mt-4 pt-3 border-t border-[#5c0000]">
+          <a href="https://atendimento.solcentral.com.br" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#D78B18] border border-[#D78B18]/30 hover:bg-[#D78B18]/10 hover:border-[#D78B18] transition-colors">
+            <MessageCircle size={18} strokeWidth={2} /> <span className="flex-1">Meu WhatsApp</span>
+            <ExternalLink size={12} className="opacity-60" />
+          </a>
+        </div>
       </nav>
 
       <div className="p-3 border-t border-[#5c0000] space-y-1">
-        {/* Atalho pra Central: a recepção conecta o WhatsApp da própria unidade
-            na tela "Meu WhatsApp" de lá (login próprio da Central). */}
-        <a href="https://atendimento.solcentral.com.br" target="_blank" rel="noopener noreferrer"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#DDC7A4] hover:bg-[#5c0000] hover:text-white transition-colors">
-          <MessageCircle size={18} strokeWidth={1.8} /> <span className="flex-1">Meu WhatsApp</span>
-          <ExternalLink size={12} className="opacity-50" />
-        </a>
         {pode('empresas') && (
           <Link href="/empresas" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#DDC7A4] hover:bg-[#5c0000] hover:text-white transition-colors">
             <Building2 size={18} strokeWidth={1.8} /> Empresas
