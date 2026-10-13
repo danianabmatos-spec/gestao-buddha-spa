@@ -29,11 +29,11 @@ export async function GET(req: Request) {
     where: { terapeutaId: terapeuta.id, fechamentoRef: ref },
     orderBy: [{ data: 'asc' }, { hora: 'asc' }, { id: 'asc' }],
   })
-  // Só mostra os JÁ ATENDIDOS (passados + o atual) — futuros não entram na validação.
-  const agora = new Date()
-  const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(agora) // YYYY-MM-DD
-  const horaSP = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(agora) // HH:MM
-  const atendimentos = todos.filter((a) => a.data < hojeSP || (a.data === hojeSP && (a.hora ?? '00:00') <= horaSP))
+  // Só os dias JÁ FECHADOS (anteriores a hoje) entram na validação — os de hoje
+  // ainda estão na agenda (nem todos atendidos) e o atual é o da bola (quadro superior).
+  // TODO: filtrar por status "Atendido" do Belle p/ liberar os de hoje já atendidos.
+  const hojeSP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()) // YYYY-MM-DD
+  const atendimentos = todos.filter((a) => a.data < hojeSP)
 
   const belleIds = atendimentos.map((a) => a.belleId)
   const recomendacoes = belleIds.length

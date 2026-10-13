@@ -9,7 +9,7 @@ import {
 interface Unidade { slug: string; nome: string }
 interface Resumo { total: number; pendentes: number; confirmados: number; contestados: number; ajustados: number; rejeitados: number }
 interface PorTerapeuta { nome: string; total: number; pendentes: number; contestados: number }
-interface Contestacao { belleId: string; terapeutaNome: string; clienteNome: string; servico: string | null; data: string; valorComissao: number; observacaoContestacao: string | null }
+interface Contestacao { belleId: string; terapeutaNome: string; clienteNome: string; servico: string | null; data: string; valorComissao: number | null; observacaoContestacao: string | null }
 interface ApiResp {
   unidadeAtual: Unidade
   unidades: Unidade[]
@@ -200,7 +200,7 @@ function CardContestacao({ c, onResolvido, podeValidar }: { c: Contestacao; onRe
           <CalendarDays size={13} /> {dataBR}
         </span>
       </div>
-      <p className="text-[12px] text-[#392617]/55 mt-1.5">Cliente: {c.clienteNome} · comissão {brl(c.valorComissao)}</p>
+      <p className="text-[12px] text-[#392617]/55 mt-1.5">Cliente: {c.clienteNome}{c.valorComissao != null ? ` · comissão ${brl(c.valorComissao)}` : ''}</p>
       <p className="mt-2 text-[13px] text-[#7E0000] italic bg-[#7E0000]/[0.04] rounded-lg px-3 py-2">“{c.observacaoContestacao}”</p>
       {podeValidar && (
         <>

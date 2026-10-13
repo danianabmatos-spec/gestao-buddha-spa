@@ -16,12 +16,13 @@ function mesAtual(): string {
 export async function GET(req: NextRequest) {
   const session = await getSession()
   if (!session) return unauthorized()
-  // Recepção pode VISUALIZAR o painel; validar/liberar/resolver continua só com a
-  // coordenação (enforçado nos POSTs /liberar e /resolver).
   if (!['DONA', 'COORDENACAO', 'RECEPCAO'].includes(session.perfil)) {
     return NextResponse.json({ error: 'Acesso restrito.' }, { status: 403 })
   }
-  const podeValidar = session.perfil === 'DONA' || session.perfil === 'COORDENACAO'
+  // Recepção também RESOLVE/responde/libera (edita a validação); só NÃO vê o valor
+  // da comissão da terapeuta.
+  const podeValidar = ['DONA', 'COORDENACAO', 'RECEPCAO'].includes(session.perfil)
+  const podeVerComissao = session.perfil === 'DONA' || session.perfil === 'COORDENACAO'
 
   const permitidas = unidadesPermitidas(session)
   const slugsDisponiveis = permitidas === null ? getUnidadesDisponiveis() : permitidas
@@ -68,7 +69,7 @@ export async function GET(req: NextRequest) {
       clienteNome: a.clienteNome,
       servico: a.servico,
       data: a.data,
-      valorComissao: a.valorComissao,
+      valorComissao: podeVerComissao ? a.valorComissao : null, // recepção não vê comissão
       observacaoContestacao: a.observacaoContestacao,
     }))
 
@@ -90,7 +91,7 @@ export async function GET(req: NextRequest) {
     podeLiberar: resumo.pendentes === 0 && resumo.contestados === 0,
     // Com contestação aberta, a liberação (nem forçada) fica indisponível.
     temContestacaoAberta: resumo.contestados > 0,
-    // Recepção só visualiza; ações (liberar/resolver) ficam com a coordenação.
-    podeValidar,
+    podeValidar,       // D/C/R: resolve contestação, responde, libera o fechamento
+    podeVerComissao,   // só D/C veem o valor da comissão da terapeuta
   })
 }

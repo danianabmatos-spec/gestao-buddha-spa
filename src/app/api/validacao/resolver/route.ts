@@ -10,8 +10,8 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return unauthorized()
-  if (session.perfil !== 'DONA' && session.perfil !== 'COORDENACAO') {
-    return NextResponse.json({ error: 'Acesso restrito à coordenação.' }, { status: 403 })
+  if (!['DONA', 'COORDENACAO', 'RECEPCAO'].includes(session.perfil)) {
+    return NextResponse.json({ error: 'Acesso restrito.' }, { status: 403 })
   }
 
   const { belleId, resolucao, respostaCoord } = await req.json().catch(() => ({}))
