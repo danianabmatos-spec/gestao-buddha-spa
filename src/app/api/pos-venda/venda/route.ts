@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, unauthorized, unidadesPermitidas } from '@/lib/auth/guard'
+import { enviarAnuncioGrupo } from '@/lib/bola/whatsapp'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,7 +50,34 @@ export async function POST(req: NextRequest) {
   })
   await prisma.vendaItem.deleteMany({ where: { vendaId: venda.id } })
   await prisma.vendaItem.createMany({ data: limpos.map((i) => ({ vendaId: venda.id, tipo: i.tipo, quantidade: i.quantidade })) })
+  const eraVendida = rec.status === 'VENDIDA'
   await prisma.recomendacao.update({ where: { id: rec.id }, data: { status: 'VENDIDA' } })
+
+  // Aviso no grupo PEx — só na 1ª venda (não re-avisa em edição). Isolado: falha
+  // no WhatsApp não derruba o registro da venda.
+  if (!eraVendida) {
+    try {
+      const at = await prisma.atendimento.findUnique({
+        where: { belleId: rec.belleId },
+        select: { terapeutaNome: true, clienteNome: true },
+      })
+      if (at?.terapeutaNome) {
+        const primeiro = (n: string) => n.trim().split(/\s+/)[0] || n.trim()
+        const pontos = limpos.reduce((s, i) => s + i.quantidade, 0)
+        const LABEL: Record<string, (q: number) => string> = {
+          VOUCHER: (q) => (q > 1 ? `${q} vouchers` : 'um voucher'),
+          NOVO_AGENDAMENTO: (q) => (q > 1 ? `${q} novos agendamentos` : 'um novo agendamento'),
+          PRODUTO: (q) => (q > 1 ? `${q} produtos` : 'um produto'),
+          PACOTE: (q) => `um pacote de ${q} sessões`,
+        }
+        const desc = limpos.map((i) => LABEL[i.tipo](i.quantidade)).join(' + ')
+        const msg = `🌟 ${primeiro(at.terapeutaNome)}, sua cliente ${primeiro(at.clienteNome)} fechou ${desc} conforme sua recomendação — você ganhou ${pontos} ponto${pontos > 1 ? 's' : ''}! Parabéns, brilhou!! 🎉`
+        await enviarAnuncioGrupo(rec.unidadeSlug, msg, 'pex')
+      }
+    } catch (e) {
+      console.error('[pos-venda/venda] aviso PEx:', e instanceof Error ? e.message : e)
+    }
+  }
 
   return NextResponse.json({ ok: true, vendaId: venda.id })
 }

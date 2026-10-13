@@ -47,9 +47,9 @@ function ativo(): boolean {
  * Envia o anúncio ao grupo da unidade. Enquanto a trava estiver desligada, apenas
  * loga (dry-run) e retorna enviado=false — nenhum dado sai para o WhatsApp.
  */
-export async function enviarAnuncioGrupo(unidadeSlug: string, mensagem: string): Promise<ResultadoEnvio> {
+export async function enviarAnuncioGrupo(unidadeSlug: string, mensagem: string, grupo: 'agenda' | 'pex' = 'agenda'): Promise<ResultadoEnvio> {
   if (!ativo()) {
-    console.log(`[bola][dry-run] WhatsApp ${unidadeSlug} (envio desligado):\n${mensagem}`)
+    console.log(`[bola][dry-run] WhatsApp ${unidadeSlug}/${grupo} (envio desligado):\n${mensagem}`)
     return { enviado: false, motivo: 'envio desligado (BOLA_WHATSAPP_ATIVO)', mensagem }
   }
 
@@ -65,7 +65,7 @@ export async function enviarAnuncioGrupo(unidadeSlug: string, mensagem: string):
     const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-bola-key': process.env.BOLA_WHATSAPP_KEY || '' },
-      body: JSON.stringify({ unidade: unidadeSlug, texto: mensagem }),
+      body: JSON.stringify({ unidade: unidadeSlug, texto: mensagem, grupo }),
       signal: AbortSignal.timeout(10_000),
     })
     if (!resp.ok) return { enviado: false, motivo: `servidor WhatsApp respondeu ${resp.status}`, mensagem }
