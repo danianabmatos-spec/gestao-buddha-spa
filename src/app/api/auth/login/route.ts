@@ -65,11 +65,24 @@ export async function POST(req: NextRequest) {
     unidadeSlugs = usuario.unidade?.slug ? [usuario.unidade.slug] : []
   }
 
+  // Rede de segurança: se o escopo do perfil não bate com o cadastro do usuário
+  // (ex.: COORDENACAO marcada como 'unidade' por engano em /acessos, mas a
+  // coordenadora tem as unidades via vínculo N:N e unidadeId null), cai pros
+  // vínculos N:N em vez de TRAVAR o login de quem claramente tem unidades.
+  if (!escopoTotal && (!unidadeSlugs || unidadeSlugs.length === 0)) {
+    const vinculos = await prisma.usuarioUnidade.findMany({
+      where: { usuarioId: usuario.id },
+      include: { unidade: true },
+    })
+    const nn = vinculos.map((v) => v.unidade.slug).filter(Boolean)
+    if (nn.length) unidadeSlugs = nn
+  }
+
   // 1ª unidade (compat com código que usa unidadeSlug singular)
   const unidadeSlug =
     escopoTotal ? null : (unidadeSlugs && unidadeSlugs[0]) || usuario.unidade?.slug || null
 
-  // Perfis travados sem nenhuma unidade não podem entrar (evita ver tudo por acidente)
+  // Perfis travados SEM nenhuma unidade (nem escopo, nem N:N) não podem entrar.
   if (!escopoTotal && (!unidadeSlugs || unidadeSlugs.length === 0)) {
     return NextResponse.json(
       { error: 'Usuário sem unidade vinculada. Contate o administrador.' },
