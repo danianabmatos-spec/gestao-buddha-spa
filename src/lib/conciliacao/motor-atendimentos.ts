@@ -229,6 +229,14 @@ function detectarProblema(a: AtendRow): Problema | null {
       descricao: `${quem} — sem lastro (nem pagamento, plano, voucher ou cortesia)` }
   }
   if (a.classificacao === 'CORTESIA' && !a.justificado) {
+    // Desconto de aniversário lançado no Belle como "promoção: Cortesia" de R$50:
+    // cliente faz aniversário no mês → traz a justificativa pronta (mas NÃO some da
+    // tela — a equipe confirma com 1 clique), igual ao ramo de DESCONTO.
+    if (a.aniversarioMes && Math.abs((a.covCortesia ?? 0) - VALOR_DESCONTO_ANIVERSARIO) < 0.01) {
+      return { tipo: TIPOS_PROBLEMA.CORTESIA, valor: a.covCortesia || 0,
+        descricao: `${quem} — desconto de aniversário (R$50)`,
+        sugestao: 'Desconto de aniversário: o cliente faz aniversário no mês do atendimento — desconto de R$50 válido.' }
+    }
     return { tipo: TIPOS_PROBLEMA.CORTESIA, valor: a.covCortesia || a.valorBruto || 0,
       descricao: `${quem} — cortesia sem justificativa da equipe` }
   }
