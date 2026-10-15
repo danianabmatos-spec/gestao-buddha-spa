@@ -4,6 +4,7 @@ import { getSession, unauthorized, resolveUnidade } from '@/lib/auth/guard'
 import { montarEstadoBola, escolherDoEstado, hojeBrasilia } from '@/lib/bola/dados'
 import { hhmmToMin } from '@/lib/bola/motor'
 import { montarAnuncioBola, enviarAnuncioGrupo } from '@/lib/bola/whatsapp'
+import { getTelefonesTerapeutasRH, normalizarNome } from '@/lib/rh/terapeutas-ativos'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,7 +87,15 @@ export async function POST(req: NextRequest) {
     duracaoMin: Number(duracaoMin),
     salaNome,
   })
-  const envio = await enviarAnuncioGrupo(unidade, mensagem)
+  // Telefone da terapeuta (RH, por nome) → @menção no grupo + alerta privado (DM) no
+  // celular dela. Best-effort: se não achar o número, cai no anúncio normal.
+  let telTerapeuta: string | null = null
+  try { telTerapeuta = (await getTelefonesTerapeutasRH())?.resolve(normalizarNome(terapeutaNome)) ?? null } catch { telTerapeuta = null }
+  const soPrimeiro = (n?: string | null) => (n ? n.trim().split(/\s+/)[0] : '')
+  const dmTexto = telTerapeuta
+    ? `🔔 ${soPrimeiro(terapeutaNome)}, é a sua vez na bola!\n${clienteNome ? soPrimeiro(clienteNome) + ' · ' : ''}${servicoNome} (${Number(duracaoMin)}min)${salaNome ? ' · Sala ' + salaNome : ''}\nPrepare a sala e chame o cliente 🌿`
+    : null
+  const envio = await enviarAnuncioGrupo(unidade, mensagem, 'agenda', { mencionarTelefone: telTerapeuta, dmTexto })
 
   return NextResponse.json({
     ok: true,

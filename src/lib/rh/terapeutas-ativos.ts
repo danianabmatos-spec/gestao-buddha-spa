@@ -96,6 +96,66 @@ export async function getNaoTerapeutasRH(): Promise<Set<string> | null> {
   }
 }
 
+// ─── Telefone (celular) de terapeuta ativo, do RH — p/ @menção e DM na bola ──────
+// Casa por nome (igual à categoria). Devolve o número em formato WhatsApp (dígitos,
+// com DDI 55). Fail-open: RH off → null (sem @menção/DM, só o anúncio normal).
+export interface TelefoneResolver {
+  resolve: (nomeNorm: string) => string | null // ex.: "5511953574971" ou null
+}
+let cacheTel: { at: number; resolver: TelefoneResolver } | null = null
+
+function paraWhatsapp(cel: string | null): string | null {
+  let d = String(cel || '').replace(/\D/g, '')
+  if (d.length < 10 || d.length > 13) return null // precisa DDD+número (10/11) ou já com 55
+  if (!d.startsWith('55')) d = '55' + d
+  if (d.length < 12 || d.length > 13) return null
+  return d
+}
+
+export async function getTelefonesTerapeutasRH(): Promise<TelefoneResolver | null> {
+  const agora = Date.now()
+  if (cacheTel && agora - cacheTel.at < TTL_MS) return cacheTel.resolver
+  const p = getPool()
+  if (!p) return null
+  try {
+    const { rows } = await p.query<{ nome: string; celular: string | null }>(
+      `SELECT c.nome, c.celular
+         FROM colaboradores c
+        WHERE c.ativo = true AND c.celular IS NOT NULL AND c.celular <> ''`,
+    )
+    const exato = new Map<string, string>()
+    const lista: { norm: string; tokens: string[]; tel: string }[] = []
+    for (const r of rows) {
+      const tel = paraWhatsapp(r.celular)
+      if (!tel) continue
+      const norm = normalizarNome(r.nome)
+      if (!exato.has(norm)) exato.set(norm, tel)
+      lista.push({ norm, tokens: norm.split(' ').filter(Boolean), tel })
+    }
+    const resolver: TelefoneResolver = {
+      resolve(nomeNorm) {
+        const ex = exato.get(nomeNorm)
+        if (ex) return ex
+        const bt = nomeNorm.split(' ').filter(Boolean)
+        if (bt.length < 2) return null
+        const pont = lista
+          .map((e) => ({ e, s: bt.filter((b) => e.tokens.some((t) => tokenEquiv(b, t))).length, fn: e.tokens.length > 0 && tokenEquiv(bt[0], e.tokens[0]) }))
+          .filter((x) => x.fn && x.s >= 2 && x.s >= bt.length - 1)
+        if (!pont.length) return null
+        const max = Math.max(...pont.map((x) => x.s))
+        const top = pont.filter((x) => x.s === max)
+        const distintos = new Set(top.map((x) => x.e.tel))
+        return distintos.size === 1 ? top[0].e.tel : null
+      },
+    }
+    cacheTel = { at: agora, resolver }
+    return resolver
+  } catch (err) {
+    console.error('[rh] falha ao ler telefones dos terapeutas:', err instanceof Error ? err.message : err)
+    return cacheTel?.resolver ?? null
+  }
+}
+
 // Resolvedor de categoria (Bronze/Prata/Ouro/Diamante) por terapeuta ativo, do RH.
 // `resolve(nomeNormalizado)` casa EXATO e, se falhar, por SUBCONJUNTO único — o Belle
 // costuma trazer o nome mais curto que o RH (ex.: Belle "Lucilene Moraes" × RH "Lucilene

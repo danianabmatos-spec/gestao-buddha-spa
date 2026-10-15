@@ -47,7 +47,19 @@ function ativo(): boolean {
  * Envia o anúncio ao grupo da unidade. Enquanto a trava estiver desligada, apenas
  * loga (dry-run) e retorna enviado=false — nenhum dado sai para o WhatsApp.
  */
-export async function enviarAnuncioGrupo(unidadeSlug: string, mensagem: string, grupo: 'agenda' | 'pex' = 'agenda'): Promise<ResultadoEnvio> {
+export interface OpcoesAnuncio {
+  // Telefone (WhatsApp, só dígitos c/ DDI 55) da terapeuta → @menção no grupo + alerta DM.
+  mencionarTelefone?: string | null
+  // Texto do alerta privado (DM) pra terapeuta. Se ausente, não manda DM.
+  dmTexto?: string | null
+}
+
+export async function enviarAnuncioGrupo(
+  unidadeSlug: string,
+  mensagem: string,
+  grupo: 'agenda' | 'pex' = 'agenda',
+  opts?: OpcoesAnuncio,
+): Promise<ResultadoEnvio> {
   if (!ativo()) {
     console.log(`[bola][dry-run] WhatsApp ${unidadeSlug}/${grupo} (envio desligado):\n${mensagem}`)
     return { enviado: false, motivo: 'envio desligado (BOLA_WHATSAPP_ATIVO)', mensagem }
@@ -65,7 +77,11 @@ export async function enviarAnuncioGrupo(unidadeSlug: string, mensagem: string, 
     const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-bola-key': process.env.BOLA_WHATSAPP_KEY || '' },
-      body: JSON.stringify({ unidade: unidadeSlug, texto: mensagem, grupo }),
+      body: JSON.stringify({
+        unidade: unidadeSlug, texto: mensagem, grupo,
+        mencionarTelefone: opts?.mencionarTelefone || undefined,
+        dmTexto: opts?.dmTexto || undefined,
+      }),
       signal: AbortSignal.timeout(10_000),
     })
     if (!resp.ok) return { enviado: false, motivo: `servidor WhatsApp respondeu ${resp.status}`, mensagem }
