@@ -67,6 +67,15 @@ export default function NpsTratativas({ unidadeSlug }: { unidadeSlug: string | n
 
   useEffect(() => { carregar(unidadeSlug) }, [unidadeSlug, carregar])
 
+  // Aplica a tratativa salva LOCALMENTE (sem refazer a chamada ao Belle). Evita o
+  // recarregamento a cada tratativa — que é lento e dava erro ("não foi possível
+  // carregar") no ambiente da coordenação — e mantém a unidade e a posição na tela.
+  const aplicarTratativa = useCallback((chaveCaso: string, t: Tratativa) => {
+    setResp((prev) => prev?.nps
+      ? { ...prev, nps: { ...prev.nps, avaliacoes: prev.nps.avaliacoes.map((a) => (a.chaveCaso === chaveCaso ? { ...a, tratativa: t } : a)) } }
+      : prev)
+  }, [])
+
   const podeTratar = resp?.perfil === 'DONA' || resp?.perfil === 'COORDENACAO'
   const nps = resp?.nps
   const todos = useMemo(() => nps?.avaliacoes ?? [], [nps])
@@ -185,7 +194,7 @@ export default function NpsTratativas({ unidadeSlug }: { unidadeSlug: string | n
                               ? <p className="text-[13px] text-[#392617]/80 italic mb-1">“{a.comentario}”</p>
                               : <p className="text-[13px] text-[#392617]/40 italic mb-1">sem comentário</p>}
                             {pend ? (
-                              <BlocoTratativa unidadeSlug={resp.unidadeAtual.slug} podeTratar={!!podeTratar} onSalvo={() => carregar(slug)}
+                              <BlocoTratativa unidadeSlug={resp.unidadeAtual.slug} podeTratar={!!podeTratar} onSalvo={aplicarTratativa}
                                 caso={{ chaveCaso: a.chaveCaso, cliente: a.cliente, classificacao: a.classificacao, nota: a.nota, comentario: a.comentario }} />
                             ) : a.tratativa ? (
                               <div className="mt-1">
@@ -218,10 +227,11 @@ export default function NpsTratativas({ unidadeSlug }: { unidadeSlug: string | n
 
 // ─── Formulário de tratativa ────────────────────────────────────────────────────
 function BlocoTratativa({ unidadeSlug, podeTratar, onSalvo, caso }: {
-  unidadeSlug: string; podeTratar: boolean; onSalvo: () => void
+  unidadeSlug: string; podeTratar: boolean; onSalvo: (chaveCaso: string, tratativa: Tratativa) => void
   caso: { chaveCaso: string; cliente: string; classificacao: string; nota: number | null; comentario: string }
 }) {
   const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
   const [acao, setAcao] = useState('')
   const [tipo, setTipo] = useState('')
   const [cortesia, setCortesia] = useState<boolean | null>(null)
@@ -229,17 +239,31 @@ function BlocoTratativa({ unidadeSlug, podeTratar, onSalvo, caso }: {
 
   async function salvar() {
     if (!acao.trim()) return
-    setSalvando(true)
-    const r = await fetch('/api/rotinas/tratativa', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        unidade: unidadeSlug, origem: 'NPS', chaveCaso: caso.chaveCaso,
-        cliente: caso.cliente, classificacao: caso.classificacao, nota: caso.nota, comentario: caso.comentario,
-        acaoTomada: acao, tipoProblema: tipo || null, cortesiaConcedida: cortesia, clienteSatisfeito: satisf || null,
-      }),
-    })
-    setSalvando(false)
-    if (r.ok) onSalvo()
+    setSalvando(true); setErro(null)
+    try {
+      const r = await fetch('/api/rotinas/tratativa', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          unidade: unidadeSlug, origem: 'NPS', chaveCaso: caso.chaveCaso,
+          cliente: caso.cliente, classificacao: caso.classificacao, nota: caso.nota, comentario: caso.comentario,
+          acaoTomada: acao, tipoProblema: tipo || null, cortesiaConcedida: cortesia, clienteSatisfeito: satisf || null,
+        }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { setErro(j.error || 'Erro ao salvar a tratativa'); return }
+      const t = j.tratativa
+      // Atualiza a tela na hora, sem recarregar (não refaz a chamada ao Belle).
+      onSalvo(caso.chaveCaso, {
+        acaoTomada: t?.acaoTomada ?? acao,
+        tipoProblema: t?.tipoProblema ?? (tipo || null),
+        cortesiaConcedida: t?.cortesiaConcedida ?? cortesia,
+        clienteSatisfeito: t?.clienteSatisfeito ?? (satisf || null),
+        por: t?.tratadoPorNome ?? null,
+        em: t?.atualizadoEm ?? '',
+      })
+    } catch {
+      setErro('Falha de conexão ao salvar')
+    } finally { setSalvando(false) }
   }
 
   if (!podeTratar) {
@@ -272,7 +296,8 @@ function BlocoTratativa({ unidadeSlug, podeTratar, onSalvo, caso }: {
           </select>
         </label>
       </div>
-      <div className="flex justify-end">
+      <div className="flex justify-end items-center gap-2">
+        {erro && <span className="text-[11px] text-[#7E0000]">{erro}</span>}
         <button onClick={salvar} disabled={salvando || !acao.trim()}
           className="text-[11px] font-medium text-white bg-[#7E0000] hover:bg-[#5c0000] disabled:opacity-50 rounded-lg px-3 py-1.5 inline-flex items-center gap-1">
           {salvando ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Salvar tratativa
