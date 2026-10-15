@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { RefreshCw, ArrowLeft, Clock, Plus, X, Info, ChevronDown } from 'lucide-react'
+import { RefreshCw, ArrowLeft, Clock, Plus, X, Info, ChevronDown, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getUnidadeNome } from '@/lib/belle/unidades-config'
 
@@ -378,6 +378,7 @@ function LinhaAtendido({ a, onMudou, onCancelar }: {
   const [inicio, setInicio] = useState(a.inicioReal || a.horaEnvio || '')
   const [fim, setFim] = useState(a.terminaPrev || '')
   const [salvando, setSalvando] = useState(false)
+  const [finalizando, setFinalizando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
   async function salvar() {
@@ -391,6 +392,19 @@ function LinhaAtendido({ a, onMudou, onCancelar }: {
       if (r.ok) { setEditando(false); onMudou() }
       else setErro(j.error || 'Erro ao salvar o horário')
     } finally { setSalvando(false) }
+  }
+
+  async function finalizarAgora() {
+    setFinalizando(true); setErro(null)
+    try {
+      const r = await fetch('/api/bola/horario', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ atendimentoId: a.id, finalizarAgora: true }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (r.ok) onMudou()
+      else setErro(j.error || 'Erro ao finalizar')
+    } finally { setFinalizando(false) }
   }
 
   return (
@@ -408,9 +422,13 @@ function LinhaAtendido({ a, onMudou, onCancelar }: {
             </div>
           )}
         </div>
+        <button onClick={finalizarAgora} disabled={finalizando} title="Finaliza agora e libera a terapeuta pra bola"
+          className="text-xs font-semibold inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-white bg-[#425F1D] hover:bg-[#374f18] disabled:opacity-50 shrink-0">
+          <CheckCircle2 className="w-3.5 h-3.5" /> {finalizando ? '…' : 'Finalizar agora'}
+        </button>
         <button onClick={() => setEditando((v) => !v)}
           className="text-xs inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[#392617]/80 hover:bg-[#392617]/5 shrink-0">
-          <Clock className="w-3.5 h-3.5" /> {a.iniciado ? 'Editar horário' : 'Incluir horário'}
+          <Clock className="w-3.5 h-3.5" /> {a.iniciado ? 'Editar' : 'Horário'}
         </button>
         <button onClick={() => onCancelar(a.id)} title="Cancelar esta bola"
           className="text-xs inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[#7E0000] hover:bg-[#7E0000]/5 shrink-0">

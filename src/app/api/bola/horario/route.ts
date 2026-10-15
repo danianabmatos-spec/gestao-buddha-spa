@@ -15,26 +15,20 @@ function pad(hhmm: string): string {
   return `${h.padStart(2, '0')}:${m}`
 }
 
-// POST /api/bola/horario   { atendimentoId, inicio: "HH:MM", fim?: "HH:MM" }
-//   A recepção (ou a terapeuta) INCLUI/EDITA o horário real do atendimento da bola,
-//   inclusive retroativo. Serve pra quando a terapeuta esquece de marcar o início:
-//   sem isso ela fica "aguardando iniciar" pra sempre → OCUPADA → não recebe novas
-//   bolas. Com o horário (início + fim), a ocupação passa a refletir o real e, quando
-//   o término passa, ela volta pra bola. Fim vazio = início + duração do serviço.
+// POST /api/bola/horario
+//   { atendimentoId, inicio: "HH:MM", fim?: "HH:MM" }  → inclui/edita o horário real
+//   { atendimentoId, finalizarAgora: true }            → atalho: finaliza AGORA
+//   A recepção (ou a terapeuta) ajusta o horário do atendimento da bola, inclusive
+//   retroativo. Serve pra quando a terapeuta esquece de marcar o início: sem isso ela
+//   fica "aguardando iniciar" pra sempre → OCUPADA → não recebe novas bolas. Com o
+//   horário (ou o "finalizar agora"), a ocupação reflete o real e ela volta pra bola.
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return unauthorized()
 
-  const { atendimentoId, inicio, fim } = await req.json().catch(() => ({}))
+  const { atendimentoId, inicio, fim, finalizarAgora } = await req.json().catch(() => ({}))
   const id = Number(atendimentoId)
   if (!Number.isFinite(id)) return NextResponse.json({ error: 'Atendimento inválido.' }, { status: 400 })
-  if (typeof inicio !== 'string' || !HHMM.test(inicio)) {
-    return NextResponse.json({ error: 'Informe o horário de início (HH:MM).' }, { status: 400 })
-  }
-  const temFim = fim != null && String(fim) !== ''
-  if (temFim && !HHMM.test(String(fim))) {
-    return NextResponse.json({ error: 'Horário de fim inválido (HH:MM).' }, { status: 400 })
-  }
 
   const at = await prisma.bolaAtendimento.findUnique({ where: { id } })
   if (!at) return NextResponse.json({ error: 'Atendimento não encontrado.' }, { status: 404 })
@@ -51,17 +45,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Sem permissão para ajustar este atendimento.' }, { status: 403 })
   }
 
-  // Monta os datetimes no dia do atendimento. O servidor roda em America/Sao_Paulo,
-  // então "YYYY-MM-DDTHH:MM:00" (sem Z) é interpretado como horário local de São Paulo.
-  const iniciadoEm = new Date(`${at.data}T${pad(inicio)}:00`)
+  let iniciadoEm: Date
   let fimPrevistoEm: Date
-  if (temFim) {
-    fimPrevistoEm = new Date(`${at.data}T${pad(String(fim))}:00`)
-    if (fimPrevistoEm.getTime() <= iniciadoEm.getTime()) {
-      return NextResponse.json({ error: 'O fim deve ser depois do início.' }, { status: 400 })
-    }
+
+  // Atalho "finalizar agora": término = agora; se nunca iniciou, assume uma sessão de
+  // duração normal terminando agora (início = agora − duração). Libera a terapeuta já.
+  if (finalizarAgora) {
+    const agora = new Date()
+    iniciadoEm = at.iniciadoEm ?? new Date(agora.getTime() - (at.duracaoMin || 0) * 60_000)
+    fimPrevistoEm = agora
   } else {
-    fimPrevistoEm = new Date(iniciadoEm.getTime() + (at.duracaoMin || 0) * 60_000)
+    if (typeof inicio !== 'string' || !HHMM.test(inicio)) {
+      return NextResponse.json({ error: 'Informe o horário de início (HH:MM).' }, { status: 400 })
+    }
+    const temFim = fim != null && String(fim) !== ''
+    if (temFim && !HHMM.test(String(fim))) {
+      return NextResponse.json({ error: 'Horário de fim inválido (HH:MM).' }, { status: 400 })
+    }
+    // Datetimes no dia do atendimento. O servidor roda em America/Sao_Paulo, então
+    // "YYYY-MM-DDTHH:MM:00" (sem Z) é interpretado como horário local de São Paulo.
+    iniciadoEm = new Date(`${at.data}T${pad(inicio)}:00`)
+    if (temFim) {
+      fimPrevistoEm = new Date(`${at.data}T${pad(String(fim))}:00`)
+      if (fimPrevistoEm.getTime() <= iniciadoEm.getTime()) {
+        return NextResponse.json({ error: 'O fim deve ser depois do início.' }, { status: 400 })
+      }
+    } else {
+      fimPrevistoEm = new Date(iniciadoEm.getTime() + (at.duracaoMin || 0) * 60_000)
+    }
   }
 
   const upd = await prisma.bolaAtendimento.update({
