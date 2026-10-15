@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getUnidadeCredenciais, getUnidadesDisponiveis } from '@/lib/belle/unidades-config'
-import { getDetratoresNeutros } from '@/lib/belle/relatorio-nps'
+import { getDetratoresNeutros, chaveCasoNps } from '@/lib/belle/relatorio-nps'
 import { atualizarNpsPendentes, mesRefAtual } from '@/lib/rotinas/nps-pendentes'
 
 export const dynamic = 'force-dynamic'
@@ -33,7 +33,7 @@ async function run(req: NextRequest) {
     if (!cred || !unidade) { resultados.push({ slug, ok: false, erro: 'sem credencial/unidade' }); continue }
     try {
       const r = await getDetratoresNeutros(cred.email, cred.password, ini, fim, cred.estab)
-      const chaves = r.avaliacoes.map((a) => a.idAtendimento || `${a.cliente}|${a.data}`)
+      const chaves = r.avaliacoes.map((a) => chaveCasoNps(a))
       const pend = await atualizarNpsPendentes(unidade.id, mesRef, chaves)
       resultados.push({ slug, ok: true, pendentes: pend, total: chaves.length })
     } catch (e) {

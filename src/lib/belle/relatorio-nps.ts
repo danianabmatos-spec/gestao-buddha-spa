@@ -230,6 +230,16 @@ export interface ResumoDetratoresNeutros {
   avaliacoes: AvaliacaoNPS[] // só detratores + neutros
 }
 
+// Chave ESTÁVEL E ÚNICA de um caso de NPS (p/ casar com a tratativa). O "ID Atend."
+// do Belle (col 6) às vezes vem "0" (resposta sem atendimento vinculado) ou vazio —
+// e isso NÃO serve de chave: todas as respostas "0" colidiriam num único caso e UMA
+// tratativa apareceria em TODAS (bug real: Higienópolis out/2026, tratativa da Edna
+// espalhou p/ vários clientes). Nesses casos usamos cliente|data (único por resposta).
+export function chaveCasoNps(a: { idAtendimento?: string | null; cliente: string; data: string }): string {
+  const id = String(a.idAtendimento ?? '').trim()
+  return id && id !== '0' ? id : `${a.cliente}|${a.data}`
+}
+
 export async function getDetratoresNeutros(
   email: string,
   senha: string,

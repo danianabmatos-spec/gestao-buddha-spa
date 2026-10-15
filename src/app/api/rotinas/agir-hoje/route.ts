@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession, unauthorized, resolveUnidade, unidadesPermitidas } from '@/lib/auth/guard'
 import { getUnidadeCredenciais } from '@/lib/belle/unidades-config'
-import { getDetratoresNeutros, buscarRelatorioNPS } from '@/lib/belle/relatorio-nps'
+import { getDetratoresNeutros, buscarRelatorioNPS, chaveCasoNps } from '@/lib/belle/relatorio-nps'
 import { getAvaliacoesNaoCinco } from '@/lib/google/places-api'
 import { hojeISO } from '@/lib/rotinas/motor'
 
@@ -45,10 +45,10 @@ export async function GET(req: NextRequest) {
 
   const mesAtual = hoje.slice(0, 7)
 
-  // Casos de NPS (chave estável = id do atendimento).
+  // Casos de NPS (chave estável e ÚNICA — ID "0"/vazio cai pro cliente|data).
   const npsTotal = npsRes.status === 'fulfilled' ? npsRes.value.total : 0
   const npsCasos = npsRes.status === 'fulfilled'
-    ? npsRes.value.avaliacoes.map((a) => ({ ...a, chaveCaso: a.idAtendimento || `${a.cliente}|${a.data}` }))
+    ? npsRes.value.avaliacoes.map((a) => ({ ...a, chaveCaso: chaveCasoNps(a) }))
     : []
 
   // Casos do Google: só avaliações ≠5★ DESTE MÊS (Daniana não quer meses anteriores).
