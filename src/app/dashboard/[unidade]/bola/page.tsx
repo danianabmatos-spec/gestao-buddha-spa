@@ -105,6 +105,17 @@ export default function BolaPage() {
     if (r.ok) carregar()
   }, [unidadeSlug, carregar])
 
+  // Encerra TODAS as terapeutas de um turno de uma vez → a bola avança pro próximo turno.
+  const encerrarTurno = useCallback(async (turno: number, temProximo: boolean) => {
+    if (!confirm(`Encerrar o turno ${turno}? As terapeutas do turno ${turno} saem da fila${temProximo ? ' e o próximo turno entra na bola' : ''}.`)) return
+    const r = await fetch(`/api/bola/encerrar-turno?unidade=${unidadeSlug}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ turno }),
+    })
+    if (r.ok) carregar()
+    else { const j = await r.json().catch(() => ({})); setErro(j.error || 'Erro ao encerrar o turno') }
+  }, [unidadeSlug, carregar])
+
   // decide a próxima da vez para um cliente NÃO preferencial (usa serviço/duração/gênero do agendamento)
   const decidirCliente = useCallback(async (c: Cliente) => {
     const r = await fetch(`/api/bola/painel?unidade=${unidadeSlug}`, {
@@ -232,7 +243,17 @@ export default function BolaPage() {
             </div>
           )}
 
-          <h2 className="font-semibold mb-2">A fila{painel && painel.fila.length > 0 ? ` — Turno ${painel.turnoAtivo}` : ''}</h2>
+          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+            <h2 className="font-semibold">A fila{painel && painel.fila.length > 0 ? ` — Turno ${painel.turnoAtivo}` : ''}</h2>
+            {painel && painel.fila.length > 0 && (
+              <button onClick={() => encerrarTurno(painel.turnoAtivo, painel.aguardando.length > 0)}
+                className="text-xs font-semibold inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-white shrink-0"
+                style={{ background: MARSALA }}
+                title={painel.aguardando.length > 0 ? `Tira todas do turno ${painel.turnoAtivo} e abre o turno ${painel.turnoAtivo + 1}` : `Tira todas do turno ${painel.turnoAtivo} da fila`}>
+                Encerrar turno {painel.turnoAtivo}{painel.aguardando.length > 0 ? ` → abrir turno ${painel.turnoAtivo + 1}` : ''}
+              </button>
+            )}
+          </div>
           {painel && painel.fila.length === 0 && (
             <p className="text-sm text-muted-foreground">Ninguém na bola ainda — marque a chegada acima.</p>
           )}
@@ -264,7 +285,7 @@ export default function BolaPage() {
           {painel && painel.aguardando.length > 0 && (
             <div className="mt-4">
               <h3 className="text-sm font-semibold text-muted-foreground mb-1">Aguardando próximo turno</h3>
-              <p className="text-xs text-muted-foreground mb-2">Entram na bola quando o turno {painel.turnoAtivo} sair.</p>
+              <p className="text-xs text-muted-foreground mb-2">Entram na bola quando o turno {painel.turnoAtivo} sair. Acabou a manhã? Toque em <b>“Encerrar turno {painel.turnoAtivo}”</b> acima — só finalizar o atendimento não tira a terapeuta da fila.</p>
               <div className="flex flex-col gap-1.5">
                 {painel.aguardando.map((a) => (
                   <div key={a.cod} className="flex items-center gap-3 border rounded-lg px-3 py-2 opacity-70">
