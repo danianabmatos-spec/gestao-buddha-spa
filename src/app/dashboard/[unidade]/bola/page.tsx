@@ -356,31 +356,84 @@ export default function BolaPage() {
       {painel && painel.atendidos.length > 0 && (
         <div className="mt-6 border rounded-xl p-4">
           <h2 className="font-semibold mb-1" style={{ color: FLORA }}>Cliente atendido</h2>
-          <p className="text-xs text-muted-foreground mb-3">Bolas passadas hoje · <b>avisada</b> = hora que a terapeuta recebeu a bola; a <b>terapeuta marca o início</b> quando entra na sala.</p>
+          <p className="text-xs text-muted-foreground mb-3">Bolas passadas hoje · <b>avisada</b> = hora que a terapeuta recebeu a bola; a <b>terapeuta marca o início</b> ao entrar na sala. Se ela esquecer, a recepção pode <b>incluir/editar o horário</b> (até retroativo) — senão ela fica presa e não recebe novas bolas.</p>
           <div className="flex flex-col gap-1.5">
             {painel.atendidos.map((a) => (
-              <div key={a.id} className="flex items-center gap-3 border rounded-lg px-3 py-2">
-                <span className="text-xs tabular-nums w-14 shrink-0 text-muted-foreground" title="Hora em que a terapeuta foi avisada">avisada<br />{a.horaEnvio}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{a.cliente || '—'} <span className="text-muted-foreground font-normal">→ {a.terapeuta}</span></div>
-                  <div className="text-xs text-muted-foreground truncate">{a.servicoNome}{a.salaNome ? ` · ${a.salaNome}` : ''}</div>
-                  {a.iniciado ? (
-                    <div className="text-xs font-semibold mt-0.5" style={{ color: FLORA }}>
-                      ▶ iniciado {a.inicioReal} · termina ~{a.terminaPrev}
-                    </div>
-                  ) : (
-                    <div className="text-xs font-semibold mt-0.5 inline-flex items-center gap-1" style={{ color: '#8a5a0c' }}>
-                      <Clock className="w-3 h-3" /> aguardando a terapeuta iniciar
-                    </div>
-                  )}
-                </div>
-                <button onClick={() => cancelarBola(a.id)} title="Cancelar esta bola"
-                  className="text-xs inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[#7E0000] hover:bg-[#7E0000]/5 shrink-0">
-                  <X className="w-3.5 h-3.5" /> Cancelar
-                </button>
-              </div>
+              <LinhaAtendido key={a.id} a={a} onMudou={carregar} onCancelar={cancelarBola} />
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Linha do "Cliente atendido" (com editor de horário pela recepção) ───────────
+// Se a terapeuta esquece de marcar o início, a recepção inclui/edita aqui (até
+// retroativo). Isso destrava a terapeuta (ocupada → livre quando o término passa).
+function LinhaAtendido({ a, onMudou, onCancelar }: {
+  a: Atendido; onMudou: () => void; onCancelar: (id: number) => void
+}) {
+  const [editando, setEditando] = useState(false)
+  const [inicio, setInicio] = useState(a.inicioReal || a.horaEnvio || '')
+  const [fim, setFim] = useState(a.terminaPrev || '')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function salvar() {
+    setSalvando(true); setErro(null)
+    try {
+      const r = await fetch('/api/bola/horario', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ atendimentoId: a.id, inicio, fim: fim || undefined }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (r.ok) { setEditando(false); onMudou() }
+      else setErro(j.error || 'Erro ao salvar o horário')
+    } finally { setSalvando(false) }
+  }
+
+  return (
+    <div className="border rounded-lg px-3 py-2">
+      <div className="flex items-center gap-3">
+        <span className="text-xs tabular-nums w-14 shrink-0 text-muted-foreground" title="Hora em que a terapeuta foi avisada">avisada<br />{a.horaEnvio}</span>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium truncate">{a.cliente || '—'} <span className="text-muted-foreground font-normal">→ {a.terapeuta}</span></div>
+          <div className="text-xs text-muted-foreground truncate">{a.servicoNome}{a.salaNome ? ` · ${a.salaNome}` : ''}</div>
+          {a.iniciado ? (
+            <div className="text-xs font-semibold mt-0.5" style={{ color: FLORA }}>▶ iniciado {a.inicioReal} · termina ~{a.terminaPrev}</div>
+          ) : (
+            <div className="text-xs font-semibold mt-0.5 inline-flex items-center gap-1" style={{ color: '#8a5a0c' }}>
+              <Clock className="w-3 h-3" /> aguardando a terapeuta iniciar
+            </div>
+          )}
+        </div>
+        <button onClick={() => setEditando((v) => !v)}
+          className="text-xs inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[#392617]/80 hover:bg-[#392617]/5 shrink-0">
+          <Clock className="w-3.5 h-3.5" /> {a.iniciado ? 'Editar horário' : 'Incluir horário'}
+        </button>
+        <button onClick={() => onCancelar(a.id)} title="Cancelar esta bola"
+          className="text-xs inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[#7E0000] hover:bg-[#7E0000]/5 shrink-0">
+          <X className="w-3.5 h-3.5" /> Cancelar
+        </button>
+      </div>
+      {editando && (
+        <div className="mt-2 pt-2 border-t flex flex-wrap items-end gap-3">
+          <label className="text-[11px] text-muted-foreground">Início
+            <input type="time" value={inicio} onChange={(e) => setInicio(e.target.value)}
+              className="block mt-0.5 border rounded px-2 py-1 text-sm" />
+          </label>
+          <label className="text-[11px] text-muted-foreground">Fim <span className="opacity-60">(opcional)</span>
+            <input type="time" value={fim} onChange={(e) => setFim(e.target.value)}
+              className="block mt-0.5 border rounded px-2 py-1 text-sm" />
+          </label>
+          <span className="text-[11px] text-muted-foreground mb-1.5">vazio = início + {a.duracaoMin}min</span>
+          <button onClick={salvar} disabled={salvando || !inicio}
+            className="text-xs font-semibold text-white bg-[#425F1D] hover:bg-[#374f18] disabled:opacity-50 rounded-lg px-3 py-1.5">
+            {salvando ? 'Salvando…' : 'Salvar horário'}
+          </button>
+          <button onClick={() => { setEditando(false); setErro(null) }} className="text-xs text-muted-foreground px-2 py-1.5">Cancelar</button>
+          {erro && <span className="text-[11px] text-[#7E0000] w-full">{erro}</span>}
         </div>
       )}
     </div>
