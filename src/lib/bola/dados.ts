@@ -205,10 +205,12 @@ export async function montarEstadoBola(
   for (const [id, cod] of idParaCod) codParaId[cod] = id
 
   // Terapeutas aguardando o próximo turno (turno > ativo) — ainda não entram na bola.
+  // Ordem = TURNO e, dentro do turno, ordem de CHEGADA (a que a recepção definiu) —
+  // NUNCA alfabética. Ao virar o turno, elas entram na bola nessa mesma ordem.
   const aguardando = filaAll
     .filter((f) => f.turno > turnoAtivo)
+    .sort((a, b) => a.turno - b.turno || a.chegadaMin - b.chegadaMin)
     .map((f) => ({ cod: f.terapeutaId, terapeutaId: codParaId[f.terapeutaId] ?? null, nome: porCod[f.terapeutaId]?.nome ?? f.terapeutaId, turno: f.turno, chegada: minToHHMM(f.chegadaMin) }))
-    .sort((a, b) => a.turno - b.turno || a.nome.localeCompare(b.nome))
 
   // Terapeutas que a recepção pode "marcar chegada": cadastradas e ainda NÃO em check-in ATIVO.
   // Escaladas (turno hoje) primeiro — só dica visual; a recepção decide quem entra.

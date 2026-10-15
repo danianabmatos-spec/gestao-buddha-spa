@@ -62,11 +62,11 @@ export async function POST(req: NextRequest) {
     if (temFim && !HHMM.test(String(fim))) {
       return NextResponse.json({ error: 'Horário de fim inválido (HH:MM).' }, { status: 400 })
     }
-    // Datetimes no dia do atendimento. O servidor roda em America/Sao_Paulo, então
-    // "YYYY-MM-DDTHH:MM:00" (sem Z) é interpretado como horário local de São Paulo.
-    iniciadoEm = new Date(`${at.data}T${pad(inicio)}:00`)
+    // Datetimes no dia do atendimento com offset EXPLÍCITO de São Paulo (UTC-3 fixo,
+    // sem horário de verão desde 2019) — não depende do TZ do processo Node.
+    iniciadoEm = new Date(`${at.data}T${pad(inicio)}:00-03:00`)
     if (temFim) {
-      fimPrevistoEm = new Date(`${at.data}T${pad(String(fim))}:00`)
+      fimPrevistoEm = new Date(`${at.data}T${pad(String(fim))}:00-03:00`)
       if (fimPrevistoEm.getTime() <= iniciadoEm.getTime()) {
         return NextResponse.json({ error: 'O fim deve ser depois do início.' }, { status: 400 })
       }
