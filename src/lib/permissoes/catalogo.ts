@@ -44,7 +44,7 @@ export const FUNCIONALIDADES: Funcionalidade[] = [
 
   // ── Financeiro (migrado do app de Estoque) ──
   { chave: 'plano-contas', label: 'Plano de Contas', grupo: 'Financeiro', rotas: ['/plano-contas', '/api/plano-contas'], padrao: p(N, N, V, N, N) },
-  { chave: 'entradas', label: 'Entradas a Classificar', grupo: 'Financeiro', rotas: ['/entradas', '/api/financeiro/entradas', '/api/financeiro/classificar'], padrao: p(N, N, E, N, N) },
+  { chave: 'entradas', label: 'Entradas a Classificar', grupo: 'Financeiro', rotas: ['/entradas', '/api/financeiro/entradas', '/api/financeiro/classificar', '/api/financeiro/itau'], padrao: p(N, N, E, N, N) },
   { chave: 'contas-pagar', label: 'Contas a Pagar', grupo: 'Financeiro', rotas: ['/contas-a-pagar', '/api/financeiro/titulos'], padrao: p(N, N, E, N, N) },
   { chave: 'reembolso', label: 'Reembolso Vouchers', grupo: 'Financeiro', rotas: ['/reembolso', '/api/reembolso'], padrao: p(N, N, E, N, N) },
   { chave: 'parcerias', label: 'Reembolso de Parcerias', grupo: 'Financeiro', rotas: ['/parcerias', '/api/financeiro/parcerias'], padrao: p(N, N, V, N, N) },
