@@ -79,6 +79,24 @@ export async function POST(req: NextRequest) {
     },
   })
 
+  // Outros atendimentos do MESMO cliente hoje (agenda do Belle), ainda NÃO passados
+  // pela bola → avisa o grupo que esse cliente terá mais atendimentos na sequência
+  // (cada um será passado pela bola, não necessariamente com a mesma terapeuta).
+  let outrosAtendimentos: { servicoNome: string; duracaoMin: number }[] = []
+  if (clienteNome) {
+    const jaPassados = new Set(
+      (await prisma.bolaAtendimento.findMany({ where: { unidadeSlug: unidade, data: hojeBrasilia() }, select: { belleAgendaId: true } }))
+        .map((x) => String(x.belleAgendaId)).filter((x) => x && x !== 'null'),
+    )
+    const nc = normalizarNome(clienteNome)
+    outrosAtendimentos = base.clientes
+      .filter((c) => normalizarNome(c.cliente) === nc
+        && String(c.codConsulta) !== String(codConsulta)
+        && !jaPassados.has(String(c.codConsulta)))
+      .sort((a, b) => a.hora.localeCompare(b.hora))
+      .map((c) => ({ servicoNome: c.servicoNome, duracaoMin: c.duracaoMin }))
+  }
+
   // anúncio no grupo (dry-run enquanto a trava estiver desligada)
   const mensagem = montarAnuncioBola({
     terapeutaNome,
@@ -86,6 +104,7 @@ export async function POST(req: NextRequest) {
     servicoNome,
     duracaoMin: Number(duracaoMin),
     salaNome,
+    outrosAtendimentos,
   })
   // Telefone da terapeuta (RH, por nome) → @menção no grupo + alerta privado (DM) no
   // celular dela. Best-effort: se não achar o número, cai no anúncio normal.

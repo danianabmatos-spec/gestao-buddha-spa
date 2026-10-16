@@ -10,6 +10,8 @@ export interface AnuncioBola {
   servicoNome: string
   duracaoMin: number
   salaNome?: string | null
+  // Outros atendimentos do MESMO cliente hoje, ainda na fila (a bola decide a terapeuta).
+  outrosAtendimentos?: { servicoNome: string; duracaoMin: number }[]
 }
 
 /** Só o primeiro nome do cliente (privacidade no grupo). */
@@ -21,7 +23,15 @@ export function montarAnuncioBola(a: AnuncioBola): string {
   if (a.clienteNome) partes.push(primeiroNome(a.clienteNome))
   partes.push(`${a.servicoNome} (${a.duracaoMin}min)`)
   if (a.salaNome) partes.push(`Sala ${a.salaNome}`)
-  return `🔔 Próximo atendimento\n${partes.join(' → ')}`
+  let msg = `🔔 Próximo atendimento\n${partes.join(' → ')}`
+  // Cliente com mais atendimentos no dia → avisa o grupo (a bola definirá quem atende).
+  if (a.outrosAtendimentos?.length) {
+    const cli = a.clienteNome ? primeiroNome(a.clienteNome) : 'Esse cliente'
+    const n = a.outrosAtendimentos.length
+    const lista = a.outrosAtendimentos.map((o) => `• ${o.servicoNome} (${o.duracaoMin}min)`).join('\n')
+    msg += `\n\n📋 ${cli} tem +${n} atendimento${n > 1 ? 's' : ''} na sequência hoje (a bola passa cada um):\n${lista}`
+  }
+  return msg
 }
 
 /** Mensagem de CANCELAMENTO de uma bola já anunciada. */
