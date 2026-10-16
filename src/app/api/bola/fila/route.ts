@@ -32,12 +32,23 @@ export async function POST(req: NextRequest) {
   const { unidade, terapeuta, body } = r
   const turno = body?.turno === 2 || body?.turno === '2' ? 2 : 1
   const data = hojeBrasilia()
+
+  const existente = await prisma.bolaCheckin.findUnique({
+    where: { unidadeSlug_terapeutaId_data: { unidadeSlug: unidade, terapeutaId: terapeuta.id, data } },
+  })
+  // Regra de CONTINUIDADE: terapeuta que fez um turno ANTERIOR e agora entra num turno
+  // MAIOR (ex.: pegou o 2º turno depois da manhã) vai como PRIMEIRA da bola — mantém a
+  // chegada original (mais cedo que quem chegou só à tarde). Re-entrada no MESMO turno
+  // volta pro fim da fila (chegada = agora).
+  const continuacao = !!existente && existente.turno < turno
+  const chegadaEm = continuacao ? existente!.chegadaEm : new Date()
+
   await prisma.bolaCheckin.upsert({
     where: { unidadeSlug_terapeutaId_data: { unidadeSlug: unidade, terapeutaId: terapeuta.id, data } },
-    update: { status: 'ATIVO', chegadaEm: new Date(), turno }, // re-add = volta pro fim da fila
+    update: { status: 'ATIVO', chegadaEm, turno },
     create: { unidadeSlug: unidade, terapeutaId: terapeuta.id, data, turno },
   })
-  return NextResponse.json({ ok: true, nome: terapeuta.nome })
+  return NextResponse.json({ ok: true, nome: terapeuta.nome, continuacao })
 }
 
 // DELETE /api/bola/fila?unidade=slug  { terapeutaId }

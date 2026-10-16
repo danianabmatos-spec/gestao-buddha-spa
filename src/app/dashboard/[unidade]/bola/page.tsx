@@ -230,6 +230,9 @@ export default function BolaPage() {
                   </button>
                 ))}
               </div>
+              {turnoSel === 2 && (
+                <p className="text-[11px] text-muted-foreground mb-2">Quem fez o turno 1 e emenda o turno 2 entra como <b>1ª da bola</b> (mantém a ordem de quem está desde cedo).</p>
+              )}
               <div className="flex flex-wrap gap-1.5">
                 {painel.disponiveis.map((d) => (
                   <button key={d.cod} onClick={() => marcarChegada(d.terapeutaId)}
